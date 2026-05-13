@@ -1,0 +1,7 @@
+The MVP is a free, local-only mobile app for contractors to document job-site work using photos, voice notes, captions, tags, and PDF reports.
+
+Contractors can create a job folder, add client and project details, take photos directly in the app, record voice notes linked to each photo or job, and organize entries with timestamps and simple tags such as “before,” “during,” “after,” “issue,” or “completed.” The app is designed for quick field use, especially when contractors need to capture progress, problems, change-order evidence, or completed work while on site.
+
+All data is stored locally on the user’s device. There is no login, no backend, no cloud sync, and no account required in the MVP. This keeps the app simple, private, fast, and free to use. Users can export selected photos, captions, notes, and voice-note details into a zip archive that can be shared by email, text, AirDrop, WhatsApp, or other native sharing options.
+
+The MVP’s main purpose is to help contractors create clear job records without paperwork, cloud setup, or complicated software. Future paid features may include cloud backup, cross-device sync, team sharing, automatic transcription, branded reports, AI summaries, and a web dashboard.
