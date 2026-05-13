@@ -1,0 +1,69 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors / IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+
+# ---------------------------------------------------------------------------
+# Flutter / Dart (app/)
+# ---------------------------------------------------------------------------
+app/.dart_tool/
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+app/.packages
+app/.pub-cache/
+app/.pub/
+app/build/
+app/.gradle/
+app/.idea/
+
+app/android/.gradle/
+app/android/captures/
+app/android/local.properties
+app/android/**/GeneratedPluginRegistrant.java
+app/android/key.properties
+app/android/**/*.keystore
+app/android/**/*.jks
+app/android/app/release/
+
+app/ios/Pods/
+app/ios/.symlinks/
+app/ios/Flutter/Flutter.framework
+app/ios/Flutter/Flutter.podspec
+app/ios/Flutter/Generated.xcconfig
+app/ios/Flutter/ephemeral/
+app/ios/Flutter/app.flx
+app/ios/Flutter/app.zip
+app/ios/Flutter/flutter_assets/
+app/ios/Flutter/flutter_export_environment.sh
+app/ios/ServiceDefinitions.json
+app/ios/Runner/GeneratedPluginRegistrant.*
+app/ios/Runner.xcworkspace/xcuserdata/
+app/ios/Runner.xcodeproj/xcuserdata/
+app/ios/Runner.xcodeproj/project.xcworkspace/xcuserdata/
+
+# Coverage
+app/coverage/
+
+# ---------------------------------------------------------------------------
+# Services (placeholder; each service will add its own rules under its folder)
+# ---------------------------------------------------------------------------
+services/**/node_modules/
+services/**/dist/
+services/**/build/
+services/**/.venv/
+services/**/__pycache__/
+services/**/*.pyc
