@@ -1,4 +1,4 @@
-# SiteLog — Mobile App
+# Job Site Records (jobsiterecords.com) — Mobile App
 
 Flutter app for Android and iOS. Local-only MVP. See repo root [`README.md`](../README.md) and [`docs/high-level-design.md`](../docs/high-level-design.md) for the full design.
 
@@ -55,7 +55,7 @@ flutter build apk --debug
 adb install -r build/app/outputs/flutter-apk/app-debug.apk
 ```
 
-The app appears in your launcher as **SiteLog**.
+The app appears in your launcher as **Job Site Records**.
 
 ### Build a release APK
 
@@ -106,8 +106,8 @@ flutter test
 
 Everything is in the app's private storage:
 
-- SQLite DB: `<app docs>/sitelog.db`
+- SQLite DB: `<app docs>/jobsiterecords.db`
 - Photos / voice notes: `<app docs>/media/<job_id>/<item_id>/`
-- Exports: `<app cache>/exports/SiteLog_<JobName>_<date>.zip`
+- Exports: `<app cache>/exports/JobSiteRecords_<JobName>_<date>.zip`
 
 Uninstalling the app deletes everything. There is no cloud copy — that's the MVP promise.

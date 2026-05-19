@@ -18,18 +18,18 @@ Future<void> main() async {
         databaseProvider.overrideWithValue(db),
         mediaStorageProvider.overrideWithValue(storage),
       ],
-      child: const SiteLogApp(),
+      child: const JobSiteRecordsApp(),
     ),
   );
 }
 
-class SiteLogApp extends StatelessWidget {
-  const SiteLogApp({super.key});
+class JobSiteRecordsApp extends StatelessWidget {
+  const JobSiteRecordsApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: 'SiteLog',
+      title: 'Job Site Records',
       debugShowCheckedModeBanner: false,
       theme: buildLightTheme(),
       routerConfig: appRouter,

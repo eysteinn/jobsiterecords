@@ -1,0 +1,41 @@
+---
+description: Keep docs/high-level-design.md in sync after significant code changes
+alwaysApply: true
+---
+
+# Sync high-level design doc
+
+After any **significant code change**, update `docs/high-level-design.md` in the **same task** so it reflects the current system. Do not treat the doc as optional follow-up.
+
+## What counts as significant
+
+Update the doc when the change affects any of:
+
+- Product scope, phasing, or milestones
+- Architecture, data model, storage, sync, or export behavior
+- New or removed features, screens, flows, or APIs
+- Landing site structure, SEO pages, or waitlist/backend behavior
+- Platform, dependencies, or deployment topology
+- Security, privacy, or offline/online behavior
+- Implementation status vs the documented target (gaps closed or new gaps)
+
+Skip doc updates for trivial edits only (typos, formatting, renames with no behavior change, comment-only changes).
+
+## What to update
+
+1. **Implementation status** — Refresh the table under “Implementation status” and milestone notes so status labels (`implemented`, `partial`, `not started`) match the repo.
+2. **Relevant sections** — Edit the sections that describe what changed (architecture, features, phasing, landing, etc.). Remove or correct statements that are no longer true.
+3. **Cross-references** — If section numbers or anchors shift, fix internal links.
+
+Keep edits **minimal and accurate**: change only what the code change invalidated; do not rewrite unrelated chapters.
+
+## Workflow
+
+When finishing a significant change:
+
+1. Re-read the affected parts of `docs/high-level-design.md`.
+2. Compare doc claims to the code you just changed.
+3. Patch the doc in the same PR/commit series as the code (or call out required doc updates if the user asked for code only).
+4. In your summary to the user, briefly note what you updated in the design doc (or state that no doc change was needed and why).
+
+If unsure whether a change is significant, **update the doc** — stale design docs are worse than a small extra edit.

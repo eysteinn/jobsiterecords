@@ -11,7 +11,7 @@
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
 
     <application
-        android:label="SiteLog"
+        android:label="Job Site Records"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:requestLegacyExternalStorage="true">

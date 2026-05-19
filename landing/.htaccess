@@ -1,0 +1,32 @@
+# Job Site Records (jobsiterecords.com) — Apache hardening.
+# If your host uses nginx, you'll need the equivalent location blocks there.
+
+DirectoryIndex index.php index.html
+
+# sitemap.xml is a static file in htdocs (regenerate via generate-sitemap.php).
+# Optional: keep dynamic sitemap.php in sync at /sitemap.php
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^sitemap\.xml$ sitemap.php [L]
+</IfModule>
+
+# Don't list the directory if index.php is missing.
+Options -Indexes
+
+# Block direct download of database / backup / dotfiles, just in case
+# someone misconfigures the DB path and drops the SQLite file in here.
+<FilesMatch "\.(sqlite|sqlite3|db|db-journal|sql|bak|swp|log|ini|env)$">
+    Require all denied
+</FilesMatch>
+
+# Block dotfiles (.htaccess, .git, .env, etc).
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
+# Basic security headers. Keep these mild — the page is plain HTML + a form.
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+    Header set X-Frame-Options "SAMEORIGIN"
+</IfModule>

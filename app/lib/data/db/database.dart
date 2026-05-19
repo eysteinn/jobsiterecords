@@ -13,7 +13,7 @@ class AppDatabase {
 
   static Future<AppDatabase> open() async {
     final dir = await getApplicationDocumentsDirectory();
-    final path = p.join(dir.path, 'sitelog.db');
+    final path = p.join(dir.path, 'jobsiterecords.db');
     final db = await openDatabase(
       path,
       version: 1,

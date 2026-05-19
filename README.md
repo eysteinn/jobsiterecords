@@ -1,4 +1,4 @@
-# SiteLog
+# Job Site Records (jobsiterecords.com)
 
 > Local-first field notes for contractors. Photos, voice notes, captions, tags. **Free. Local. Private.**
 
@@ -9,6 +9,7 @@ This repository is a **monorepo**. No code lives at the root — only top-level 
 | Folder | What lives here | Status |
 | --- | --- | --- |
 | [`app/`](app/) | Flutter mobile app (Android + iOS) — the MVP | Active |
+| [`landing/`](landing/) | Early-access site for jobsiterecords.com (PHP + SQLite waitlist) | Active |
 | [`services/`](services/) | Backend services (API, sync, auth, transcription, PDF) | Placeholder — built when the paid tier is greenlit |
 | [`docs/`](docs/) | Design docs, MVP brief, UI mockups | Active |
 
@@ -17,7 +18,6 @@ Future top-level folders (added only when justified by actual work):
 | Folder | What it will hold |
 | --- | --- |
 | `web/` | Web dashboard for the paid tier |
-| `landing/` | Static one-page marketing site + waitlist |
 | `shared/` | Cross-language contracts (e.g. JSON Schema for the `job.json` export) |
 | `infra/` | Infrastructure-as-code, once there's anything to deploy |
 | `tools/` | One-off scripts, codegen, CI helpers |
