@@ -18,7 +18,7 @@ The repo matches the **Phase 1** architecture in broad strokes. Use this table w
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| Flutter app (`app/`) | **Mostly built** | v0.1.0+1; jobs CRUD, capture (photo/voice/note), timeline, item detail, zip export, settings. Gaps: file import, expanded default tags ([§6.10](#610-implementation-gaps-vs-target-phase-1)). |
+| Flutter app (`app/`) | **Mostly built** | v0.1.0+1; jobs CRUD, capture (photo/voice/note), timeline, item detail, zip export, settings. Voice notes are audio + optional caption/tags; for spoken text users add a **text note** (keyboard dictation on Android/iOS). Automatic transcription is **Phase 2** (server). Gaps: file import, expanded default tags ([§6.10](#610-implementation-gaps-vs-target-phase-1)). |
 | Landing (`landing/`) | **Active** | PHP + SQLite waitlist on jobsiterecords.com, plus SEO guides, use cases, trades, answers, and examples — not a single static page ([§14.4](#144-the-landing-site)). |
 | Backend (`services/`) | **Placeholder** | README only; no deployable services yet. |
 | Web dashboard (`web/`) | **Not started** | Phase 2. |
@@ -68,7 +68,7 @@ The **MVP** is the **whole v1 product**: **(1)** the **mobile app** (with a perm
 - **No PDF generation in the app.** PDF reports ship with the Phase 2 web dashboard.
 - No cloud sync, no accounts, no multi-device (in Phase 1).
 - No team collaboration / sharing inside the app (in Phase 1).
-- No AI features (transcription, summarization) in Phase 1.
+- No **cloud** AI (server transcription, summarization) in Phase 1. **Automatic** on-device voice-to-text is also **out of scope for Phase 1** — Android's system `SpeechRecognizer` holds the mic exclusively (it can't run alongside `MediaRecorder`), file-based recognition is unreliable across OEMs, and playback-into-mic workarounds make the device beep / dim media volume in ways field users will not tolerate. Users who want spoken words as text add a **text note** (OS keyboard dictation) alongside or instead of a voice clip.
 - No web app in Phase 1.
 - No in-app analytics SDKs or third-party tracking in the Phase 1 app (see [§8.2](#82-privacy--security) for what we do and don't collect).
 
@@ -190,9 +190,10 @@ Aligned with Phase 1 mobile scope ([§13](#13-phasing--milestones)). “Must-hav
 
 - **Framework:** Flutter (Dart 3.9+) — single codebase for Android and iOS. Flutter SDK ≥ 3.41.
 - **Min OS:** iOS 14+, Android 8.0+ (API 26). Android target SDK 34.
-- **Local storage:** `sqflite` for metadata (schema version **1**; no `drift` wrapper yet); `path_provider` documents directory for media.
+- **Local storage:** `sqflite` for metadata (schema version **1** — `items` has no transcript column); `path_provider` documents directory for media.
 - **Camera:** `camera` for live capture; `image_picker` for gallery import on the photo review flow.
 - **Audio:** `record` (v5.1.2) for capture, `just_audio` for playback. No dedicated waveform package yet — voice UI uses elapsed time + play/pause slider.
+- **Voice transcription:** **not on the phone.** Voice items are audio + caption/tags only. Phase 2 adds optional **dashboard/cloud** STT after sync — no native hooks and no `transcript` column in the local `items` table ([§17.7](#177-voice-transcription-as-readable-notes-phase-2)).
 - **Zip export:** `archive` (pure Dart).
 - **Sharing / links:** `share_plus` for exports and single-item share; `url_launcher` for waitlist, feedback `mailto:`, and privacy policy URLs in Settings.
 - **State management:** **Riverpod** (`flutter_riverpod`).
@@ -272,7 +273,7 @@ Screen specs derived from the mockups in `/docs`.
 - Big record / pause / stop control. Cancel and save (check) actions.
 - Optional caption field below.
 - A voice note can be attached to a photo, or stand on its own.
-- **Phase 2:** after upload/processing, the recording is **transcribed to readable text** (shown as a note-style block the user can skim and correct); see [§17.7](#177-voice-transcription-as-readable-notes-phase-2). **Phase 1:** audio capture and playback only — no transcription.
+- **Implemented (Phase 1):** record audio, optional caption and tags; item detail shows **player**, caption, and metadata. No transcript on device — use a **text note** for dictated/written text. Phase 2 transcription is **dashboard-only** ([§17.7](#177-voice-transcription-as-readable-notes-phase-2)).
 
 ### 6.6 Capture (Text Note)
 - Plain multi-line note, optional caption, tags.
@@ -289,7 +290,7 @@ Screen specs derived from the mockups in `/docs`.
 - For photos: pinch-zoom, swipe between items in the same job.
 - For files: show name, mime type, size; open via OS “Open with…” when user taps (no built-in PDF viewer required in Phase 1).
 - Below: timestamp, caption, tag chips, optional voice note player, free-text note.
-- **Phase 2:** for voice items, show the **transcript** as readable text (same screen as the player) so users can read what was said at a glance; transcript is editable when the engine gets jargon wrong.
+- **Voice items (*implemented*):** audio player, caption, tags. Transcription deferred to Phase 2 **web dashboard** ([§17.7](#177-voice-transcription-as-readable-notes-phase-2)). Photos/notes/files unchanged.
 - Actions: Share (single item), Add to Export, Edit, Delete.
 
 ### 6.8 Export (Share Job)
@@ -329,6 +330,7 @@ Screens in §6.1–6.9 are the **design target**. The shipped app (`app/lib/feat
 | Photo capture | Zoom presets | Flash toggle + camera swap + gallery import |
 | Item detail | Pinch-zoom; swipe between items in job | Single item view; share / edit / delete |
 | Item detail | Waveform for audio | Play/pause + seek slider (`just_audio`) |
+| Item detail | Voice transcript below player | **Out of scope** — Phase 2 transcription is dashboard/cloud only; use text notes on device |
 | Export | 2-step sheet | Full-screen route: options + checklist on one page |
 | Settings | Export all data; default export prefs; terms | Storage used, clear all, inline tag add/delete (no rename/reorder), waitlist → `https://jobsiterecords.com/`, `mailto:feedback@jobsiterecords.com`, privacy URL |
 | Permissions | In-app rationale before OS dialog | OS dialog on first camera/mic use |
@@ -361,7 +363,6 @@ Item                (a single timeline entry)
   kind              (photo | voice | note | file)
   caption?
   body?             (text note content)
-  transcript?       (Phase 2 only — **not in schema v1**; add via migration when transcription ships)
   captured_at       (defaults to created_at; user can edit)
   created_at
   updated_at
@@ -394,8 +395,6 @@ Tag
 
 > No `Report` table in **Phase 1**. Exports are built on demand and handed off to the OS share sheet; the app does not persist a list of past exports. This row reappears in the schema when the paid web dashboard ships and starts generating PDFs.
 
-> **`transcript`:** unused in Phase 1 (column omitted or NULL). In Phase 2, voice-linked items store the **transcribed text** so the UI and exports can show spoken content as **easy-to-read notes** alongside audio ([§17.7](#177-voice-transcription-as-readable-notes-phase-2)).
-
 ### Default tag set (seeded on first launch)
 
 **Progress / status:** `Before`, `During`, `After`, `Completed`
@@ -418,8 +417,8 @@ Each seeded tag gets a default **color** hex in `tags.color` (UI uses chip styli
 ```
 
 ### Schema versioning
-- **Current:** `AppDatabase` at schema **version 1** — `onCreate` only; no `onUpgrade` migrations yet.
-- **Future:** numbered migration steps for Phase 2 columns (`transcript`, optional `deleted_at`, etc.).
+- **Current:** `AppDatabase` at schema **version 1**. The local `items` table does **not** include a `transcript` column (and never will for Phase 1).
+- **Future (Phase 2 sync):** optional local columns only if sync requires them (e.g. `deleted_at`, remote ids). **Transcription text lives in the cloud** (dashboard / `services/transcribe/`), not as a field we pre-wire on the device.
 - Each row carries `created_at`/`updated_at` so the future cloud-sync feature can layer a sync engine on top without changing the model.
 
 ---
@@ -607,7 +606,7 @@ services/
 ├── api/                 Public REST/GraphQL API for the web dashboard and synced clients
 ├── sync/                Sync engine (likely event-sourced; ingests `job.json`-shaped payloads)
 ├── auth/                Auth + subscription / billing webhook handler (RevenueCat or direct)
-├── transcribe/          Speech-to-text worker → transcript text on items (queued, async)
+├── transcribe/          Speech-to-text worker → cloud transcript rows (dashboard; not local `items` columns)
 └── pdf/                 Server-side PDF report renderer (templates + branding)
 ```
 
@@ -636,7 +635,7 @@ What Phase 2 adds (out of scope for **Phase 1**, but mapped here and detailed in
 - Auth + **team subscription** billing (store subscriptions, optional RevenueCat or direct Apple/Google + server webhook).
 - Sync engine (most likely Supabase or a small custom service over Postgres + object storage).
 - Web dashboard (same logical model as the app; PDFs and reporting live here).
-- Voice-note transcription → **readable text notes** on items (server-side, batch; see [§17.7](#177-voice-transcription-as-readable-notes-phase-2)).
+- Voice-note transcription on the **web dashboard** (server-side, batch; cloud storage only — see [§17.7](#177-voice-transcription-as-readable-notes-phase-2)).
 - Branded PDF (logo, colors, header/footer, custom templates).
 - **Team workspaces** — shared jobs and notes across members on one plan.
 
@@ -823,9 +822,8 @@ Phase 2 **extends** the monorepo: `services/*`, `web/`, and app changes for sign
 
 To avoid scope creep in the **first** cloud release: real-time co-editing presence, comments threads on items, arbitrary external sharing links with ACLs, enterprise SSO, and multi-region data residency can wait until **Phase 2+** unless a customer pulls us there.
 
-### 17.7 Voice transcription as readable notes (Phase 2)
+### 17.7 Voice transcription as readable notes
 
-- **Goal:** contractors (and teammates/clients on the dashboard) can **read** what was said on a job without scrubbing through audio. Sound recordings are **transcribed into text** that behaves like a first-class **note**: visible in the timeline preview, on item detail **below or beside** the player, and in **exports / PDFs** where we include narrative content.
-- **Generation:** server-side batch job after audio is available to the workspace (queued worker; language/locale from device or user preference TBD). The **audio file remains the source of truth**; transcript is derived data the user may **fix** (trade terms, names, mumbling).
-- **UX:** default layout treats transcript as **scannable prose** (not tiny metadata). Search across a job can match **transcript text** as well as captions and typed notes once Phase 2 search ships.
-- **Phase 1:** no transcription pipeline; users rely on captions and typed notes if they need text in the Phase 1 zip.
+- **Goal:** on the **web dashboard**, teammates can **read** what was said on a job without scrubbing through every clip. Transcription is a **paid / cloud** feature — not native STT in the Flutter app.
+- **Phase 1 (*implemented*):** voice notes are **audio only** (plus caption/tags). No transcript column in local SQLite, no transcript UI, no platform speech APIs in the app. Users who want readable spoken text on the phone add a **text note** (OS keyboard dictation is fine).
+- **Phase 2 (paid / cloud):** optional **“Transcribe”** (or auto-transcribe on upload) in the **dashboard**, backed by `services/transcribe/`. Transcript text is stored in the **server** data model (e.g. a `voice_transcripts` or workspace-scoped annotation table keyed by synced `item_id`) — **not** by adding `items.transcript` to the Phase 1 mobile schema. Search, edit, and PDF blocks use that cloud copy. The mobile app may **display** synced transcript later if we choose, but it does not own transcription or reserve a local column for it. The **audio file remains the source of truth**; transcript is derived data the user may **fix** on the dashboard (trade terms, names, mumbling).

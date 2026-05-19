@@ -10,6 +10,7 @@ import '../../app/providers.dart';
 import '../../app/theme.dart';
 import '../../core/format.dart';
 import '../../domain/models/item.dart';
+import '../../domain/models/tag.dart';
 import '../../domain/models/timeline_item.dart';
 import '../capture/widgets/tag_chips.dart';
 
@@ -165,6 +166,10 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
             borderRadius: BorderRadius.circular(12),
             child: Image.file(File(absolutePath(t.primaryPhoto!.relativePath)), fit: BoxFit.cover),
           ),
+        if (t.voiceNote != null) ...[
+          if (hasPhoto) const SizedBox(height: 14),
+          _AudioPlayer(path: absolutePath(t.voiceNote!.relativePath)),
+        ],
         const SizedBox(height: 14),
         Text(
           '${formatDay(t.item.capturedAt)} · ${formatTime(t.item.capturedAt)}',
@@ -176,10 +181,6 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
           const SizedBox(height: 10),
           Text(t.item.caption!, style: const TextStyle(fontSize: 16, color: AppColors.ink)),
         ],
-        if (t.voiceNote != null) ...[
-          const SizedBox(height: 14),
-          _AudioPlayer(path: absolutePath(t.voiceNote!.relativePath)),
-        ],
         if (body.isNotEmpty) ...[
           const SizedBox(height: 14),
           Container(
@@ -190,21 +191,7 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
         ],
         if (t.tags.isNotEmpty) ...[
           const SizedBox(height: 14),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              for (final tag in t.tags)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFEF3C7),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(tag.name, style: const TextStyle(color: Color(0xFF92400E), fontSize: 12)),
-                ),
-            ],
-          ),
+          _TagWrap(tags: t.tags),
         ],
       ],
     );
@@ -229,7 +216,6 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
             maxLines: 12,
             decoration: const InputDecoration(labelText: 'Note'),
           ),
-        const SizedBox(height: 12),
         const Text('Tags', style: TextStyle(fontWeight: FontWeight.w600)),
         const SizedBox(height: 8),
         tagsAsync.when(
@@ -253,6 +239,30 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
           loading: () => const SizedBox(height: 40),
           error: (e, _) => Text('Error: $e'),
         ),
+      ],
+    );
+  }
+}
+
+class _TagWrap extends StatelessWidget {
+  const _TagWrap({required this.tags});
+  final List<Tag> tags;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: [
+        for (final tag in tags)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFEF3C7),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(tag.name, style: const TextStyle(color: Color(0xFF92400E), fontSize: 12)),
+          ),
       ],
     );
   }
