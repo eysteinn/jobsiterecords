@@ -147,7 +147,7 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
           );
       await Share.shareXFiles(
         [XFile(result.zipFile.path)],
-        subject: 'SiteLog export',
+        subject: 'Job Site Records export',
         text: '${result.itemCount} items · ${formatBytes(result.sizeBytes)}',
       );
     } catch (e) {

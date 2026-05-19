@@ -67,3 +67,13 @@ services/**/build/
 services/**/.venv/
 services/**/__pycache__/
 services/**/*.pyc
+
+# ---------------------------------------------------------------------------
+# Landing page (landing/) — never commit collected data or local SQLite files
+# ---------------------------------------------------------------------------
+private/
+landing/.data/*.sqlite*
+landing/**/*.sqlite
+landing/**/*.sqlite-journal
+landing/**/*.db
+landing/**/*.db-journal

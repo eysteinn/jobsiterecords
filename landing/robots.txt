@@ -1,0 +1,8 @@
+# https://www.robotstxt.org/robotstxt.html
+User-agent: *
+Allow: /
+
+# Admin-only subscriber export — do not index.
+Disallow: /export.php
+
+Sitemap: https://jobsiterecords.com/sitemap.xml

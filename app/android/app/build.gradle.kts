@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.sitelog.sitelog"
+    namespace = "com.jobsiterecords.app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -21,7 +21,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.sitelog.sitelog"
+        applicationId = "com.jobsiterecords.app"
         minSdk = 26
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode

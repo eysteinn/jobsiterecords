@@ -211,45 +211,81 @@ class _PhotoCaptureScreenState extends ConsumerState<PhotoCaptureScreen> {
           if (snap.connectionState != ConnectionState.done || _controller == null) {
             return const Center(child: CircularProgressIndicator());
           }
+          final c = _controller!;
           return Stack(
-            alignment: Alignment.bottomCenter,
+            fit: StackFit.expand,
             children: [
-              Positioned.fill(
-                child: CameraPreview(_controller!),
-              ),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 28),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    IconButton(
-                      onPressed: _pickFromGallery,
-                      icon: const Icon(Icons.photo_library_outlined, color: Colors.white, size: 28),
-                    ),
-                    GestureDetector(
-                      onTap: _capture,
-                      child: Container(
-                        width: 76,
-                        height: 76,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 4),
-                        ),
-                        child: const Center(
-                          child: CircleAvatar(radius: 30, backgroundColor: AppColors.accent),
+              Positioned.fill(child: _CameraPreviewFill(controller: c)),
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 28, left: 16, right: 16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      IconButton(
+                        onPressed: _pickFromGallery,
+                        icon: const Icon(Icons.photo_library_outlined, color: Colors.white, size: 28),
+                      ),
+                      GestureDetector(
+                        onTap: _capture,
+                        child: Container(
+                          width: 76,
+                          height: 76,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 4),
+                          ),
+                          child: const Center(
+                            child: CircleAvatar(radius: 30, backgroundColor: AppColors.accent),
+                          ),
                         ),
                       ),
-                    ),
-                    IconButton(
-                      onPressed: _cameras.length < 2 ? null : _swapCamera,
-                      icon: const Icon(Icons.cameraswitch, color: Colors.white, size: 28),
-                    ),
-                  ],
+                      IconButton(
+                        onPressed: _cameras.length < 2 ? null : _swapCamera,
+                        icon: const Icon(Icons.cameraswitch, color: Colors.white, size: 28),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+/// Full-screen viewfinder. We seed [FittedBox] with the preview's natural pixel size
+/// (rotated for portrait) so the underlying texture has a concrete size to render into;
+/// [BoxFit.cover] then scales it up to fill the available area without distortion.
+class _CameraPreviewFill extends StatelessWidget {
+  const _CameraPreviewFill({required this.controller});
+  final CameraController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!controller.value.isInitialized) {
+      return const ColoredBox(color: Colors.black);
+    }
+    final size = controller.value.previewSize;
+    if (size == null) {
+      return CameraPreview(controller);
+    }
+    final isPortrait =
+        MediaQuery.of(context).orientation == Orientation.portrait;
+    final renderW = isPortrait ? size.height : size.width;
+    final renderH = isPortrait ? size.width : size.height;
+    return ClipRect(
+      child: FittedBox(
+        fit: BoxFit.cover,
+        alignment: Alignment.center,
+        child: SizedBox(
+          width: renderW,
+          height: renderH,
+          child: CameraPreview(controller),
+        ),
       ),
     );
   }
