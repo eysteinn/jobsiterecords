@@ -11,22 +11,33 @@ import '../capture/widgets/tag_chips.dart';
   List<TimelineItem> timeline,
   Set<String> selectedItemIds,
 ) {
+  final itemTags = <String, Set<String>>{};
+  for (final t in timeline) {
+    if (selectedItemIds.contains(t.item.id)) {
+      itemTags[t.item.id] = t.tags.map((e) => e.id).toSet();
+    }
+  }
+  return tagCoverageForItemTags(itemTags, selectedItemIds);
+}
+
+({Set<String> all, Set<String> partial}) tagCoverageForItemTags(
+  Map<String, Set<String>> itemTags,
+  Set<String> selectedItemIds,
+) {
   final all = <String>{};
   final partial = <String>{};
-  final selected = timeline.where((t) => selectedItemIds.contains(t.item.id)).toList();
+  final selected = selectedItemIds.toList();
   if (selected.isEmpty) return (all: all, partial: partial);
 
   final tagIds = <String>{};
-  for (final t in selected) {
-    for (final tag in t.tags) {
-      tagIds.add(tag.id);
-    }
+  for (final itemId in selected) {
+    tagIds.addAll(itemTags[itemId] ?? const {});
   }
 
   for (final tagId in tagIds) {
     var count = 0;
-    for (final t in selected) {
-      if (t.tags.any((tag) => tag.id == tagId)) count++;
+    for (final itemId in selected) {
+      if (itemTags[itemId]?.contains(tagId) ?? false) count++;
     }
     if (count == selected.length) {
       all.add(tagId);
@@ -60,23 +71,40 @@ class _BulkTagSheet extends ConsumerStatefulWidget {
 }
 
 class _BulkTagSheetState extends ConsumerState<_BulkTagSheet> {
+  Map<String, Set<String>>? _pendingItemTags;
+  Map<String, Set<String>>? _originalItemTags;
   bool _busy = false;
 
-  Future<void> _toggleTag(String tagId, {required bool allHaveTag}) async {
-    if (_busy) return;
-    setState(() => _busy = true);
-    final repo = ref.read(itemsRepositoryProvider);
-    final ids = widget.selectedItemIds.toList();
-    try {
-      if (allHaveTag) {
-        await repo.removeTagFromItems(itemIds: ids, tagId: tagId);
-      } else {
-        await repo.addTagToItems(itemIds: ids, tagId: tagId);
+  void _initPending(List<TimelineItem> timeline) {
+    if (_pendingItemTags != null) return;
+    final original = <String, Set<String>>{};
+    for (final t in timeline) {
+      if (widget.selectedItemIds.contains(t.item.id)) {
+        original[t.item.id] = t.tags.map((e) => e.id).toSet();
       }
-      bumpDataRevision(ref);
-    } finally {
-      if (mounted) setState(() => _busy = false);
     }
+    _originalItemTags = {
+      for (final e in original.entries) e.key: Set<String>.from(e.value),
+    };
+    _pendingItemTags = {
+      for (final e in original.entries) e.key: Set<String>.from(e.value),
+    };
+  }
+
+  void _toggleTag(String tagId) {
+    if (_pendingItemTags == null) return;
+    final coverage = tagCoverageForItemTags(_pendingItemTags!, widget.selectedItemIds);
+    final allHaveTag = coverage.all.contains(tagId);
+    setState(() {
+      for (final itemId in widget.selectedItemIds) {
+        final tags = _pendingItemTags![itemId]!;
+        if (allHaveTag) {
+          tags.remove(tagId);
+        } else {
+          tags.add(tagId);
+        }
+      }
+    });
   }
 
   Future<void> _addTag() async {
@@ -84,8 +112,53 @@ class _BulkTagSheetState extends ConsumerState<_BulkTagSheet> {
     if (name == null || name.isEmpty || !mounted) return;
     final tag = await ref.read(tagsRepositoryProvider).create(name);
     bumpDataRevision(ref);
-    if (!mounted) return;
-    await _toggleTag(tag.id, allHaveTag: false);
+    if (!mounted || _pendingItemTags == null) return;
+    setState(() {
+      for (final itemId in widget.selectedItemIds) {
+        _pendingItemTags![itemId]!.add(tag.id);
+      }
+    });
+  }
+
+  Future<void> _applyAndClose() async {
+    if (_busy) return;
+    if (_pendingItemTags == null || _originalItemTags == null) {
+      if (mounted) Navigator.pop(context);
+      return;
+    }
+
+    final toAdd = <String, List<String>>{};
+    final toRemove = <String, List<String>>{};
+    for (final itemId in widget.selectedItemIds) {
+      final original = _originalItemTags![itemId] ?? const {};
+      final pending = _pendingItemTags![itemId] ?? const {};
+      for (final tagId in pending.difference(original)) {
+        (toAdd[tagId] ??= []).add(itemId);
+      }
+      for (final tagId in original.difference(pending)) {
+        (toRemove[tagId] ??= []).add(itemId);
+      }
+    }
+
+    if (toAdd.isEmpty && toRemove.isEmpty) {
+      if (mounted) Navigator.pop(context);
+      return;
+    }
+
+    setState(() => _busy = true);
+    final repo = ref.read(itemsRepositoryProvider);
+    try {
+      for (final entry in toAdd.entries) {
+        await repo.addTagToItems(itemIds: entry.value, tagId: entry.key);
+      }
+      for (final entry in toRemove.entries) {
+        await repo.removeTagFromItems(itemIds: entry.value, tagId: entry.key);
+      }
+      bumpDataRevision(ref);
+      if (mounted) Navigator.pop(context);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   @override
@@ -107,7 +180,7 @@ class _BulkTagSheetState extends ConsumerState<_BulkTagSheet> {
             ),
             const SizedBox(height: 4),
             const Text(
-              'Tap to add or remove on all selected items.',
+              'Tap tags to choose changes. Press Done to apply.',
               style: TextStyle(color: AppColors.subtle, fontSize: 12),
             ),
             const SizedBox(height: 14),
@@ -119,13 +192,14 @@ class _BulkTagSheetState extends ConsumerState<_BulkTagSheet> {
             else
               timelineAsync.when(
                 data: (timeline) {
-                  final coverage = tagCoverageForSelection(timeline, widget.selectedItemIds);
+                  _initPending(timeline);
+                  final coverage = tagCoverageForItemTags(_pendingItemTags!, widget.selectedItemIds);
                   return tagsAsync.when(
                     data: (tags) => TagChips(
                       allTags: tags,
                       selectedIds: coverage.all,
                       partialIds: coverage.partial,
-                      onToggle: (id) => _toggleTag(id, allHaveTag: coverage.all.contains(id)),
+                      onToggle: _toggleTag,
                       onAddTag: _addTag,
                     ),
                     loading: () => const Center(child: CircularProgressIndicator()),
@@ -139,7 +213,7 @@ class _BulkTagSheetState extends ConsumerState<_BulkTagSheet> {
             Align(
               alignment: Alignment.centerRight,
               child: TextButton(
-                onPressed: _busy ? null : () => Navigator.pop(context),
+                onPressed: _busy ? null : _applyAndClose,
                 child: const Text('Done'),
               ),
             ),
