@@ -107,7 +107,7 @@ Future<String?> showAddTagDialog(BuildContext context) async {
   final controller = TextEditingController();
   return showDialog<String>(
     context: context,
-    builder: (_) => AlertDialog(
+    builder: (dialogContext) => AlertDialog(
       title: const Text('New tag'),
       content: TextField(
         controller: controller,
@@ -115,9 +115,9 @@ Future<String?> showAddTagDialog(BuildContext context) async {
         decoration: const InputDecoration(hintText: 'e.g. Plumbing'),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
         TextButton(
-          onPressed: () => Navigator.pop(context, controller.text.trim()),
+          onPressed: () => Navigator.pop(dialogContext, controller.text.trim()),
           child: const Text('Add'),
         ),
       ],
