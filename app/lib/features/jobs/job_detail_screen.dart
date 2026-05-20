@@ -244,7 +244,8 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
           children: [
             ListTile(
               leading: const Icon(Icons.photo_camera_outlined),
-              title: const Text('Photo'),
+              title: const Text('Photos'),
+              subtitle: const Text('Rapid batch capture'),
               onTap: () {
                 Navigator.pop(context);
                 context.pushNamed('capture-photo', pathParameters: {'id': jobId});
@@ -595,7 +596,7 @@ class _EmptyTimeline extends StatelessWidget {
           SizedBox(height: 8),
           Text('No items yet', style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.ink)),
           SizedBox(height: 4),
-          Text('Tap "Add Photo or Note" to start capturing.',
+          Text('Tap "Add Photo or Note" to start capturing, or open Photos for rapid batch capture.',
               style: TextStyle(color: AppColors.subtle, fontSize: 12)),
         ],
       ),
