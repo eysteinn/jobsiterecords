@@ -33,6 +33,8 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
   TimelineQuery _query = TimelineQuery.empty;
   List<TimelineItem>? _timelineItems;
   Timer? _searchDebounce;
+  bool _filtersExpanded = false;
+  final _searchFocusNode = FocusNode();
 
   String get jobId => widget.jobId;
 
@@ -40,6 +42,7 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
   void dispose() {
     _searchDebounce?.cancel();
     _searchCtrl.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
@@ -66,7 +69,27 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
   void _clearFilters() {
     _searchDebounce?.cancel();
     _searchCtrl.clear();
-    _setQuery(TimelineQuery.empty);
+    _searchFocusNode.unfocus();
+    setState(() {
+      _query = TimelineQuery.empty;
+      _filtersExpanded = false;
+    });
+  }
+
+  void _expandFilters() {
+    setState(() => _filtersExpanded = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _searchFocusNode.requestFocus();
+    });
+  }
+
+  void _toggleFiltersExpanded() {
+    if (_filtersExpanded) {
+      _searchFocusNode.unfocus();
+      setState(() => _filtersExpanded = false);
+    } else {
+      _expandFilters();
+    }
   }
 
   void _toggleTag(String tagId) {
@@ -226,6 +249,16 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
               ),
               actions: [
                 IconButton(
+                  icon: Badge(
+                    isLabelVisible: _query.hasFilters && !_filtersExpanded,
+                    backgroundColor: AppColors.accent,
+                    smallSize: 8,
+                    child: Icon(_filtersExpanded ? Icons.close : Icons.search_rounded),
+                  ),
+                  tooltip: _filtersExpanded ? 'Close search' : 'Search & filter',
+                  onPressed: _toggleFiltersExpanded,
+                ),
+                IconButton(
                   icon: const Icon(Icons.edit_outlined),
                   onPressed: () => context.pushNamed('job-edit', pathParameters: {'id': jobId}),
                 ),
@@ -261,8 +294,11 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
             selected: _selected,
             query: _query,
             searchCtrl: _searchCtrl,
+            searchFocusNode: _searchFocusNode,
             tagsInJob: tagsInJob,
+            filtersExpanded: _filtersExpanded,
             timelineRefreshing: timelineRefreshing,
+            onExpandFilters: _expandFilters,
             onSearchChanged: _onSearchChanged,
             onClearSearch: _clearSearch,
             onToggleKind: _toggleKind,
@@ -412,8 +448,11 @@ class _Body extends StatelessWidget {
     required this.selected,
     required this.query,
     required this.searchCtrl,
+    required this.searchFocusNode,
     required this.tagsInJob,
+    required this.filtersExpanded,
     required this.timelineRefreshing,
+    required this.onExpandFilters,
     required this.onSearchChanged,
     required this.onClearSearch,
     required this.onToggleKind,
@@ -431,8 +470,11 @@ class _Body extends StatelessWidget {
   final Set<String> selected;
   final TimelineQuery query;
   final TextEditingController searchCtrl;
+  final FocusNode searchFocusNode;
   final Set<String> tagsInJob;
+  final bool filtersExpanded;
   final bool timelineRefreshing;
+  final VoidCallback onExpandFilters;
   final ValueChanged<String> onSearchChanged;
   final VoidCallback onClearSearch;
   final ValueChanged<ItemKind> onToggleKind;
@@ -458,19 +500,32 @@ class _Body extends StatelessWidget {
         _Header(job: job),
         const SizedBox(height: 12),
         _Counts(counts: counts),
-        if (!selecting) ...[
+        if (!selecting && (filtersExpanded || query.hasFilters)) ...[
           const SizedBox(height: 12),
-          _TimelineFilters(
-            query: query,
-            searchCtrl: searchCtrl,
-            tagsInJob: tagsInJob,
-            tagsInJobCount: tagsInJob.length,
-            onSearchChanged: onSearchChanged,
-            onClearSearch: onClearSearch,
-            onToggleKind: onToggleKind,
-            onToggleTag: onToggleTag,
-            onOpenTagFilter: onOpenTagFilter,
-            onClearFilters: onClearFilters,
+          AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeInOut,
+            alignment: Alignment.topCenter,
+            clipBehavior: Clip.hardEdge,
+            child: filtersExpanded
+                ? _TimelineFilters(
+                    query: query,
+                    searchCtrl: searchCtrl,
+                    searchFocusNode: searchFocusNode,
+                    tagsInJob: tagsInJob,
+                    tagsInJobCount: tagsInJob.length,
+                    onSearchChanged: onSearchChanged,
+                    onClearSearch: onClearSearch,
+                    onToggleKind: onToggleKind,
+                    onToggleTag: onToggleTag,
+                    onOpenTagFilter: onOpenTagFilter,
+                    onClearFilters: onClearFilters,
+                  )
+                : _ActiveFilterSummary(
+                    query: query,
+                    onTap: onExpandFilters,
+                    onClear: onClearFilters,
+                  ),
           ),
         ],
         const SizedBox(height: 18),
@@ -734,6 +789,7 @@ class _TimelineFilters extends ConsumerStatefulWidget {
   const _TimelineFilters({
     required this.query,
     required this.searchCtrl,
+    required this.searchFocusNode,
     required this.tagsInJob,
     required this.tagsInJobCount,
     required this.onSearchChanged,
@@ -746,6 +802,7 @@ class _TimelineFilters extends ConsumerStatefulWidget {
 
   final TimelineQuery query;
   final TextEditingController searchCtrl;
+  final FocusNode searchFocusNode;
   final int tagsInJobCount;
   final Set<String> tagsInJob;
   final ValueChanged<String> onSearchChanged;
@@ -777,6 +834,7 @@ class _TimelineFiltersState extends ConsumerState<_TimelineFilters> {
       children: [
         TextField(
           controller: searchCtrl,
+          focusNode: widget.searchFocusNode,
           onChanged: (v) {
             setState(() {});
             widget.onSearchChanged(v);
@@ -805,11 +863,7 @@ class _TimelineFiltersState extends ConsumerState<_TimelineFilters> {
                 Padding(
                   padding: const EdgeInsets.only(right: 6),
                   child: FilterChip(
-                    label: Text(switch (kind) {
-                      ItemKind.photo => 'Photos',
-                      ItemKind.voice => 'Voice',
-                      ItemKind.note => 'Notes',
-                    }),
+                    label: Text(_kindFilterLabel(kind)),
                     selected: query.kinds.contains(kind),
                     onSelected: (_) => widget.onToggleKind(kind),
                     showCheckmark: false,
@@ -883,6 +937,79 @@ class _TimelineFiltersState extends ConsumerState<_TimelineFilters> {
           ),
         ],
       ],
+    );
+  }
+}
+
+String _kindFilterLabel(ItemKind kind) => switch (kind) {
+      ItemKind.photo => 'Photos',
+      ItemKind.voice => 'Voice',
+      ItemKind.note => 'Notes',
+    };
+
+List<String> _activeFilterLabels(TimelineQuery query, List<Tag> allTags) {
+  final parts = <String>[];
+  final search = query.trimmedSearch;
+  if (search != null) parts.add('“$search”');
+  for (final kind in ItemKind.values) {
+    if (query.kinds.contains(kind)) parts.add(_kindFilterLabel(kind));
+  }
+  for (final tag in allTags) {
+    if (query.tagIds.contains(tag.id)) parts.add(tag.name);
+  }
+  return parts;
+}
+
+class _ActiveFilterSummary extends ConsumerWidget {
+  const _ActiveFilterSummary({
+    required this.query,
+    required this.onTap,
+    required this.onClear,
+  });
+
+  final TimelineQuery query;
+  final VoidCallback onTap;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tagsAsync = ref.watch(tagsProvider);
+    final labels = tagsAsync.maybeWhen(
+      data: (tags) => _activeFilterLabels(query, tags),
+      orElse: () => _activeFilterLabels(query, const []),
+    );
+    final summary = labels.join(' · ');
+
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
+          child: Row(
+            children: [
+              const Icon(Icons.filter_list, size: 18, color: AppColors.accent),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  summary,
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.ink),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.close, size: 18),
+                tooltip: 'Clear filters',
+                onPressed: onClear,
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
