@@ -263,7 +263,7 @@ Screen specs derived from the mockups in `/docs`.
 - Floating "+ Add" CTA (photo, voice, text, file — sheet or speed-dial; keep one obvious primary action).
 - Overflow: **Select items…**, Export…, Mark Completed, Delete Job.
 - **Bulk select (*implemented*):** overflow **Select items…** or **long-press** a timeline row enters selection mode (checkboxes, nothing pre-selected). App bar shows count + **All**; bottom **Tag (N)** + **Delete**; FAB hidden while selecting. **Back** exits selection (does not leave the job). Single-item edit/delete remains on Item Detail.
-- **Bulk tags (*implemented*):** in selection mode, **Tag** opens a bottom sheet with tri-state tag chips (off / partial / all selected items). Tap adds the tag to every selected item, or removes it when all already have it. Reuses the tag library and **Add tag** flow from capture.
+- **Bulk tags (*implemented*):** in selection mode, **Tag** opens a bottom sheet with tri-state tag chips (off / partial / all selected items). Tap toggles the tag on all selected items in a local preview; **Done** applies adds/removes to the database. Dismiss without **Done** discards changes. Reuses the tag library and **Add tag** flow from capture.
 
 ### 6.4 Capture (Photo) — batch-first (*implemented*)
 
