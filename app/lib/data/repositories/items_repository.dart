@@ -90,6 +90,73 @@ class ItemsRepository {
     return out;
   }
 
+  /// Saves multiple photos from one capture session with shared caption and tags.
+  /// Each entry keeps its own [BatchPhotoInput.capturedAt] for timeline ordering.
+  Future<List<Item>> createPhotoBatch({
+    required String jobId,
+    required List<BatchPhotoInput> photos,
+    String? caption,
+    List<String> tagIds = const [],
+  }) async {
+    if (photos.isEmpty) return const [];
+    final trimmedCaption = _trimOrNull(caption);
+    final prepared = <({Item item, int photoSize})>[];
+
+    for (final photo in photos) {
+      final itemId = newId();
+      final ts = photo.capturedAt;
+      final dir = await _storage.dirForItem(jobId, itemId);
+
+      final photoFile = File(photo.sourceFilePath);
+      final photoSize = await photoFile.length();
+      const photoName = 'photo.jpg';
+      final photoDest = File('${dir.path}/$photoName');
+      await photoFile.rename(photoDest.path).catchError((_) async {
+        return photoFile.copy(photoDest.path);
+      });
+
+      prepared.add((
+        item: Item(
+          id: itemId,
+          jobId: jobId,
+          kind: ItemKind.photo,
+          caption: trimmedCaption,
+          capturedAt: ts,
+          createdAt: ts,
+          updatedAt: ts,
+        ),
+        photoSize: photoSize,
+      ));
+    }
+
+    await _db.db.transaction((txn) async {
+      for (final p in prepared) {
+        final item = p.item;
+        await txn.insert('items', item.toDb());
+        await txn.insert('media_files', MediaFile(
+          id: newId(),
+          itemId: item.id,
+          role: MediaRole.primaryPhoto,
+          relativePath: _storage.relativeFor(jobId, item.id, 'photo.jpg'),
+          mimeType: 'image/jpeg',
+          sizeBytes: p.photoSize,
+          createdAt: item.capturedAt,
+        ).toDb());
+        for (final tagId in tagIds) {
+          await txn.insert('item_tags', {'item_id': item.id, 'tag_id': tagId});
+        }
+      }
+      await txn.update(
+        'jobs',
+        {'updated_at': now().toIso8601String()},
+        where: 'id = ?',
+        whereArgs: [jobId],
+      );
+    });
+
+    return [for (final p in prepared) p.item];
+  }
+
   Future<Item> createPhoto({
     required String jobId,
     required String sourceFilePath,
@@ -362,6 +429,12 @@ class ItemsRepository {
       await _storage.deleteForItem(jobId, itemId);
     }
   }
+}
+
+class BatchPhotoInput {
+  const BatchPhotoInput({required this.sourceFilePath, required this.capturedAt});
+  final String sourceFilePath;
+  final DateTime capturedAt;
 }
 
 String? _trimOrNull(String? v) {

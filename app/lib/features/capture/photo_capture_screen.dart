@@ -9,7 +9,15 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../../app/providers.dart';
 import '../../app/theme.dart';
+import '../../core/clock.dart';
+import '../../data/repositories/items_repository.dart';
 import 'widgets/tag_chips.dart';
+
+class _BatchPhoto {
+  const _BatchPhoto({required this.path, required this.capturedAt});
+  final String path;
+  final DateTime capturedAt;
+}
 
 class PhotoCaptureScreen extends ConsumerStatefulWidget {
   const PhotoCaptureScreen({super.key, required this.jobId});
@@ -24,10 +32,12 @@ class _PhotoCaptureScreenState extends ConsumerState<PhotoCaptureScreen> {
   Future<void>? _initFuture;
   List<CameraDescription> _cameras = const [];
   int _camIndex = 0;
-  String? _capturedPath;
-  bool _saving = false;
   bool _permissionDenied = false;
   FlashMode _flash = FlashMode.off;
+
+  final List<_BatchPhoto> _batch = [];
+  bool _reviewing = false;
+  bool _saving = false;
 
   final _captionCtrl = TextEditingController();
   final Set<String> _tagIds = {};
@@ -85,7 +95,9 @@ class _PhotoCaptureScreenState extends ConsumerState<PhotoCaptureScreen> {
     if (c == null || !c.value.isInitialized) return;
     try {
       final f = await c.takePicture();
-      setState(() => _capturedPath = f.path);
+      setState(() {
+        _batch.add(_BatchPhoto(path: f.path, capturedAt: now()));
+      });
     } catch (_) {}
   }
 
@@ -93,17 +105,71 @@ class _PhotoCaptureScreenState extends ConsumerState<PhotoCaptureScreen> {
     final picker = ImagePicker();
     final f = await picker.pickImage(source: ImageSource.gallery, imageQuality: 92);
     if (f != null) {
-      setState(() => _capturedPath = f.path);
+      setState(() {
+        _batch.add(_BatchPhoto(path: f.path, capturedAt: now()));
+      });
     }
   }
 
-  Future<void> _save() async {
-    if (_capturedPath == null) return;
+  void _removeFromBatch(int index) {
+    setState(() {
+      _batch.removeAt(index);
+      if (_batch.isEmpty && _reviewing) _reviewing = false;
+    });
+  }
+
+  void _undoLast() {
+    if (_batch.isEmpty) return;
+    setState(() => _batch.removeLast());
+  }
+
+  Future<bool> _confirmDiscard() async {
+    if (_batch.isEmpty) return true;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Discard photos?'),
+        content: Text(
+          'You have ${_batch.length} unsaved photo${_batch.length == 1 ? '' : 's'}. '
+          'Leaving now will discard them.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Keep')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Discard', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    return ok == true;
+  }
+
+  Future<void> _onBack() async {
+    if (_reviewing) {
+      setState(() => _reviewing = false);
+      return;
+    }
+    if (await _confirmDiscard()) {
+      if (mounted) context.pop();
+    }
+  }
+
+  void _finishBatch() {
+    if (_batch.isEmpty) return;
+    setState(() => _reviewing = true);
+  }
+
+  Future<void> _saveBatch() async {
+    if (_batch.isEmpty) return;
     setState(() => _saving = true);
     try {
-      await ref.read(itemsRepositoryProvider).createPhoto(
+      await ref.read(itemsRepositoryProvider).createPhotoBatch(
             jobId: widget.jobId,
-            sourceFilePath: _capturedPath!,
+            photos: [
+              for (final p in _batch)
+                BatchPhotoInput(sourceFilePath: p.path, capturedAt: p.capturedAt),
+            ],
             caption: _captionCtrl.text,
             tagIds: _tagIds.toList(),
           );
@@ -167,9 +233,9 @@ class _PhotoCaptureScreenState extends ConsumerState<PhotoCaptureScreen> {
       );
     }
 
-    if (_capturedPath != null) {
-      return _ReviewView(
-        path: _capturedPath!,
+    if (_reviewing) {
+      return _BatchReviewView(
+        batch: _batch,
         captionCtrl: _captionCtrl,
         selectedTagIds: _tagIds,
         onToggleTag: (id) => setState(() {
@@ -182,76 +248,151 @@ class _PhotoCaptureScreenState extends ConsumerState<PhotoCaptureScreen> {
           bumpDataRevision(ref);
           setState(() => _tagIds.add(tag.id));
         },
-        onRetake: () => setState(() => _capturedPath = null),
-        onSave: _saving ? null : _save,
+        onRemove: _removeFromBatch,
+        onBack: _onBack,
+        onSave: _saving ? null : _saveBatch,
         saving: _saving,
       );
     }
 
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        await _onBack();
+      },
+      child: Scaffold(
         backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
-        title: const Text('Capture'),
-        actions: [
-          IconButton(
-            onPressed: _toggleFlash,
-            icon: Icon(switch (_flash) {
-              FlashMode.off => Icons.flash_off,
-              FlashMode.auto => Icons.flash_auto,
-              _ => Icons.flash_on,
-            }),
+        appBar: AppBar(
+          backgroundColor: Colors.black,
+          foregroundColor: Colors.white,
+          title: Text(_batch.isEmpty ? 'Capture' : '${_batch.length} photo${_batch.length == 1 ? '' : 's'}'),
+          leading: IconButton(
+            icon: const Icon(Icons.close),
+            onPressed: _onBack,
           ),
-        ],
-      ),
-      body: FutureBuilder<void>(
-        future: _initFuture,
-        builder: (context, snap) {
-          if (snap.connectionState != ConnectionState.done || _controller == null) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final c = _controller!;
-          return Stack(
-            fit: StackFit.expand,
-            children: [
-              Positioned.fill(child: _CameraPreviewFill(controller: c)),
-              Align(
-                alignment: Alignment.bottomCenter,
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 28, left: 16, right: 16),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      IconButton(
-                        onPressed: _pickFromGallery,
-                        icon: const Icon(Icons.photo_library_outlined, color: Colors.white, size: 28),
-                      ),
-                      GestureDetector(
-                        onTap: _capture,
-                        child: Container(
-                          width: 76,
-                          height: 76,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 4),
-                          ),
-                          child: const Center(
-                            child: CircleAvatar(radius: 30, backgroundColor: AppColors.accent),
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: _cameras.length < 2 ? null : _swapCamera,
-                        icon: const Icon(Icons.cameraswitch, color: Colors.white, size: 28),
-                      ),
-                    ],
-                  ),
+          actions: [
+            TextButton(
+              onPressed: _batch.isEmpty ? null : _finishBatch,
+              child: Text(
+                'Done',
+                style: TextStyle(
+                  color: _batch.isEmpty ? Colors.white38 : AppColors.accent,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
-            ],
-          );
-        },
+            ),
+            IconButton(
+              onPressed: _toggleFlash,
+              icon: Icon(switch (_flash) {
+                FlashMode.off => Icons.flash_off,
+                FlashMode.auto => Icons.flash_auto,
+                _ => Icons.flash_on,
+              }),
+            ),
+          ],
+        ),
+        body: FutureBuilder<void>(
+          future: _initFuture,
+          builder: (context, snap) {
+            if (snap.connectionState != ConnectionState.done || _controller == null) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            final c = _controller!;
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                Positioned.fill(child: _CameraPreviewFill(controller: c)),
+                if (_batch.isNotEmpty)
+                  Positioned(
+                    top: 8,
+                    left: 16,
+                    right: 16,
+                    child: _BatchStrip(
+                      batch: _batch,
+                      onUndo: _undoLast,
+                    ),
+                  ),
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 28, left: 16, right: 16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        IconButton(
+                          onPressed: _pickFromGallery,
+                          icon: const Icon(Icons.photo_library_outlined, color: Colors.white, size: 28),
+                        ),
+                        GestureDetector(
+                          onTap: _capture,
+                          child: Container(
+                            width: 76,
+                            height: 76,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 4),
+                            ),
+                            child: const Center(
+                              child: CircleAvatar(radius: 30, backgroundColor: AppColors.accent),
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: _cameras.length < 2 ? null : _swapCamera,
+                          icon: const Icon(Icons.cameraswitch, color: Colors.white, size: 28),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _BatchStrip extends StatelessWidget {
+  const _BatchStrip({required this.batch, required this.onUndo});
+  final List<_BatchPhoto> batch;
+  final VoidCallback onUndo;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: Image.file(
+              File(batch.last.path),
+              width: 44,
+              height: 44,
+              fit: BoxFit.cover,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              '${batch.length} in batch — keep shooting or tap Done',
+              style: const TextStyle(color: Colors.white, fontSize: 12),
+            ),
+          ),
+          IconButton(
+            onPressed: onUndo,
+            icon: const Icon(Icons.undo, color: Colors.white, size: 20),
+            tooltip: 'Remove last',
+            visualDensity: VisualDensity.compact,
+          ),
+        ],
       ),
     );
   }
@@ -291,100 +432,141 @@ class _CameraPreviewFill extends StatelessWidget {
   }
 }
 
-class _ReviewView extends ConsumerWidget {
-  const _ReviewView({
-    required this.path,
+class _BatchReviewView extends ConsumerWidget {
+  const _BatchReviewView({
+    required this.batch,
     required this.captionCtrl,
     required this.selectedTagIds,
     required this.onToggleTag,
     required this.onAddTag,
-    required this.onRetake,
+    required this.onRemove,
+    required this.onBack,
     required this.onSave,
     required this.saving,
   });
-  final String path;
+  final List<_BatchPhoto> batch;
   final TextEditingController captionCtrl;
   final Set<String> selectedTagIds;
   final ValueChanged<String> onToggleTag;
   final VoidCallback onAddTag;
-  final VoidCallback onRetake;
+  final ValueChanged<int> onRemove;
+  final Future<void> Function() onBack;
   final VoidCallback? onSave;
   final bool saving;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final tagsAsync = ref.watch(tagsProvider);
-    return Scaffold(
-      appBar: AppBar(title: const Text('Review')),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Image.file(File(path), fit: BoxFit.cover),
-                    ),
-                    const SizedBox(height: 14),
-                    TextField(
-                      controller: captionCtrl,
-                      maxLines: 3,
-                      maxLength: 160,
-                      decoration: const InputDecoration(
-                        labelText: 'Caption (optional)',
-                        hintText: 'What does this photo show?',
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        await onBack();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text('Tag batch (${batch.length})'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: saving ? null : onBack,
+          ),
+        ),
+        body: SafeArea(
+          child: Column(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      GridView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 3,
+                          crossAxisSpacing: 8,
+                          mainAxisSpacing: 8,
+                        ),
+                        itemCount: batch.length,
+                        itemBuilder: (context, i) {
+                          return Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.file(File(batch[i].path), fit: BoxFit.cover),
+                              ),
+                              Positioned(
+                                top: 4,
+                                right: 4,
+                                child: Material(
+                                  color: Colors.black54,
+                                  shape: const CircleBorder(),
+                                  child: InkWell(
+                                    customBorder: const CircleBorder(),
+                                    onTap: saving ? null : () => onRemove(i),
+                                    child: const Padding(
+                                      padding: EdgeInsets.all(4),
+                                      child: Icon(Icons.close, size: 14, color: Colors.white),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          );
+                        },
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text('Tags', style: TextStyle(fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 8),
-                    tagsAsync.when(
-                      data: (tags) => TagChips(
-                        allTags: tags,
-                        selectedIds: selectedTagIds,
-                        onToggle: onToggleTag,
-                        onAddTag: onAddTag,
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: captionCtrl,
+                        maxLines: 3,
+                        maxLength: 160,
+                        enabled: !saving,
+                        decoration: const InputDecoration(
+                          labelText: 'Caption (optional)',
+                          hintText: 'What does this batch show?',
+                        ),
                       ),
-                      loading: () => const SizedBox(height: 40),
-                      error: (e, _) => Text('Error: $e'),
-                    ),
-                  ],
+                      const SizedBox(height: 8),
+                      const Text('Tags', style: TextStyle(fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Applied to every photo in this batch.',
+                        style: TextStyle(color: AppColors.subtle, fontSize: 12),
+                      ),
+                      const SizedBox(height: 8),
+                      tagsAsync.when(
+                        data: (tags) => TagChips(
+                          allTags: tags,
+                          selectedIds: selectedTagIds,
+                          onToggle: onToggleTag,
+                          onAddTag: onAddTag,
+                        ),
+                        loading: () => const SizedBox(height: 40),
+                        error: (e, _) => Text('Error: $e'),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: saving ? null : onRetake,
-                      style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
-                      child: const Text('Retake'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: onSave,
-                      icon: saving
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
-                            )
-                          : const Icon(Icons.check_rounded),
-                      label: Text(saving ? 'Saving…' : 'Save Photo'),
-                    ),
-                  ),
-                ],
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                child: ElevatedButton.icon(
+                  onPressed: batch.isEmpty || saving ? null : onSave,
+                  style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+                  icon: saving
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
+                        )
+                      : const Icon(Icons.check_rounded),
+                  label: Text(saving ? 'Saving…' : 'Save ${batch.length} photo${batch.length == 1 ? '' : 's'}'),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

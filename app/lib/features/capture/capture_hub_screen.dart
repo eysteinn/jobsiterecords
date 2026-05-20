@@ -80,7 +80,8 @@ class CaptureHubScreen extends ConsumerWidget {
           children: [
             ListTile(
               leading: const Icon(Icons.photo_camera_outlined),
-              title: const Text('Photo'),
+              title: const Text('Photos'),
+              subtitle: const Text('Rapid batch capture'),
               onTap: () {
                 Navigator.pop(context);
                 context.pushNamed('capture-photo', pathParameters: {'id': job.id});

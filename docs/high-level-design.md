@@ -18,7 +18,7 @@ The repo matches the **Phase 1** architecture in broad strokes. Use this table w
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| Flutter app (`app/`) | **Mostly built** | v0.1.0+1; jobs CRUD, capture (photo/voice/note), timeline, item detail, zip export, settings. Voice notes are audio + optional caption/tags; for spoken text users add a **text note** (keyboard dictation on Android/iOS). Automatic transcription is **Phase 2** (server). Gaps: file import, expanded default tags ([§6.10](#610-implementation-gaps-vs-target-phase-1)). |
+| Flutter app (`app/`) | **Mostly built** | v0.1.0+1; jobs CRUD, **batch-first photo capture**, voice/note capture, timeline bulk tag, item detail, zip export, settings. Voice notes are audio + optional caption/tags; for spoken text users add a **text note** (keyboard dictation on Android/iOS). Automatic transcription is **Phase 2** (server). Gaps: file import, expanded default tags ([§6.10](#610-implementation-gaps-vs-target-phase-1)). |
 | Landing (`landing/`) | **Active** | PHP + SQLite waitlist on jobsiterecords.com, plus SEO guides, use cases, trades, answers, and examples — not a single static page ([§14.4](#144-the-landing-site)). |
 | Backend (`services/`) | **Placeholder** | README only; no deployable services yet. |
 | Web dashboard (`web/`) | **Not started** | Phase 2. |
@@ -265,10 +265,19 @@ Screen specs derived from the mockups in `/docs`.
 - **Bulk select (*implemented*):** overflow **Select items…** or **long-press** a timeline row enters selection mode (checkboxes, nothing pre-selected). App bar shows count + **All**; bottom **Tag (N)** + **Delete**; FAB hidden while selecting. **Back** exits selection (does not leave the job). Single-item edit/delete remains on Item Detail.
 - **Bulk tags (*implemented*):** in selection mode, **Tag** opens a bottom sheet with tri-state tag chips (off / partial / all selected items). Tap adds the tag to every selected item, or removes it when all already have it. Reuses the tag library and **Add tag** flow from capture.
 
-### 6.4 Capture (Photo)
-- Full-screen camera viewfinder with flash toggle, lens swap, zoom presets.
-- Shutter button. After capture: thumbnail preview, **Retake** / **Save Photo**.
-- Below preview: caption field, tag chips (preselected from job's recent tags + the standard set), and an inline "Tap to Record" voice-note button.
+### 6.4 Capture (Photo) — batch-first (*implemented*)
+
+The default photo flow is **batch-first**: walk a room, roof, unit, or phase shooting rapidly; tag and caption **once** when you stop.
+
+1. Open job → **Photos** (or Capture tab → job → Photos) → full-screen camera.
+2. Tap shutter repeatedly — camera stays open; a strip shows count and the latest thumbnail.
+3. **Done** → batch review: grid of thumbnails (remove individual shots if needed), optional shared caption (“What does this batch show?”), tag chips applied to **every** photo in the batch.
+4. **Save** writes one timeline item per photo (each keeps its shutter timestamp); shared caption and tags copy to all.
+
+Camera controls: flash toggle, lens swap, gallery import (adds to the current batch), undo last shot. Back with unsaved photos prompts discard. Single-photo batches use the same flow (shoot once → Done → tag → Save).
+
+**Not in Phase 1 UI:** zoom presets; inline voice note on the photo review screen (voice remains a separate capture kind; repo still supports attaching voice to a photo item).
+
 - Saves into the currently open job. If none, asks to pick or create one.
 
 ### 6.5 Capture (Voice Note)
@@ -330,7 +339,8 @@ Screens in §6.1–6.9 are the **design target**. The shipped app (`app/lib/feat
 | Capture tab | Open camera directly | Job picker → mode sheet → capture route |
 | File import | Document picker → timeline item | **Not started** |
 | Job detail | “Today” section when captures exist today | Date grouping only |
-| Photo capture | Inline “tap to record” voice on photo | Caption + tags on review; voice is a separate item kind (repo supports attaching voice to photo, UI does not expose it yet) |
+| Photo capture | Batch-first: rapid multi-shot, tag at end | **Implemented** — continuous camera, Done → shared caption/tags; per-photo timestamps |
+| Photo capture | Inline “tap to record” voice on photo | Voice is a separate item kind (repo supports attaching voice to photo, UI does not expose it yet) |
 | Photo capture | Zoom presets | Flash toggle + camera swap + gallery import |
 | Item detail | Pinch-zoom; swipe between items in job | Single item view; share / edit / delete |
 | Item detail | Waveform for audio | Play/pause + seek slider (`just_audio`) |
