@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/providers.dart';
 import '../../app/theme.dart';
 import '../../domain/models/timeline_item.dart';
+import '../../domain/models/timeline_query.dart';
 import '../capture/widgets/tag_chips.dart';
 
 /// Tag coverage across a multi-item selection.
@@ -165,7 +166,7 @@ class _BulkTagSheetState extends ConsumerState<_BulkTagSheet> {
   Widget build(BuildContext context) {
     final n = widget.selectedItemIds.length;
     final tagsAsync = ref.watch(tagsProvider);
-    final timelineAsync = ref.watch(jobTimelineProvider(widget.jobId));
+    final timelineAsync = ref.watch(jobTimelineProvider((jobId: widget.jobId, query: TimelineQuery.empty)));
 
     return SafeArea(
       child: Padding(

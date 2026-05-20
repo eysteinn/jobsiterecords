@@ -8,6 +8,7 @@ import '../data/storage/media_storage.dart';
 import '../domain/models/job.dart';
 import '../domain/models/tag.dart';
 import '../domain/models/timeline_item.dart';
+import '../domain/models/timeline_query.dart';
 import '../domain/services/export_service.dart';
 
 final databaseProvider = Provider<AppDatabase>(
@@ -66,10 +67,12 @@ final jobProvider = FutureProvider.family<Job?, String>((ref, jobId) {
   return ref.watch(jobsRepositoryProvider).byId(jobId);
 });
 
+typedef JobTimelineKey = ({String jobId, TimelineQuery query});
+
 final jobTimelineProvider =
-    FutureProvider.family<List<TimelineItem>, String>((ref, jobId) {
+    FutureProvider.family<List<TimelineItem>, JobTimelineKey>((ref, key) {
   ref.watch(dataRevisionProvider);
-  return ref.watch(itemsRepositoryProvider).forJob(jobId);
+  return ref.watch(itemsRepositoryProvider).forJob(key.jobId, query: key.query);
 });
 
 final itemProvider = FutureProvider.family<TimelineItem?, String>((ref, itemId) {

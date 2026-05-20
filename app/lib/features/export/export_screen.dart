@@ -8,6 +8,7 @@ import '../../app/providers.dart';
 import '../../app/theme.dart';
 import '../../core/format.dart';
 import '../../domain/models/timeline_item.dart';
+import '../../domain/models/timeline_query.dart';
 import '../../domain/services/export_service.dart';
 
 class ExportScreen extends ConsumerStatefulWidget {
@@ -31,7 +32,7 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final timelineAsync = ref.watch(jobTimelineProvider(widget.jobId));
+    final timelineAsync = ref.watch(jobTimelineProvider((jobId: widget.jobId, query: TimelineQuery.empty)));
     final jobAsync = ref.watch(jobProvider(widget.jobId));
     final storage = ref.watch(mediaStorageProvider);
     return Scaffold(

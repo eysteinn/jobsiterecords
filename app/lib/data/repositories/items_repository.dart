@@ -6,6 +6,7 @@ import '../../domain/models/item.dart';
 import '../../domain/models/media_file.dart';
 import '../../domain/models/tag.dart';
 import '../../domain/models/timeline_item.dart';
+import '../../domain/models/timeline_query.dart';
 import '../db/database.dart';
 import '../storage/media_storage.dart';
 
@@ -23,21 +24,49 @@ class ItemsRepository {
     return _join(item, media[id] ?? const [], tags[id] ?? const []);
   }
 
-  Future<List<TimelineItem>> forJob(String jobId, {String? tagFilter}) async {
-    final rows = tagFilter == null
-        ? await _db.db.query(
-            'items',
-            where: 'job_id = ?',
-            whereArgs: [jobId],
-            orderBy: 'captured_at DESC',
+  Future<List<TimelineItem>> forJob(String jobId, {TimelineQuery query = TimelineQuery.empty}) async {
+    final where = <String>['i.job_id = ?'];
+    final args = <Object?>[jobId];
+
+    if (query.kinds.isNotEmpty) {
+      final placeholders = List.filled(query.kinds.length, '?').join(',');
+      where.add('i.kind IN ($placeholders)');
+      args.addAll(query.kinds.map((k) => k.dbValue));
+    }
+
+    if (query.tagIds.isNotEmpty) {
+      final placeholders = List.filled(query.tagIds.length, '?').join(',');
+      where.add('''
+        EXISTS (
+          SELECT 1 FROM item_tags it
+          WHERE it.item_id = i.id AND it.tag_id IN ($placeholders)
+        )
+      ''');
+      args.addAll(query.tagIds);
+    }
+
+    final search = query.trimmedSearch;
+    if (search != null) {
+      final pattern = '%$search%';
+      where.add('''
+        (
+          i.caption LIKE ? COLLATE NOCASE OR
+          i.body LIKE ? COLLATE NOCASE OR
+          EXISTS (
+            SELECT 1 FROM item_tags it2
+            JOIN tags t ON t.id = it2.tag_id
+            WHERE it2.item_id = i.id AND t.name LIKE ? COLLATE NOCASE
           )
-        : await _db.db.rawQuery('''
-            SELECT i.* FROM items i
-            JOIN item_tags it ON it.item_id = i.id
-            JOIN tags t ON t.id = it.tag_id
-            WHERE i.job_id = ? AND t.name = ? COLLATE NOCASE
-            ORDER BY i.captured_at DESC
-          ''', [jobId, tagFilter]);
+        )
+      ''');
+      args.addAll([pattern, pattern, pattern]);
+    }
+
+    final rows = await _db.db.rawQuery('''
+      SELECT DISTINCT i.* FROM items i
+      WHERE ${where.join(' AND ')}
+      ORDER BY i.captured_at DESC
+    ''', args);
 
     final items = rows.map(Item.fromDb).toList();
     if (items.isEmpty) return const [];

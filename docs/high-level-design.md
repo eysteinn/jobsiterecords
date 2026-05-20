@@ -18,7 +18,7 @@ The repo matches the **Phase 1** architecture in broad strokes. Use this table w
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| Flutter app (`app/`) | **Mostly built** | v0.1.0+1; jobs CRUD, **batch-first photo capture**, voice/note capture, timeline bulk tag, item detail, zip export, settings. Voice notes are audio + optional caption/tags; for spoken text users add a **text note** (keyboard dictation on Android/iOS). Automatic transcription is **Phase 2** (server). Gaps: file import, expanded default tags ([§6.10](#610-implementation-gaps-vs-target-phase-1)). |
+| Flutter app (`app/`) | **Mostly built** | v0.1.0+1; jobs CRUD, **batch-first photo capture**, voice/note capture, timeline **filter/search** (type, tag, full-text), bulk tag, item detail, zip export, settings. Voice notes are audio + optional caption/tags; for spoken text users add a **text note** (keyboard dictation on Android/iOS). Automatic transcription is **Phase 2** (server). Gaps: file import, expanded default tags ([§6.10](#610-implementation-gaps-vs-target-phase-1)). |
 | Landing (`landing/`) | **Active** | PHP + SQLite waitlist on jobsiterecords.com, plus SEO guides, use cases, trades, answers, and examples — not a single static page ([§14.4](#144-the-landing-site)). |
 | Backend (`services/`) | **Placeholder** | README only; no deployable services yet. |
 | Web dashboard (`web/`) | **Not started** | Phase 2. |
@@ -260,6 +260,7 @@ Screen specs derived from the mockups in `/docs`.
 - Summary chips: total items, photos, voice notes, notes, files, issues (counts).
 - Tabs or sections: **Timeline** (default), **Notes**, **Details**.
 - Timeline: grouped by date (newest first). When the job has captures **today**, show a **Today** section at the top (same rows as date grouping — not a separate data model). Each row = thumbnail/icon + time + caption preview + tag chips + overflow menu.
+- **Timeline filter/search (*implemented*):** collapsed by default — app bar **search** icon expands the filter panel (search field, type chips, tag chips). When filters are active and collapsed, a **summary bar** shows the current filters (e.g. `“leak” · Photos · Issue`) with clear; tap the bar to expand again. Search matches caption, note body, and tag names (case-insensitive). Type chips filter by photo / voice / note (multi-select, OR). Tag filter: quick chips for tags used in the job (first six) plus **Tags** sheet for searchable multi-select when many tags exist; selected tags use OR semantics. Count chips stay at job totals; timeline header shows “N of M” when filters are active. Export and bulk select still operate on the full job.
 - Floating "+ Add" CTA (photo, voice, text, file — sheet or speed-dial; keep one obvious primary action).
 - Overflow: **Select items…**, Export…, Mark Completed, Delete Job.
 - **Bulk select (*implemented*):** overflow **Select items…** or **long-press** a timeline row enters selection mode (checkboxes, nothing pre-selected). App bar shows count + **All**; bottom **Tag (N)** + **Delete**; FAB hidden while selecting. **Back** exits selection (does not leave the job). Single-item edit/delete remains on Item Detail.
@@ -333,7 +334,8 @@ Screens in §6.1–6.9 are the **design target**. The shipped app (`app/lib/feat
 | --- | --- | --- |
 | Jobs list | Filter chips (All / In Progress / Completed) | Search only; status shown per row, no filter chips |
 | Jobs list | Long-press quick actions | Tap only; edit/delete via Job Detail |
-| Job detail | Tabs: Timeline / Notes / Details | Single scroll: header, count chips, timeline by date |
+| Job detail | Tabs: Timeline / Notes / Details | Single scroll: header, count chips, **collapsible filter/search**, timeline by date |
+| Job detail | Timeline search / filter | **Implemented** — app bar search toggles panel; active-filter summary when collapsed; type/tag/full-text search |
 | Job detail | Row overflow menus | **Bulk select**, **tag**, and **delete** on timeline (overflow + long-press); no per-row overflow |
 | Job detail | Status pill in header | Status on list card; job notes field on edit form only |
 | Capture tab | Open camera directly | Job picker → mode sheet → capture route |
