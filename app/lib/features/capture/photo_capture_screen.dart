@@ -272,16 +272,6 @@ class _PhotoCaptureScreenState extends ConsumerState<PhotoCaptureScreen> {
             onPressed: _onBack,
           ),
           actions: [
-            TextButton(
-              onPressed: _batch.isEmpty ? null : _finishBatch,
-              child: Text(
-                'Done',
-                style: TextStyle(
-                  color: _batch.isEmpty ? Colors.white38 : AppColors.accent,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
             IconButton(
               onPressed: _toggleFlash,
               icon: Icon(switch (_flash) {
@@ -308,21 +298,34 @@ class _PhotoCaptureScreenState extends ConsumerState<PhotoCaptureScreen> {
                     top: 8,
                     left: 16,
                     right: 16,
-                    child: _BatchStrip(
-                      batch: _batch,
-                      onUndo: _undoLast,
-                    ),
+                    child: _BatchStrip(batch: _batch),
                   ),
                 Align(
                   alignment: Alignment.bottomCenter,
                   child: Padding(
-                    padding: const EdgeInsets.only(bottom: 28, left: 16, right: 16),
+                    padding: EdgeInsets.fromLTRB(
+                      12,
+                      0,
+                      12,
+                      16 + MediaQuery.paddingOf(context).bottom,
+                    ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         IconButton(
                           onPressed: _pickFromGallery,
                           icon: const Icon(Icons.photo_library_outlined, color: Colors.white, size: 28),
+                          tooltip: 'Gallery',
+                        ),
+                        IconButton(
+                          onPressed: _batch.isEmpty ? null : _undoLast,
+                          icon: Icon(
+                            Icons.undo,
+                            color: _batch.isEmpty ? Colors.white24 : Colors.white,
+                            size: 28,
+                          ),
+                          tooltip: 'Remove last',
                         ),
                         GestureDetector(
                           onTap: _capture,
@@ -338,9 +341,29 @@ class _PhotoCaptureScreenState extends ConsumerState<PhotoCaptureScreen> {
                             ),
                           ),
                         ),
+                        TextButton(
+                          onPressed: _batch.isEmpty ? null : _finishBatch,
+                          style: TextButton.styleFrom(
+                            minimumSize: const Size(56, 44),
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            backgroundColor:
+                                _batch.isEmpty ? Colors.white12 : AppColors.accent,
+                            foregroundColor:
+                                _batch.isEmpty ? Colors.white38 : Colors.black,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(22),
+                            ),
+                          ),
+                          child: const Text('Done', style: TextStyle(fontWeight: FontWeight.w700)),
+                        ),
                         IconButton(
                           onPressed: _cameras.length < 2 ? null : _swapCamera,
-                          icon: const Icon(Icons.cameraswitch, color: Colors.white, size: 28),
+                          icon: Icon(
+                            Icons.cameraswitch,
+                            color: _cameras.length < 2 ? Colors.white24 : Colors.white,
+                            size: 28,
+                          ),
+                          tooltip: 'Flip camera',
                         ),
                       ],
                     ),
@@ -356,9 +379,8 @@ class _PhotoCaptureScreenState extends ConsumerState<PhotoCaptureScreen> {
 }
 
 class _BatchStrip extends StatelessWidget {
-  const _BatchStrip({required this.batch, required this.onUndo});
+  const _BatchStrip({required this.batch});
   final List<_BatchPhoto> batch;
-  final VoidCallback onUndo;
 
   @override
   Widget build(BuildContext context) {
@@ -382,15 +404,9 @@ class _BatchStrip extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              '${batch.length} in batch — keep shooting or tap Done',
+              '${batch.length} in batch — keep shooting',
               style: const TextStyle(color: Colors.white, fontSize: 12),
             ),
-          ),
-          IconButton(
-            onPressed: onUndo,
-            icon: const Icon(Icons.undo, color: Colors.white, size: 20),
-            tooltip: 'Remove last',
-            visualDensity: VisualDensity.compact,
           ),
         ],
       ),
