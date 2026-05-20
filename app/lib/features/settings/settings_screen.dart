@@ -92,15 +92,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Future<void> _confirmClearAll() async {
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Clear all data?'),
         content: const Text(
           'This deletes every job, every photo, every voice note, and every text note from this device. This cannot be undone.',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
           TextButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text('Delete everything', style: TextStyle(color: Colors.red)),
           ),
         ],
