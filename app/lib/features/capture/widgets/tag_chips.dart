@@ -9,10 +9,12 @@ class TagChips extends StatelessWidget {
     required this.allTags,
     required this.selectedIds,
     required this.onToggle,
+    this.partialIds = const {},
     this.onAddTag,
   });
   final List<Tag> allTags;
   final Set<String> selectedIds;
+  final Set<String> partialIds;
   final ValueChanged<String> onToggle;
   final VoidCallback? onAddTag;
 
@@ -26,6 +28,7 @@ class TagChips extends StatelessWidget {
           _Chip(
             label: t.name,
             selected: selectedIds.contains(t.id),
+            partial: partialIds.contains(t.id),
             onTap: () => onToggle(t.id),
           ),
         if (onAddTag != null)
@@ -40,30 +43,59 @@ class TagChips extends StatelessWidget {
 }
 
 class _Chip extends StatelessWidget {
-  const _Chip({required this.label, required this.selected, required this.onTap});
+  const _Chip({
+    required this.label,
+    required this.selected,
+    required this.partial,
+    required this.onTap,
+  });
   final String label;
   final bool selected;
+  final bool partial;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final bg = selected
+        ? AppColors.accent
+        : partial
+            ? AppColors.accent.withValues(alpha: 0.35)
+            : const Color(0xFFF3F4F6);
+    final border = selected
+        ? AppColors.accent
+        : partial
+            ? AppColors.accent
+            : const Color(0xFFE5E7EB);
     return Material(
-      color: selected ? AppColors.accent : const Color(0xFFF3F4F6),
+      color: bg,
       shape: StadiumBorder(
-        side: BorderSide(color: selected ? AppColors.accent : const Color(0xFFE5E7EB)),
+        side: BorderSide(
+          color: border,
+          width: partial && !selected ? 1.5 : 1,
+          style: partial && !selected ? BorderStyle.solid : BorderStyle.solid,
+        ),
       ),
       child: InkWell(
         customBorder: const StadiumBorder(),
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: selected ? Colors.black : AppColors.ink,
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (partial && !selected) ...[
+                const Icon(Icons.remove, size: 12, color: AppColors.ink),
+                const SizedBox(width: 4),
+              ],
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: selected ? Colors.black : AppColors.ink,
+                ),
+              ),
+            ],
           ),
         ),
       ),

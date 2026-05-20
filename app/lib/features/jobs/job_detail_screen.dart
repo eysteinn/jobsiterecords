@@ -11,43 +11,173 @@ import '../../core/format.dart';
 import '../../domain/models/item.dart';
 import '../../domain/models/job.dart';
 import '../../domain/models/timeline_item.dart';
+import 'bulk_tag_sheet.dart';
 
-class JobDetailScreen extends ConsumerWidget {
+class JobDetailScreen extends ConsumerStatefulWidget {
   const JobDetailScreen({super.key, required this.jobId});
   final String jobId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final jobAsync = ref.watch(jobProvider(jobId));
-    final timelineAsync = ref.watch(jobTimelineProvider(jobId));
-    final storage = ref.watch(mediaStorageProvider);
+  ConsumerState<JobDetailScreen> createState() => _JobDetailScreenState();
+}
 
-    return Scaffold(
-      appBar: AppBar(
-        title: jobAsync.maybeWhen(
-          data: (j) => Text(j?.name ?? 'Job', maxLines: 1, overflow: TextOverflow.ellipsis),
-          orElse: () => const Text('Job'),
+class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
+  bool _selecting = false;
+  final Set<String> _selected = {};
+  bool _deleting = false;
+
+  String get jobId => widget.jobId;
+
+  void _enterSelection({String? initialItemId}) {
+    setState(() {
+      _selecting = true;
+      _selected.clear();
+      if (initialItemId != null) _selected.add(initialItemId);
+    });
+  }
+
+  void _exitSelection() {
+    setState(() {
+      _selecting = false;
+      _selected.clear();
+    });
+  }
+
+  void _toggleSelected(String itemId) {
+    setState(() {
+      if (_selected.contains(itemId)) {
+        _selected.remove(itemId);
+      } else {
+        _selected.add(itemId);
+      }
+    });
+  }
+
+  void _selectAll(Iterable<String> ids) {
+    setState(() => _selected.addAll(ids));
+  }
+
+  void _openTagSheet() {
+    if (_selected.isEmpty || _deleting) return;
+    showBulkTagSheet(
+      context: context,
+      jobId: jobId,
+      selectedItemIds: Set.unmodifiable(_selected),
+    );
+  }
+
+  Future<void> _deleteSelected() async {
+    final n = _selected.length;
+    if (n == 0 || _deleting) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text('Delete $n item${n == 1 ? '' : 's'}?'),
+        content: const Text(
+          'This permanently removes the selected items from this device. This cannot be undone.',
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.edit_outlined),
-            onPressed: () => context.pushNamed('job-edit', pathParameters: {'id': jobId}),
-          ),
-          PopupMenuButton<String>(
-            onSelected: (v) => _onMenu(context, ref, v),
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'export', child: Text('Export…')),
-              PopupMenuItem(value: 'complete', child: Text('Mark Completed')),
-              PopupMenuItem(value: 'delete', child: Text('Delete Job', style: TextStyle(color: Colors.red))),
-            ],
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
+    );
+    if (ok != true || !mounted) return;
+
+    setState(() => _deleting = true);
+    final repo = ref.read(itemsRepositoryProvider);
+    final ids = _selected.toList();
+    try {
+      for (final id in ids) {
+        await repo.delete(id);
+      }
+      bumpDataRevision(ref);
+      if (!mounted) return;
+      _exitSelection();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Deleted $n item${n == 1 ? '' : 's'}')),
+      );
+    } finally {
+      if (mounted) setState(() => _deleting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final jobAsync = ref.watch(jobProvider(jobId));
+    final timelineAsync = ref.watch(jobTimelineProvider(jobId));
+    final storage = ref.watch(mediaStorageProvider);
+    final itemIds = timelineAsync.maybeWhen(
+      data: (items) => items.map((t) => t.item.id),
+      orElse: () => const Iterable<String>.empty(),
+    );
+
+    return PopScope(
+      canPop: !_selecting,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop || !_selecting || _deleting) return;
+        _exitSelection();
+      },
+      child: Scaffold(
+      appBar: _selecting
+          ? AppBar(
+              leading: IconButton(
+                icon: const Icon(Icons.close),
+                tooltip: 'Cancel',
+                onPressed: _deleting ? null : _exitSelection,
+              ),
+              title: Text(
+                _selected.isEmpty
+                    ? 'Select items'
+                    : '${_selected.length} selected',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: _deleting ? null : () => _selectAll(itemIds),
+                  child: const Text('All'),
+                ),
+              ],
+            )
+          : AppBar(
+              title: jobAsync.maybeWhen(
+                data: (j) => Text(j?.name ?? 'Job', maxLines: 1, overflow: TextOverflow.ellipsis),
+                orElse: () => const Text('Job'),
+              ),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.edit_outlined),
+                  onPressed: () => context.pushNamed('job-edit', pathParameters: {'id': jobId}),
+                ),
+                PopupMenuButton<String>(
+                  onSelected: (v) => _onMenu(context, ref, v),
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: 'select', child: Text('Select items…')),
+                    PopupMenuItem(value: 'export', child: Text('Export…')),
+                    PopupMenuItem(value: 'complete', child: Text('Mark Completed')),
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: Text('Delete Job', style: TextStyle(color: Colors.red)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
       body: jobAsync.when(
         data: (job) {
           if (job == null) return const Center(child: Text('Job not found'));
           return timelineAsync.when(
-            data: (items) => _Body(job: job, items: items, storage: storage.absolutePath),
+            data: (items) => _Body(
+              job: job,
+              items: items,
+              storage: storage.absolutePath,
+              selecting: _selecting,
+              selected: _selected,
+              onToggle: _toggleSelected,
+              onLongPress: (id) => _enterSelection(initialItemId: id),
+            ),
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (e, _) => Center(child: Text('Error: $e')),
           );
@@ -55,10 +185,51 @@ class JobDetailScreen extends ConsumerWidget {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Error: $e')),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _addItemSheet(context),
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Add Photo or Note'),
+      floatingActionButton: _selecting
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: () => _addItemSheet(context),
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Add Photo or Note'),
+            ),
+      bottomNavigationBar: _selecting
+          ? SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: (_selected.isEmpty || _deleting) ? null : _openTagSheet,
+                        icon: const Icon(Icons.label_outline),
+                        label: Text('Tag${_selected.isEmpty ? '' : ' (${_selected.length})'}'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: (_selected.isEmpty || _deleting) ? null : _deleteSelected,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.red,
+                          side: const BorderSide(color: Colors.red),
+                          disabledForegroundColor: Colors.red.withValues(alpha: 0.38),
+                          disabledBackgroundColor: Colors.transparent,
+                        ),
+                        icon: _deleting
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.red),
+                              )
+                            : const Icon(Icons.delete_outline),
+                        label: Text(_deleting ? 'Deleting…' : 'Delete'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : null,
       ),
     );
   }
@@ -104,6 +275,8 @@ class JobDetailScreen extends ConsumerWidget {
 
   Future<void> _onMenu(BuildContext context, WidgetRef ref, String v) async {
     switch (v) {
+      case 'select':
+        _enterSelection();
       case 'export':
         context.pushNamed('job-export', pathParameters: {'id': jobId});
       case 'complete':
@@ -138,10 +311,22 @@ class JobDetailScreen extends ConsumerWidget {
 }
 
 class _Body extends StatelessWidget {
-  const _Body({required this.job, required this.items, required this.storage});
+  const _Body({
+    required this.job,
+    required this.items,
+    required this.storage,
+    required this.selecting,
+    required this.selected,
+    required this.onToggle,
+    required this.onLongPress,
+  });
   final Job job;
   final List<TimelineItem> items;
   final String Function(String) storage;
+  final bool selecting;
+  final Set<String> selected;
+  final void Function(String itemId) onToggle;
+  final void Function(String itemId) onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -151,23 +336,49 @@ class _Body extends StatelessWidget {
       return DateTime(d.year, d.month, d.day);
     });
     final days = byDay.keys.toList()..sort((a, b) => b.compareTo(a));
+    final bottomPad = selecting ? 100.0 : 100.0;
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+      padding: EdgeInsets.fromLTRB(16, 12, 16, bottomPad),
       children: [
         _Header(job: job),
         const SizedBox(height: 12),
         _Counts(counts: counts),
         const SizedBox(height: 18),
-        const Text('Timeline', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: AppColors.ink)),
+        Row(
+          children: [
+            const Expanded(
+              child: Text(
+                'Timeline',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: AppColors.ink),
+              ),
+            ),
+            if (selecting && items.isNotEmpty)
+              Text(
+                '${selected.length} of ${items.length}',
+                style: const TextStyle(color: AppColors.subtle, fontSize: 12),
+              ),
+          ],
+        ),
         const SizedBox(height: 8),
         if (items.isEmpty) const _EmptyTimeline(),
         for (final d in days) ...[
           Padding(
             padding: const EdgeInsets.only(top: 14, bottom: 6),
-            child: Text(formatDay(d), style: const TextStyle(color: AppColors.subtle, fontSize: 12, fontWeight: FontWeight.w600)),
+            child: Text(
+              formatDay(d),
+              style: const TextStyle(color: AppColors.subtle, fontSize: 12, fontWeight: FontWeight.w600),
+            ),
           ),
-          for (final t in byDay[d]!) _ItemRow(timeline: t, storage: storage),
+          for (final t in byDay[d]!)
+            _ItemRow(
+              timeline: t,
+              storage: storage,
+              selecting: selecting,
+              selected: selected.contains(t.item.id),
+              onToggle: () => onToggle(t.item.id),
+              onLongPress: () => onLongPress(t.item.id),
+            ),
         ],
       ],
     );
@@ -246,9 +457,21 @@ class _Counts extends StatelessWidget {
 }
 
 class _ItemRow extends StatelessWidget {
-  const _ItemRow({required this.timeline, required this.storage});
+  const _ItemRow({
+    required this.timeline,
+    required this.storage,
+    required this.selecting,
+    required this.selected,
+    required this.onToggle,
+    required this.onLongPress,
+  });
   final TimelineItem timeline;
   final String Function(String) storage;
+  final bool selecting;
+  final bool selected;
+  final VoidCallback onToggle;
+  final VoidCallback onLongPress;
+
   @override
   Widget build(BuildContext context) {
     final t = timeline;
@@ -257,16 +480,29 @@ class _ItemRow extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Material(
-        color: Colors.white,
+        color: selected ? AppColors.accent.withValues(alpha: 0.08) : Colors.white,
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
-          onTap: () => context.pushNamed('item-detail', pathParameters: {'id': t.item.id}),
+          onTap: selecting
+              ? onToggle
+              : () => context.pushNamed('item-detail', pathParameters: {'id': t.item.id}),
+          onLongPress: selecting ? null : onLongPress,
           child: Padding(
             padding: const EdgeInsets.all(10),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (selecting) ...[
+                  Checkbox(
+                    value: selected,
+                    onChanged: (_) => onToggle(),
+                    activeColor: AppColors.accent,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  const SizedBox(width: 4),
+                ],
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),
                   child: SizedBox(

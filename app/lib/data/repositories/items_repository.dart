@@ -286,6 +286,73 @@ class ItemsRepository {
     });
   }
 
+  /// Adds [tagId] to every [itemId] that does not already have it.
+  Future<void> addTagToItems({required List<String> itemIds, required String tagId}) async {
+    if (itemIds.isEmpty) return;
+    final ts = now();
+    await _db.db.transaction((txn) async {
+      String? jobId;
+      for (final itemId in itemIds) {
+        final existing = await txn.query(
+          'item_tags',
+          where: 'item_id = ? AND tag_id = ?',
+          whereArgs: [itemId, tagId],
+        );
+        if (existing.isEmpty) {
+          await txn.insert('item_tags', {'item_id': itemId, 'tag_id': tagId});
+        }
+        await txn.update(
+          'items',
+          {'updated_at': ts.toIso8601String()},
+          where: 'id = ?',
+          whereArgs: [itemId],
+        );
+        final r = await txn.query('items', columns: ['job_id'], where: 'id = ?', whereArgs: [itemId]);
+        if (r.isNotEmpty) jobId = r.first['job_id'] as String;
+      }
+      if (jobId != null) {
+        await txn.update(
+          'jobs',
+          {'updated_at': ts.toIso8601String()},
+          where: 'id = ?',
+          whereArgs: [jobId],
+        );
+      }
+    });
+  }
+
+  /// Removes [tagId] from every [itemId] that has it.
+  Future<void> removeTagFromItems({required List<String> itemIds, required String tagId}) async {
+    if (itemIds.isEmpty) return;
+    final ts = now();
+    await _db.db.transaction((txn) async {
+      String? jobId;
+      for (final itemId in itemIds) {
+        await txn.delete(
+          'item_tags',
+          where: 'item_id = ? AND tag_id = ?',
+          whereArgs: [itemId, tagId],
+        );
+        await txn.update(
+          'items',
+          {'updated_at': ts.toIso8601String()},
+          where: 'id = ?',
+          whereArgs: [itemId],
+        );
+        final r = await txn.query('items', columns: ['job_id'], where: 'id = ?', whereArgs: [itemId]);
+        if (r.isNotEmpty) jobId = r.first['job_id'] as String;
+      }
+      if (jobId != null) {
+        await txn.update(
+          'jobs',
+          {'updated_at': ts.toIso8601String()},
+          where: 'id = ?',
+          whereArgs: [jobId],
+        );
+      }
+    });
+  }
+
   Future<void> delete(String itemId) async {
     String? jobId;
     final r = await _db.db.query('items', columns: ['job_id'], where: 'id = ?', whereArgs: [itemId]);
