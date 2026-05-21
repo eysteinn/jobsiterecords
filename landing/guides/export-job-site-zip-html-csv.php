@@ -6,15 +6,13 @@ require_once dirname(__DIR__) . '/lib/seo-layout.php';
 $body = <<<'HTML'
 <article class="guide">
     <span class="eyebrow">Guides</span>
-    <h1>Export a job as zip (HTML + CSV + JSON)</h1>
+    <h1>Export a job as zip (HTML + media)</h1>
     <p class="lead">Clients and PMs do not want another login. They want a <strong>folder they can open</strong>. Job Site Records builds a zip archive you send through your phone's share sheet. Email, AirDrop, WhatsApp, Drive, whatever you already use.</p>
 
     <h2>What is inside the archive</h2>
     <p>Exports are designed to be useful even outside the app. A typical bundle includes:</p>
     <ul>
         <li><code>index.html</code>   a static page with the job header, items grouped by date, captions, tags, and embedded audio players for voice notes. No JavaScript, no CDN assets.</li>
-        <li><code>index.csv</code>   timestamps, kind, captions, tags, and file references for spreadsheets.</li>
-        <li><code>job.json</code>   structured metadata for future re-import or dashboard tools.</li>
         <li>Folders for <strong>photos</strong>, <strong>voice_notes</strong>, and <strong>text notes</strong> with readable filenames.</li>
     </ul>
 
@@ -42,8 +40,8 @@ $body = <<<'HTML'
 HTML;
 
 render_seo_page([
-    'title' => 'Export a job as zip (HTML + CSV)',
-    'description' => 'What is inside Job Site Records zip exports: index.html, index.csv, job.json, photos, and voice. No PDF in Phase 1.',
+    'title' => 'Export a job as zip (HTML + media)',
+    'description' => 'What is inside Job Site Records zip exports: index.html, photos, voice notes, and text notes. No PDF in Phase 1.',
     'canonical_path' => '/guides/export-job-site-zip-html-csv.php',
     'body' => $body,
 ]);

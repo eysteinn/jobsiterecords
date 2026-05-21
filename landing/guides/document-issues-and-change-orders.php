@@ -13,7 +13,7 @@ $body = <<<'HTML'
     <p>Reserving <strong>Issue</strong> for real surprises keeps filters honest. Pair the tag with a caption that states facts ("subfloor saturated 24 inches out from tub") and add voice if you need to walk someone through options. Later, your timeline sorts by date so the story reads in order.</p>
 
     <h2>Change-order justification</h2>
-    <p>Change orders live or die on clarity. A zip export that contains captioned photos, tagged items, timestamps, and optional text notes gives the office or homeowner something they can forward without special software. Phase 1 delivers <code>index.html</code> and <code>index.csv</code> inside the archive; formal branded PDFs are planned for the optional web dashboard tier later. Not a blocker for evidence today.</p>
+    <p>Change orders live or die on clarity. A zip export that contains captioned photos, tagged items, timestamps, and optional text notes gives the office or homeowner something they can forward without special software. Phase 1 delivers <code>index.html</code> inside the archive; formal branded PDFs are planned for the optional web dashboard tier later. Not a blocker for evidence today.</p>
 
     <h2>Privacy stays intact until you share</h2>
     <p>Nothing uploads automatically. You choose when to export and which app receives the zip from the OS share sheet. That keeps sensitive job photos off random cloud folders until you are ready.</p>

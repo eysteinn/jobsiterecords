@@ -10,7 +10,7 @@ $body = <<<'HTML'
     <p class="lead">Your exporter might name things differently—this is the shape that keeps homeowners from emailing “is the manual in there?”</p>
 
     <ul>
-        <li><code>index.html</code> + <code>index.csv</code> — whatever your tool generates; people like a human-readable list.</li>
+        <li><code>index.html</code> — a human-readable summary anyone can open in a browser.</li>
         <li><code>photos/</code> — curated jpgs/heic, not the whole camera roll.</li>
         <li><code>audio/</code> — voice notes if the client actually wants them (ask first; some do not).</li>
         <li><code>warranty/</code> — PDF scans of appliance cards if you collected them.</li>

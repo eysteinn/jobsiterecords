@@ -20,7 +20,7 @@ $body = <<<'HTML'
     </ul>
 
     <h2>Handoff without heavy software</h2>
-    <p>In Phase 1 the app exports a zip with photos, voice notes, text notes, a browser-openable <code>index.html</code>, a spreadsheet-friendly <code>index.csv</code>, and structured <code>job.json</code>. Branded PDF reports are planned for a later optional team tier with a web dashboard. Not required to deliver solid evidence today.</p>
+    <p>In Phase 1 the app exports a zip with photos, voice notes, text notes, and a browser-openable <code>index.html</code>. Branded PDF reports are planned for a later optional team tier with a web dashboard. Not required to deliver solid evidence today.</p>
 
     <div class="guide-cta">
         <strong>Build the habit on your phone</strong>
