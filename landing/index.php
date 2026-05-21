@@ -1169,7 +1169,7 @@ function h(?string $s): string {
                 </li>
                 <li>
                     <strong>Export what you need.</strong>
-                    <span>Select items, generate a zip with an <code>index.html</code> anyone can open and a structured <code>job.json</code>, then share through your phone's share sheet.</span>
+                    <span>Select items, generate a zip with an <code>index.html</code> anyone can open, then share through your phone's share sheet.</span>
                 </li>
             </ol>
             <div></div>
@@ -1240,16 +1240,15 @@ function h(?string $s): string {
             <span class="eyebrow">Export</span>
             <h2>What lands in the zip.</h2>
             <p class="section-lead">
-                Every export is plain, portable, and client-readable on any device. Open it in a browser,
-                drop the CSV in a spreadsheet, or pipe the JSON into your own tools. No special viewer app.
+                Every export is plain, portable, and client-readable on any device. Open the summary in a browser.
+                No special viewer app.
             </p>
         </div>
         <div class="two-col">
             <div>
                 <p style="margin-top:0;color:var(--ink-soft)">
                     The archive opens anywhere. <code>index.html</code> is a static page with no JavaScript and no external assets.
-                    <code>index.csv</code> is for spreadsheets.
-                    <code>job.json</code> is the structured payload if you want to re-import or pipe it into another tool.
+                    Photos, voice notes, and text notes sit in clear folders beside it.
                 </p>
                 <ul style="color:var(--ink-soft);padding-left:1.2em;margin:0">
                     <li>Photos and voice notes (AAC / m4a) in clear folders</li>
@@ -1259,8 +1258,6 @@ function h(?string $s): string {
             </div>
             <pre class="export-box" aria-label="Example zip layout">JobSiteRecords_<span class="k">&lt;JobName&gt;</span>_2026-05-14.zip
  ├─ index.html      <span class="k">(opens in any browser)</span>
- ├─ index.csv       <span class="k">(timestamps, captions, tags)</span>
- ├─ job.json        <span class="k">(structured metadata)</span>
  ├─ photos/
  │   └─ 2026-05-13_09-15_before_kitchen-demo.jpg
  ├─ voice_notes/
@@ -1397,7 +1394,7 @@ function h(?string $s): string {
         </details>
         <details>
             <summary>What format are the exports?</summary>
-            <p class="faq-a">Each export is a zip with your photos, voice notes, an <code>index.html</code> that opens in any browser, an <code>index.csv</code> for spreadsheets, and a structured <code>job.json</code>. Anyone can open it. No special viewer app.</p>
+            <p class="faq-a">Each export is a zip with your photos, voice notes, text notes, and an <code>index.html</code> that opens in any browser. Anyone can open it. No special viewer app.</p>
         </details>
         <details>
             <summary>How do I get started?</summary>

@@ -13,7 +13,7 @@ $body = <<<'HTML'
     <ul>
         <li>Jobs with timelines; photos, voice notes, and text notes.</li>
         <li>Captions, tags, offline capture, device-only storage.</li>
-        <li>Zip export with <code>index.html</code>, <code>index.csv</code>, <code>job.json</code>, and media folders.</li>
+        <li>Zip export with <code>index.html</code> and media folders.</li>
         <li>No PDF generator, no cloud sync, no in-app team sharing, no transcription.</li>
     </ul>
 

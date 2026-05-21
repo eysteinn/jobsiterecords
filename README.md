@@ -18,7 +18,7 @@ Future top-level folders (added only when justified by actual work):
 | Folder | What it will hold |
 | --- | --- |
 | `web/` | Web dashboard for the paid tier |
-| `shared/` | Cross-language contracts (e.g. JSON Schema for the `job.json` export) |
+| `shared/` | Cross-language contracts (e.g. sync API schemas for Phase 2) |
 | `infra/` | Infrastructure-as-code, once there's anything to deploy |
 | `tools/` | One-off scripts, codegen, CI helpers |
 

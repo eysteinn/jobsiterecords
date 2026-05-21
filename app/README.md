@@ -80,7 +80,7 @@ lib/
 │   └── storage/         media file IO (photos, voice notes)
 ├── domain/
 │   ├── models/          Job, Item, Tag, MediaFile, TimelineItem
-│   └── services/        ExportService (zip + index.html + job.json builder)
+│   └── services/        ExportService (zip + index.html + media folders)
 └── features/
     ├── jobs/            list, form (create/edit), detail
     ├── capture/         photo, voice, note + shared tag chip widget

@@ -13,7 +13,7 @@ When the paid tier is greenlit (see §14.5 of the design doc), expect roughly:
 | Service | Purpose |
 | --- | --- |
 | `api/` | Public REST/GraphQL API for the web dashboard and synced clients |
-| `sync/` | Sync engine — ingests `job.json`-shaped payloads from mobile clients |
+| `sync/` | Sync engine — workspace/job replication from mobile clients |
 | `auth/` | Authentication, subscription / billing webhook handler |
 | `transcribe/` | Async worker for voice-note transcription (cloud/dashboard; not stored in the mobile `items` table) |
 | `pdf/` | Server-side PDF report renderer (templates, branding) |

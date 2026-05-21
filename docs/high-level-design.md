@@ -498,8 +498,6 @@ A flat, human-readable structure so it's useful even outside the app:
 ```
 JobSiteRecords_<JobName>_<YYYY-MM-DD>.zip
  ├─ index.html             (single-page summary — opens in any browser)
- ├─ index.csv              (timestamp, kind, caption, tags, file references)
- ├─ job.json               (structured metadata for future re-import / web dashboard)
  ├─ photos/
  │   └─ 2026-05-13_09-15_before_kitchen-demo.jpg
  ├─ voice_notes/
@@ -510,8 +508,7 @@ JobSiteRecords_<JobName>_<YYYY-MM-DD>.zip
      └─ 2026-05-13_14-30_change-order-signed.pdf
 ```
 
-- `index.html` is a static, self-contained page with the job header, items grouped by date, captions, tags, `<audio>` tags for voice notes, and links/icons for attached files. No JS, no external assets. This is the human-friendly "report" view — good enough for **Phase 1**, and viewable on any device the user shares the zip to.
-- `job.json` is the canonical machine-readable form. The **Phase 2** web dashboard ingests this to render proper branded PDFs server-side.
+- `index.html` is a static, self-contained page with the job header, items grouped by date, captions, tags, `<audio>` tags for voice notes, and links/icons for attached files. No JS, no external assets. This is the human-friendly "report" view — good enough for **Phase 1**, and viewable on any device the user shares the zip to. No CSV or JSON sidecars — contractors hand off folders clients can open, not data files for spreadsheets or tooling.
 
 ### Native share
 `share_plus` invokes the OS share sheet so the user can pick email, SMS, AirDrop, WhatsApp, Drive, Files, etc. The generated zip lives in the app's cache directory and is purged after the share completes (or on next launch).
@@ -558,7 +555,7 @@ Future additions, when they're justified by actual work — not before:
 
 ```
 ├── web/                  Web dashboard (Phase 2; React/Next.js most likely)
-├── shared/               Cross-language schemas (e.g. JSON Schema for the export `job.json`)
+├── shared/               Cross-language schemas (e.g. sync API payloads for Phase 2)
 ├── infra/                IaC (Terraform / Pulumi) once we have anything to deploy
 └── tools/                One-off scripts, codegen, CI helpers
 ```
@@ -566,7 +563,7 @@ Future additions, when they're justified by actual work — not before:
 Rules of the road:
 - **No code at the repo root.** Anything code-like lives under exactly one top-level folder.
 - **Each top-level folder owns its own toolchain.** `app/` has `pubspec.yaml`; a future `services/api/` has its own `package.json` or `pyproject.toml`. We do not invent a global build system on day one.
-- **Cross-cutting contracts live in `shared/`** when they exist (e.g. the `job.json` schema that both the mobile app emits and the web dashboard will ingest). Until then, the contract is documented in `docs/`.
+- **Cross-cutting contracts live in `shared/`** when they exist (e.g. sync/API schemas for Phase 2). Until then, the contract is documented in `docs/`.
 - **The root README is a map**, not a tutorial. It points at each folder's own README.
 
 ### 11.2 The mobile app — `app/`
@@ -588,7 +585,7 @@ app/
 │   │   └── storage/     (MediaStorage — media/<job_id>/<item_id>/)
 │   ├── domain/
 │   │   ├── models/      (Job, Item, Tag, MediaFile, TimelineItem, …)
-│   │   └── services/    (ExportService — zip + index.html + index.csv + job.json)
+│   │   └── services/    (ExportService — zip + index.html + media folders)
 │   └── features/
 │       ├── jobs/        (list, form, detail)
 │       ├── capture/     (hub, photo, voice, note, tag_chips widget)
@@ -622,7 +619,7 @@ app/
 ```
 services/
 ├── api/                 Public REST/GraphQL API for the web dashboard and synced clients
-├── sync/                Sync engine (likely event-sourced; ingests `job.json`-shaped payloads)
+├── sync/                Sync engine (likely event-sourced; workspace/job replication API)
 ├── auth/                Auth + subscription / billing webhook handler (RevenueCat or direct)
 ├── transcribe/          Speech-to-text worker → cloud transcript rows (dashboard; not local `items` columns)
 └── pdf/                 Server-side PDF report renderer (templates + branding)
@@ -632,7 +629,7 @@ Each service is its own deployable unit with its own README, dependencies, and C
 
 ### 11.5 Why monorepo (and not multi-repo)
 
-- One source of truth for the cross-cutting export contract (`job.json` is emitted by `app/`, consumed by `services/sync/` and `services/pdf/` — they must not drift).
+- One source of truth for cross-cutting API contracts (sync payloads shared by `app/`, `services/sync/`, and `services/pdf/` — they must not drift).
 - One PR can touch both sides of a feature when a future change crosses the mobile/backend boundary.
 - Cheaper at our scale — one repo, one issue tracker, one CI config evolving over time. We can split if/when it actually hurts.
 
@@ -666,7 +663,7 @@ What Phase 2 adds (out of scope for **Phase 1**, but mapped here and detailed in
 | **M0 — Skeleton** | Flutter project, theming, routing, SQLite v1 + default tags | **Done** |
 | **M1 — Jobs CRUD** | Create/edit/delete, list, search, status | **Done** |
 | **M2 — Capture loop** | Camera, photo/voice/note/file import, captions, tags, timeline, item detail | **Mostly done** — gaps: file import, photo+voice combo UI, timeline thumbs, “Today” UX, expanded default tags |
-| **M3 — Export** | Selection, options, zip (`index.html`, `index.csv`, `job.json`), share sheet | **Done** |
+| **M3 — Export** | Selection, options, zip (`index.html` + media), share sheet | **Done** |
 | **M4 — Polish & ship** | Settings completeness, permissions UX, a11y, tests, store assets, beta | **In progress** |
 
 Original timeboxes (for planning): M0 ~1w, M1 ~1w, M2 ~2w, M3 ~1w, M4 ~1–2w (~5–7 weeks total to public Phase 1).
@@ -828,7 +825,7 @@ Users who never create a workspace and never sign in **never pay** and **do not 
 
 - **Auth** — standard session/JWT or equivalent; passwordless-first fits the contractor audience.
 - **Billing** — App Store / Play subscription tied to workspace or to a "family" SKU that maps server-side to N seats; web-only teams may need Stripe or equivalent. **RevenueCat** (or similar) is a likely consolidation layer across mobile stores.
-- **API + sync** — REST or GraphQL plus blob storage (S3-compatible) for media; sync protocol can start as **per-job sync** or full-workspace replication. Reuse the **`job.json` / zip** contract as the interchange shape where possible so imports and support tooling stay simple.
+- **API + sync** — REST or GraphQL plus blob storage (S3-compatible) for media; sync protocol can start as **per-job sync** or full-workspace replication. Phase 1 zip exports stay a human handoff format only; structured interchange lives in the sync API, not in export sidecars.
 - **Dashboard** — separate deployable (`web/` in [§11.1](#111-repository-layout-monorepo)); shares types/contracts via `shared/` when introduced.
 - **Privacy (sync users)** — encryption in transit and at rest; workspace isolation; clear **export and deletion** for workspace data. Messaging: **local-first by default**; cloud sync is **opt-in** and covered in the privacy policy (what we store, retention, who can see workspace jobs).
 

@@ -10,7 +10,7 @@ $body = <<<'HTML'
     <p class="lead">A thousand unnamed <code>IMG_4821.jpg</code> files help nobody. Captions and tags turn a dump of pixels into a <strong>story someone else can follow</strong>: your future self, the office, or the homeowner.</p>
 
     <h2>Tags for state, captions for facts</h2>
-    <p>Use tags for coarse state: Before, During, After, Issue, Completed, or labels you define for your trade. Use captions for specifics: measurements, model numbers, who was on site, what was agreed. The combination survives export: both land in <code>index.html</code> and <code>index.csv</code>.</p>
+    <p>Use tags for coarse state: Before, During, After, Issue, Completed, or labels you define for your trade. Use captions for specifics: measurements, model numbers, who was on site, what was agreed. The combination survives export in <code>index.html</code>.</p>
 
     <h2>Defaults you can extend</h2>
     <p>The app ships a sensible starter set and lets you manage your tag library in settings. Add, rename, delete, reorder. Recent tags surface during capture so the habit stays fast.</p>

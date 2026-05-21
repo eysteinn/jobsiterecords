@@ -85,17 +85,9 @@ class ExportService {
       }
     }
 
-    final csv = _buildCsv(items, options);
-    final csvBytes = utf8.encode(csv);
-    archive.addFile(ArchiveFile('index.csv', csvBytes.length, csvBytes));
-
     final html = _buildHtml(job, items, options);
     final htmlBytes = utf8.encode(html);
     archive.addFile(ArchiveFile('index.html', htmlBytes.length, htmlBytes));
-
-    final json = _buildJobJson(job, items, options);
-    final jsonBytes = utf8.encode(json);
-    archive.addFile(ArchiveFile('job.json', jsonBytes.length, jsonBytes));
 
     final encoder = ZipEncoder();
     final out = encoder.encode(archive);
@@ -134,93 +126,6 @@ class ExportService {
   String _photoName(TimelineItem t) => '${_stamp(t.item.capturedAt)}_${_shortCaption(t)}.jpg';
   String _voiceName(TimelineItem t) => '${_stamp(t.item.capturedAt)}_${_shortCaption(t)}.m4a';
   String _noteName(TimelineItem t) => '${_stamp(t.item.capturedAt)}_${_shortCaption(t)}.txt';
-
-  String _csvEscape(String? v) {
-    final s = v ?? '';
-    if (s.contains(',') || s.contains('"') || s.contains('\n')) {
-      return '"${s.replaceAll('"', '""')}"';
-    }
-    return s;
-  }
-
-  String _buildCsv(List<TimelineItem> items, ExportOptions opts) {
-    final b = StringBuffer();
-    b.writeln('timestamp,kind,caption,tags,photo,voice,note');
-    for (final t in items) {
-      final cap = opts.includeCaptions ? t.item.caption : null;
-      final tags = opts.includeTags ? t.tags.map((e) => e.name).join('|') : '';
-      final photo = t.primaryPhoto != null ? 'photos/${_photoName(t)}' : '';
-      final voice = t.voiceNote != null ? 'voice_notes/${_voiceName(t)}' : '';
-      final note = t.item.kind == ItemKind.note ? 'notes/${_noteName(t)}' : '';
-      b.write(_csvEscape(t.item.capturedAt.toLocal().toIso8601String()));
-      b.write(',');
-      b.write(_csvEscape(t.item.kind.dbValue));
-      b.write(',');
-      b.write(_csvEscape(cap));
-      b.write(',');
-      b.write(_csvEscape(tags));
-      b.write(',');
-      b.write(_csvEscape(photo));
-      b.write(',');
-      b.write(_csvEscape(voice));
-      b.write(',');
-      b.write(_csvEscape(note));
-      b.writeln();
-    }
-    return b.toString();
-  }
-
-  String _buildJobJson(Job job, List<TimelineItem> items, ExportOptions opts) {
-    final m = <String, Object?>{
-      'schema': 'jobsiterecords.job/v1',
-      'exported_at': DateTime.now().toUtc().toIso8601String(),
-      'job': {
-        'id': job.id,
-        'name': job.name,
-        'client_name': job.clientName,
-        'address': job.address,
-        'job_number': job.jobNumber,
-        'status': job.status.dbValue,
-        'start_date': job.startDate?.toIso8601String(),
-        'end_date': job.endDate?.toIso8601String(),
-        'notes': job.notes,
-        'created_at': job.createdAt.toIso8601String(),
-        'updated_at': job.updatedAt.toIso8601String(),
-      },
-      'options': {
-        'include_captions': opts.includeCaptions,
-        'include_tags': opts.includeTags,
-        'include_timestamps': opts.includeTimestamps,
-        'include_notes': opts.includeNotes,
-        'oldest_first': opts.oldestFirst,
-      },
-      'items': [
-        for (final t in items)
-          {
-            'id': t.item.id,
-            'kind': t.item.kind.dbValue,
-            'captured_at': t.item.capturedAt.toIso8601String(),
-            'caption': opts.includeCaptions ? t.item.caption : null,
-            'body': opts.includeNotes ? t.item.body : null,
-            'tags': opts.includeTags ? t.tags.map((e) => e.name).toList() : <String>[],
-            if (t.primaryPhoto != null)
-              'photo': {
-                'file': 'photos/${_photoName(t)}',
-                'width': t.primaryPhoto!.width,
-                'height': t.primaryPhoto!.height,
-                'mime': t.primaryPhoto!.mimeType,
-              },
-            if (t.voiceNote != null)
-              'voice': {
-                'file': 'voice_notes/${_voiceName(t)}',
-                'duration_ms': t.voiceNote!.durationMs,
-                'mime': t.voiceNote!.mimeType,
-              },
-          },
-      ],
-    };
-    return const JsonEncoder.withIndent('  ').convert(m);
-  }
 
   String _buildHtml(Job job, List<TimelineItem> items, ExportOptions opts) {
     String esc(String? s) {
