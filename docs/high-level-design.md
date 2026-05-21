@@ -220,6 +220,8 @@ Bottom tab bar (3 tabs):
 
 **Three tabs on purpose:** daily work is **Jobs + Capture**; Settings and per-job export are secondary.
 
+**Android system back (*implemented*):** Tab bar uses `StatefulShellRoute.indexedStack`. On **Capture** or **Settings**, system back switches to **Jobs** via `AppBackHandler` (`WidgetsBindingObserver.didPopRoute` → `router.go('/jobs')`) so the app does not call `SystemNavigator.pop` when go_router’s `popRoute` misses branch-level `PopScope`. `SecondaryTabBack` (`PopScope` on tab roots) remains as a secondary guard. `android:enableOnBackInvokedCallback="false"` on `MainActivity` uses the legacy back key path on MIUI. Deeper routes on the root navigator still pop normally.
+
 > No standalone "Reports" tab in **Phase 1**. Exporting is initiated from inside a job ("Export…" / "Share Job"). When the **Phase 2** web dashboard ships, that's where reports / PDFs are produced and managed.
 
 Primary navigation flow:
