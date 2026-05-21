@@ -16,23 +16,36 @@ import 'shell.dart';
 final appRouter = GoRouter(
   initialLocation: '/jobs',
   routes: [
-    ShellRoute(
-      builder: (context, state, child) => AppShell(child: child),
-      routes: [
-        GoRoute(
-          path: '/jobs',
-          name: 'jobs',
-          builder: (_, __) => const JobsListScreen(),
+    StatefulShellRoute.indexedStack(
+      builder: (context, state, navigationShell) =>
+          AppShell(navigationShell: navigationShell),
+      branches: [
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/jobs',
+              name: 'jobs',
+              builder: (_, __) => const JobsListScreen(),
+            ),
+          ],
         ),
-        GoRoute(
-          path: '/capture',
-          name: 'capture',
-          builder: (_, __) => const CaptureHubScreen(),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/capture',
+              name: 'capture',
+              builder: (_, __) => const SecondaryTabBack(child: CaptureHubScreen()),
+            ),
+          ],
         ),
-        GoRoute(
-          path: '/settings',
-          name: 'settings',
-          builder: (_, __) => const SettingsScreen(),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/settings',
+              name: 'settings',
+              builder: (_, __) => const SecondaryTabBack(child: SettingsScreen()),
+            ),
+          ],
         ),
       ],
     ),
