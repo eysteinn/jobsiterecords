@@ -21,10 +21,50 @@ final _houseNumberPattern = RegExp(r'\d+\s*[a-zA-Z]?', caseSensitive: false);
 
 bool _queryHasHouseNumber(String query) => _houseNumberPattern.hasMatch(query);
 
-bool _isAddressLike(AutocompletePrediction prediction) {
+bool _isAddressLike(AutocompletePrediction prediction, String query) {
   final types = prediction.placeTypes;
-  if (types == null || types.isEmpty) return false;
-  return types.any(_addressPlaceTypes.contains);
+  if (types != null && types.isNotEmpty) {
+    return types.any(_addressPlaceTypes.contains);
+  }
+  // Android plugin omits placeTypes — infer from text.
+  return !_queryHasHouseNumber(prediction.primaryText) &&
+      _matchesStreetQuery(query, prediction.primaryText);
+}
+
+/// Street/route result without a specific house number (Maps-style top suggestion).
+bool _isStreetWithoutNumber(AutocompletePrediction prediction) {
+  final types = prediction.placeTypes ?? const [];
+  if (types.isEmpty) return false;
+  if (types.contains(PlaceType.STREET_ADDRESS)) return false;
+  if (types.contains(PlaceType.STREET_NUMBER)) return false;
+  return types.contains(PlaceType.ROUTE);
+}
+
+bool _matchesStreetQuery(String query, String primaryText) {
+  final q = query.toLowerCase().trim();
+  final p = primaryText.toLowerCase().trim();
+  if (q.isEmpty || p.isEmpty) return false;
+  if (p.startsWith(q) || q.startsWith(p)) return true;
+  final pStreet = p.split(',').first.trim();
+  final qStreet = q.split(',').first.trim();
+  return pStreet.startsWith(qStreet) || qStreet.startsWith(pStreet);
+}
+
+bool _looksLikeStreetWithoutNumber(AutocompletePrediction prediction, String query) {
+  if (_queryHasHouseNumber(prediction.primaryText)) return false;
+  if (_queryHasHouseNumber(prediction.fullText)) return false;
+  final types = prediction.placeTypes;
+  if (types != null && types.isNotEmpty) {
+    return _isStreetWithoutNumber(prediction);
+  }
+  return _matchesStreetQuery(query, prediction.primaryText);
+}
+
+bool _shouldOfferAddStreetNumber(_AddressSuggestion suggestion, String query) {
+  if (_queryHasHouseNumber(query)) return false;
+  final prediction = suggestion.prediction;
+  if (prediction == null) return false;
+  return _looksLikeStreetWithoutNumber(prediction, query);
 }
 
 int _matchScore(String query, String text) {
@@ -47,9 +87,14 @@ int _matchScore(String query, String text) {
 }
 
 List<AutocompletePrediction> _rankPredictions(List<AutocompletePrediction> items, String query) {
+  final hasNumber = _queryHasHouseNumber(query);
   return [...items]..sort((a, b) {
-      final scoreA = _matchScore(query, a.fullText) + (_isAddressLike(a) ? 5 : 0);
-      final scoreB = _matchScore(query, b.fullText) + (_isAddressLike(b) ? 5 : 0);
+      var scoreA = _matchScore(query, a.fullText) + (_isAddressLike(a, query) ? 5 : 0);
+      var scoreB = _matchScore(query, b.fullText) + (_isAddressLike(b, query) ? 5 : 0);
+      if (!hasNumber) {
+        if (_looksLikeStreetWithoutNumber(a, query)) scoreA += 30;
+        if (_looksLikeStreetWithoutNumber(b, query)) scoreB += 30;
+      }
       return scoreB.compareTo(scoreA);
     });
 }
@@ -62,8 +107,8 @@ class _AddressSuggestion {
   final AutocompletePrediction? prediction;
   final Place? place;
 
-  bool get isAddressLike =>
-      prediction != null ? _isAddressLike(prediction!) : true;
+  bool isAddressLike(String query) =>
+      prediction != null ? _isAddressLike(prediction!, query) : true;
 
   String get primaryText {
     if (prediction != null) return prediction!.primaryText;
@@ -84,6 +129,20 @@ class _AddressSuggestion {
   String get line {
     if (prediction != null) return prediction!.fullText;
     return place!.address ?? place!.name ?? '';
+  }
+
+  /// Street name only — primary line before the first comma (Maps "add number" mode).
+  String get streetName {
+    final raw = primaryText.trim();
+    if (raw.isEmpty) return raw;
+    return raw.split(',').first.trim();
+  }
+
+  String get displaySecondary {
+    if (secondaryText.isNotEmpty) return secondaryText;
+    final raw = primaryText.trim();
+    if (!raw.contains(',')) return '';
+    return raw.substring(raw.indexOf(',') + 1).trim();
   }
 }
 
@@ -309,6 +368,119 @@ class _AddressAutocompleteFieldState extends State<AddressAutocompleteField> {
     if (mounted) setState(() => _loading = false);
   }
 
+  Future<void> _beginAddStreetNumber(_AddressSuggestion suggestion) async {
+    _debounce?.cancel();
+    final street = suggestion.streetName;
+    if (street.isEmpty) return;
+
+    setState(() {
+      _showSuggestions = false;
+      _predictions = [];
+    });
+
+    final text = '$street ';
+    widget.controller.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+    _restoreFieldFocus();
+  }
+
+  void _restoreFieldFocus() {
+    void restore() {
+      if (!mounted) return;
+      _focusNode.requestFocus();
+      final len = widget.controller.text.length;
+      widget.controller.selection = TextSelection.collapsed(offset: len);
+    }
+
+    restore();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      restore();
+      SystemChannels.textInput.invokeMethod<void>('TextInput.show');
+    });
+  }
+
+  Widget _buildSuggestionRow(
+    _AddressSuggestion suggestion, {
+    required String query,
+    required bool showAddStreetNumber,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        InkWell(
+          onTap: showAddStreetNumber
+              ? () => _beginAddStreetNumber(suggestion)
+              : () => _selectSuggestion(suggestion),
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(14, 12, 14, showAddStreetNumber ? 4 : 12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  suggestion.isAddressLike(query) ? Icons.home_outlined : Icons.place_outlined,
+                  size: 20,
+                  color: AppColors.subtle,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        showAddStreetNumber ? suggestion.streetName : suggestion.primaryText,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.ink,
+                        ),
+                      ),
+                      if (suggestion.displaySecondary.isNotEmpty)
+                        Text(
+                          suggestion.displaySecondary,
+                          style: const TextStyle(fontSize: 12, color: AppColors.subtle),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (showAddStreetNumber)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(44, 0, 14, 10),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: InkWell(
+                onTap: () => _beginAddStreetNumber(suggestion),
+                borderRadius: BorderRadius.circular(4),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.add, size: 16, color: AppColors.accentDark),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Add street number',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.accentDark,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_places == null) {
@@ -353,51 +525,34 @@ class _AddressAutocompleteFieldState extends State<AddressAutocompleteField> {
         ],
         if (_showSuggestions) ...[
           const SizedBox(height: 4),
-          Material(
-            elevation: 2,
-            borderRadius: BorderRadius.circular(12),
-            color: Colors.white,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (final p in _predictions)
-                  InkWell(
-                    onTap: () => _selectSuggestion(p),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(
-                            p.isAddressLike ? Icons.home_outlined : Icons.place_outlined,
-                            size: 20,
-                            color: AppColors.subtle,
+          TextFieldTapRegion(
+            child: Material(
+              elevation: 2,
+              borderRadius: BorderRadius.circular(12),
+              color: Colors.white,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                Builder(
+                  builder: (context) {
+                    final query = widget.controller.text.trim();
+                    final canAddNumber = !_queryHasHouseNumber(query);
+                    final addNumberIndex = canAddNumber
+                        ? _predictions.indexWhere((s) => _shouldOfferAddStreetNumber(s, query))
+                        : -1;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        for (var i = 0; i < _predictions.length; i++)
+                          _buildSuggestionRow(
+                            _predictions[i],
+                            query: query,
+                            showAddStreetNumber: i == addNumberIndex,
                           ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  p.primaryText,
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
-                                    color: AppColors.ink,
-                                  ),
-                                ),
-                                if (p.secondaryText.isNotEmpty)
-                                  Text(
-                                    p.secondaryText,
-                                    style: const TextStyle(fontSize: 12, color: AppColors.subtle),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+                      ],
+                    );
+                  },
+                ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(14, 4, 14, 10),
                   child: Align(
@@ -409,7 +564,8 @@ class _AddressAutocompleteFieldState extends State<AddressAutocompleteField> {
                     ),
                   ),
                 ),
-              ],
+                ],
+              ),
             ),
           ),
         ],
