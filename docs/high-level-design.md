@@ -18,7 +18,7 @@ The repo matches the **Phase 1** architecture in broad strokes. Use this table w
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| Flutter app (`app/`) | **Mostly built** | v0.1.0+1; jobs CRUD, **Google Places address autocomplete** on New/Edit Job (online; worldwide search; API key in `app/.env`), **batch-first photo capture**, voice/note capture, timeline **filter/search** (type, tag, full-text), bulk tag, item detail, zip export, settings. Voice notes are audio + optional caption/tags; for spoken text users add a **text note** (keyboard dictation on Android/iOS). Automatic transcription is **Phase 2** (server). Gaps: file import, expanded default tags ([§6.10](#610-implementation-gaps-vs-target-phase-1)). |
+| Flutter app (`app/`) | **Mostly built** | v0.1.0+1; jobs CRUD, **Google Places address autocomplete** on New/Edit Job (online; location-biased worldwide search; API key in `app/.env`), **batch-first photo capture**, voice/note capture, timeline **filter/search** (type, tag, full-text), bulk tag, item detail, zip export, settings. Voice notes are audio + optional caption/tags; for spoken text users add a **text note** (keyboard dictation on Android/iOS). Automatic transcription is **Phase 2** (server). Gaps: file import, expanded default tags ([§6.10](#610-implementation-gaps-vs-target-phase-1)). |
 | Landing (`landing/`) | **Active** | PHP + SQLite waitlist on jobsiterecords.com, plus SEO guides, use cases, trades, answers, and examples — not a single static page ([§14.4](#144-the-landing-site)). |
 | Backend (`services/`) | **Placeholder** | README only; no deployable services yet. |
 | Web dashboard (`web/`) | **Not started** | Phase 2. |
@@ -255,7 +255,7 @@ Screen specs derived from the mockups in `/docs`.
 
 ### 6.2 New / Edit Job
 - Fields: Name (required), Client name, Address, Job number (optional), Start date, End date / target, Notes, Status (`Planning` / `In Progress` / `Completed`).
-- **Address (*implemented*):** when online and `GOOGLE_MAPS` is set in `app/.env`, the address field uses the native **Google Places SDK** (New API) for street-level autocomplete (worldwide; no country lock). Requires **Places API (New)** + **Maps SDK for Android** enabled on the key. Manual entry still works without picking a suggestion.
+- **Address (*implemented*):** when online and `GOOGLE_MAPS` is set in `app/.env`, the address field uses the native **Google Places SDK** (New API) for street-level autocomplete (worldwide search, biased toward device location when permitted). Requires **Places API (New)** + **Maps SDK for Android** enabled on the key. Manual entry still works without picking a suggestion.
 - "Create" returns to Job Detail.
 
 ### 6.3 Job Detail

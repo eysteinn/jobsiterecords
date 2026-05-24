@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_google_places_sdk/flutter_google_places_sdk.dart';
 
 import '../../../app/theme.dart';
+import '../../../core/device_location.dart';
 import '../../../core/google_maps_config.dart';
 
 /// Address field with Google Places autocomplete when [googleMapsApiKey] is set.
@@ -42,6 +43,10 @@ class _AddressAutocompleteFieldState extends State<AddressAutocompleteField> {
     }
     widget.controller.addListener(_onTextChanged);
     _focusNode.addListener(_onFocusChanged);
+    if (apiKey != null) {
+      // Warm location cache so the first autocomplete request can rank nearby results.
+      unawaited(deviceLocationForPlaces());
+    }
   }
 
   @override
@@ -91,7 +96,12 @@ class _AddressAutocompleteFieldState extends State<AddressAutocompleteField> {
       _apiError = null;
     });
     try {
-      final response = await _places!.findAutocompletePredictions(query);
+      final origin = await deviceLocationForPlaces();
+      final response = await _places!.findAutocompletePredictions(
+        query,
+        origin: origin,
+        locationBias: origin != null ? locationBiasAround(origin) : null,
+      );
       if (!mounted) return;
       setState(() {
         _predictions = response.predictions;
