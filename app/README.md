@@ -37,6 +37,23 @@ export ANDROID_HOME="$HOME/Android/Sdk"
 
 If Gradle complains that `javac` is missing, install a full JDK (not only the JRE), for example `sudo apt install openjdk-17-jdk`, and set `JAVA_HOME` to that JDK (often `/usr/lib/jvm/java-17-openjdk-amd64`).
 
+### Google Places (address autocomplete)
+
+Copy `.env.example` to **`app/.env`** (or symlink: `ln -s ../.env app/.env`) and set `GOOGLE_MAPS` to your restricted API key. Without a key, the address field is a plain text box.
+
+In Google Cloud Console:
+
+1. **Enable APIs** (APIs & Services → Library):
+   - **Places API (New)** — required; the app uses the new Places SDK autocomplete.
+   - **Places API** (legacy) — optional backup.
+   - **Maps SDK for Android** — often required alongside Places on Android.
+
+2. **API key restrictions** (Credentials → your key):
+   - Application: Android apps → `com.jobsiterecords.app` + your SHA-1.
+   - API restrictions: allow at least **Places API (New)** and **Maps SDK for Android**.
+
+Billing must be enabled on the project. Without **Places API (New)**, autocomplete returns error 9011 (“requests are blocked”) and you can still type an address manually.
+
 ### Run
 
 From `app/`:
