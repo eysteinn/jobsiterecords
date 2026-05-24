@@ -6,6 +6,7 @@ import '../../app/providers.dart';
 import '../../app/theme.dart';
 import '../../core/format.dart';
 import '../../domain/models/job.dart';
+import 'widgets/address_autocomplete_field.dart';
 
 class JobFormScreen extends ConsumerStatefulWidget {
   const JobFormScreen({super.key, this.jobId});
@@ -126,7 +127,11 @@ class _JobFormScreenState extends ConsumerState<JobFormScreen> {
                     TextFormField(controller: _client, decoration: const InputDecoration(hintText: 'Client name (optional)')),
                     const SizedBox(height: 12),
                     _label('Address'),
-                    TextFormField(controller: _address, decoration: const InputDecoration(hintText: 'Site address (optional)')),
+                    AddressAutocompleteField(
+                      controller: _address,
+                      decoration: const InputDecoration(hintText: 'Site address (optional)'),
+                      textInputAction: TextInputAction.next,
+                    ),
                     const SizedBox(height: 12),
                     _label('Job number'),
                     TextFormField(controller: _jobNumber, decoration: const InputDecoration(hintText: 'Optional')),

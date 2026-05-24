@@ -1,0 +1,20 @@
+name: flutter_google_places_sdk_example
+description: Demonstrates how to use the flutter_google_places_sdk plugin.
+
+publish_to: 'none'
+
+environment:
+  sdk: ">=3.8.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_google_places_sdk:
+    path: ../../flutter_google_places_sdk
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
