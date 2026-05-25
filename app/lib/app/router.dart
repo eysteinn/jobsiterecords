@@ -12,6 +12,7 @@ import '../features/jobs/job_detail_screen.dart';
 import '../features/jobs/job_form_screen.dart';
 import '../features/jobs/jobs_list_screen.dart';
 import '../features/settings/settings_screen.dart';
+import '../features/photo_annotation/photo_annotation_screen.dart';
 import 'shell.dart';
 
 final appRouter = GoRouter(
@@ -94,6 +95,11 @@ final appRouter = GoRouter(
       path: '/items/:id',
       name: 'item-detail',
       builder: (_, state) => ItemDetailScreen(itemId: state.pathParameters['id']!),
+    ),
+    GoRoute(
+      path: '/items/:id/annotate',
+      name: 'item-annotate',
+      builder: (_, state) => PhotoAnnotationScreen(itemId: state.pathParameters['id']!),
     ),
   ],
   errorBuilder: (_, state) => Scaffold(

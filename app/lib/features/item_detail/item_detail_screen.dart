@@ -96,7 +96,8 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
     final storage = ref.read(mediaStorageProvider);
     final files = <XFile>[];
     if (t.primaryPhoto != null) {
-      files.add(XFile(storage.absolutePath(t.primaryPhoto!.relativePath)));
+      final rel = t.displayPhotoRelativePath ?? t.primaryPhoto!.relativePath;
+      files.add(XFile(storage.absolutePath(rel)));
     }
     if (t.voiceNote != null) {
       files.add(XFile(storage.absolutePath(t.voiceNote!.relativePath)));
@@ -150,6 +151,12 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
                   ? const SizedBox.shrink()
                   : Row(
                       children: [
+                        if (t.primaryPhoto != null)
+                          IconButton(
+                            icon: const Icon(Icons.draw_outlined),
+                            tooltip: 'Annotate',
+                            onPressed: () => context.push('/items/${widget.itemId}/annotate'),
+                          ),
                         IconButton(
                           icon: const Icon(Icons.share_outlined),
                           onPressed: () => _share(t),
@@ -189,9 +196,14 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
       padding: const EdgeInsets.all(16),
       children: [
         if (hasPhoto)
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Image.file(File(absolutePath(t.primaryPhoto!.relativePath)), fit: BoxFit.cover),
+          _AnnotatedPhotoView(
+            key: ValueKey(
+              '${t.item.updatedAt.millisecondsSinceEpoch}-${t.annotatedRender?.sizeBytes ?? 0}',
+            ),
+            displayPath: absolutePath(t.displayPhotoRelativePath ?? t.primaryPhoto!.relativePath),
+            originalPath: t.hasPhotoAnnotations
+                ? absolutePath(t.primaryPhoto!.relativePath)
+                : null,
           ),
         if (file != null) ...[
           if (hasPhoto) const SizedBox(height: 14),
@@ -281,6 +293,47 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
           loading: () => const SizedBox(height: 40),
           error: (e, _) => Text('Error: $e'),
         ),
+      ],
+    );
+  }
+}
+
+class _AnnotatedPhotoView extends StatefulWidget {
+  const _AnnotatedPhotoView({super.key, required this.displayPath, this.originalPath});
+  final String displayPath;
+  final String? originalPath;
+
+  @override
+  State<_AnnotatedPhotoView> createState() => _AnnotatedPhotoViewState();
+}
+
+class _AnnotatedPhotoViewState extends State<_AnnotatedPhotoView> {
+  bool _showOriginal = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final path = _showOriginal && widget.originalPath != null
+        ? widget.originalPath!
+        : widget.displayPath;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        GestureDetector(
+          onLongPressStart: widget.originalPath == null ? null : (_) => setState(() => _showOriginal = true),
+          onLongPressEnd: widget.originalPath == null ? null : (_) => setState(() => _showOriginal = false),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.file(File(path), fit: BoxFit.cover),
+          ),
+        ),
+        if (widget.originalPath != null) ...[
+          const SizedBox(height: 6),
+          Text(
+            _showOriginal ? 'Showing original — release to return' : 'Hold photo to see original',
+            style: const TextStyle(color: AppColors.subtle, fontSize: 11),
+            textAlign: TextAlign.center,
+          ),
+        ],
       ],
     );
   }

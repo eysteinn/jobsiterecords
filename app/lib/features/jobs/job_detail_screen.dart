@@ -741,8 +741,16 @@ class _ItemRow extends StatelessWidget {
                   child: SizedBox(
                     width: 60,
                     height: 60,
-                    child: hasPhoto && File(storage(t.primaryPhoto!.relativePath)).existsSync()
-                        ? Image.file(File(storage(t.primaryPhoto!.relativePath)), fit: BoxFit.cover)
+                    child: hasPhoto &&
+                            t.displayPhotoRelativePath != null &&
+                            File(storage(t.displayPhotoRelativePath!)).existsSync()
+                        ? Image.file(
+                            File(storage(t.displayPhotoRelativePath!)),
+                            key: ValueKey(
+                              '${t.item.updatedAt.millisecondsSinceEpoch}-${t.annotatedRender?.sizeBytes ?? 0}',
+                            ),
+                            fit: BoxFit.cover,
+                          )
                         : fileThumbPath != null && File(fileThumbPath).existsSync()
                             ? Image.file(File(fileThumbPath), fit: BoxFit.cover)
                             : Container(

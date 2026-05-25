@@ -18,11 +18,11 @@ The repo matches the **Phase 1** architecture in broad strokes. Use this table w
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| Flutter app (`app/`) | **Mostly built** | v0.1.0+1; jobs CRUD, **Google Places address autocomplete** on New/Edit Job (online; location-biased worldwide search; API key in `app/.env`), **batch-first photo capture**, voice/note capture, **WYSIWYG text notes** ([§6.6](#66-capture-text-note)), **PDF / file upload** ([§6.6a](#66a-capture-file--pdf-upload)), timeline **filter/search** (type incl. **Files**, tag, full-text incl. filename), bulk tag, item detail (open file via OS), zip export (`files/` folder + rendered note HTML), settings. Voice notes are audio + optional caption/tags; for spoken text users add a **text note** (keyboard dictation on Android/iOS). Automatic transcription is **Phase 2** (server). Default tags include **`Receipt`** (schema v2 migration). Gaps: **photo annotation** ([§6.4a](#64a-photo-annotation-mark-up)), stretch business tags ([§7](#7-data-model)). |
+| Flutter app (`app/`) | **Mostly built** | v0.1.0+1; jobs CRUD, **Google Places address autocomplete** on New/Edit Job (online; location-biased worldwide search; API key in `app/.env`), **batch-first photo capture**, **photo annotation** ([§6.4a](#64a-photo-annotation-mark-up)), voice/note capture, **WYSIWYG text notes** ([§6.6](#66-capture-text-note)), **PDF / file upload** ([§6.6a](#66a-capture-file--pdf-upload)), timeline **filter/search** (type incl. **Files**, tag, full-text incl. filename), bulk tag, item detail (open file via OS), zip export (`files/` folder + rendered note HTML + annotated photos), settings. Voice notes are audio + optional caption/tags; for spoken text users add a **text note** (keyboard dictation on Android/iOS). Automatic transcription is **Phase 2** (server). Default tags include **`Receipt`** (schema v2 migration). Gaps: stretch business tags ([§7](#7-data-model)), batch-review annotate entry ([§6.4a](#64a-photo-annotation-mark-up)). |
 | Landing (`landing/`) | **Active** | PHP + SQLite waitlist on jobsiterecords.com, plus SEO guides, use cases, trades, answers, and examples — not a single static page ([§14.4](#144-the-landing-site)). |
 | Backend (`services/`) | **Placeholder** | README only; no deployable services yet. |
 | Web dashboard (`web/`) | **Not started** | Phase 2. Product/UX spec: [`web-dashboard-design.md`](web-dashboard-design.md). Post-MVP: receipt OCR & expense export (§17.8). |
-| Tests | **Minimal** | `note_markdown_test.dart` covers markdown roundtrip; golden/integration tests not yet written ([§11.3](#113-testing)). |
+| Tests | **Minimal** | `note_markdown_test.dart`, `photo_annotation_test.dart`; golden/integration tests not yet written ([§11.3](#113-testing)). |
 | i18n / dark theme | **Not started** | English strings inline; light theme only ([§4](#4-platform--tech-stack), [§10](#10-visual-design)). |
 
 **Milestone progress ([§13](#13-phasing--milestones)):** M0–M3 largely complete in code; M4 (polish, accessibility, golden tests, store assets) still in progress.
@@ -290,7 +290,7 @@ Camera controls: flash toggle, lens swap, gallery import (adds to the current ba
 
 ### 6.4a Photo annotation (mark-up)
 
-**Phase 1 — planned, not yet implemented.** Job photos often need a visible pointer (“circle the cracked tile”, “arrow at the leak”, “line along the crack in the slab”). Without it the timeline reader has to guess what the photo is meant to show, and contractors fall back to editing in a separate app or losing the context entirely.
+**Phase 1 — implemented** (Item Detail → **Annotate**). Job photos often need a visible pointer (“circle the cracked tile”, “arrow at the leak”, “line along the crack in the slab”). Without it the timeline reader has to guess what the photo is meant to show, and contractors fall back to editing in a separate app or losing the context entirely. Code: `app/lib/features/photo_annotation/`, overlay JSON + flatten in `app/lib/domain/services/photo_annotation_renderer.dart`.
 
 **Entry points (same editor):**
 
@@ -450,7 +450,7 @@ Screens in §6.1–6.9 are the **design target**. The shipped app (`app/lib/feat
 | Job detail | Status pill in header | Status on list card; job notes field on edit form only |
 | Capture tab | Open camera directly | Job picker → mode sheet → capture route |
 | PDF / file upload | Document picker → copy to app storage → timeline item (`kind = file`) | **Implemented** — `FileCaptureScreen`, `ItemsRepository.createFile`, route `capture-file` |
-| Photo annotation | Pen / line / arrow / circle / rectangle in a small color palette; vector overlay + flattened render | **Not started** — spec in [§6.4a](#64a-photo-annotation-mark-up) |
+| Photo annotation | Pen / line / arrow / circle / rectangle in a small color palette; vector overlay + flattened render | **Implemented** — Item Detail **Annotate**; batch-review entry still deferred |
 | Text note formatting | WYSIWYG editor (bold / italics / bullet list); markdown serialized in `items.body` | **Implemented** — `NoteEditor` + `NoteBodyView`; export renders markdown to HTML |
 | Default tags | **`Receipt`** + progress/status set (see [§7](#7-data-model)) | **Implemented** — `Receipt` seeded on fresh install; v2 migration inserts if missing |
 | Job detail | “Today” section when captures exist today | Date grouping only |
@@ -501,7 +501,7 @@ MediaFile
   id (uuid, pk)
   item_id (fk Item)
   role              (primary_photo | voice_note | attachment | file
-                     | annotation_overlay | annotated_render   — planned, §6.4a)
+                     | annotation_overlay | annotated_render   — §6.4a)
   relative_path     (under app documents dir)
   mime_type
   width?
@@ -557,8 +557,8 @@ Each seeded tag gets its **color** in `tags.color` (UI uses chip styling). User-
     <job_id>/
       <item_id>/
         photo.jpg                      (original — never overwritten)
-        photo.annotations.json         (vector strokes — §6.4a, planned)
-        photo.annotated.jpg            (flattened render — §6.4a, planned)
+        photo.annotations.json         (vector strokes — §6.4a)
+        photo.annotated.jpg            (flattened render — §6.4a)
         voice.m4a
         thumb.jpg
         attachment.pdf                 (or original extension for imported files)
@@ -793,7 +793,7 @@ What Phase 2 adds (out of scope for **Phase 1**, but mapped here and detailed in
 | --- | --- | --- |
 | **M0 — Skeleton** | Flutter project, theming, routing, SQLite v1 + default tags | **Done** |
 | **M1 — Jobs CRUD** | Create/edit/delete, list, search, status | **Done** |
-| **M2 — Capture loop** | Camera, photo/voice/note/**PDF upload**, captions, tags (**`Receipt`**), timeline, item detail | **Mostly done** — gaps: **photo annotation** ([§6.4a](#64a-photo-annotation-mark-up)), photo+voice combo UI, timeline thumbs, “Today” UX |
+| **M2 — Capture loop** | Camera, photo/voice/note/**PDF upload**, captions, tags (**`Receipt`**), timeline, item detail | **Mostly done** — gaps: batch-review annotate entry, photo+voice combo UI, timeline thumbs, “Today” UX |
 | **M3 — Export** | Selection, options, zip (`index.html` + media), share sheet | **Done** |
 | **M4 — Polish & ship** | Settings completeness, permissions UX, a11y, tests, store assets, beta | **In progress** |
 
