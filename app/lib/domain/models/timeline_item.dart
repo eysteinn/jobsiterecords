@@ -12,6 +12,8 @@ class TimelineItem {
   final MediaFile? primaryPhoto;
   final MediaFile? voiceNote;
   final MediaFile? attachedFile;
+  final MediaFile? annotationOverlay;
+  final MediaFile? annotatedRender;
   final List<Tag> tags;
 
   const TimelineItem({
@@ -19,6 +21,8 @@ class TimelineItem {
     this.primaryPhoto,
     this.voiceNote,
     this.attachedFile,
+    this.annotationOverlay,
+    this.annotatedRender,
     this.tags = const [],
   });
 
@@ -26,6 +30,11 @@ class TimelineItem {
   bool get hasVoice => voiceNote != null;
   bool get hasFile => attachedFile != null;
   bool get hasNote => (item.body ?? '').trim().isNotEmpty;
+  bool get hasPhotoAnnotations => annotationOverlay != null;
+
+  /// Timeline / detail thumbnail — annotated render when present.
+  String? get displayPhotoRelativePath =>
+      annotatedRender?.relativePath ?? primaryPhoto?.relativePath;
 
   String get previewText {
     final caption = (item.caption ?? '').trim();

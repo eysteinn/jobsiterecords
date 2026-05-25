@@ -4,13 +4,17 @@ enum MediaRole {
   primaryPhoto,
   voiceNote,
   attachment,
-  file;
+  file,
+  annotationOverlay,
+  annotatedRender;
 
   String get dbValue => switch (this) {
         MediaRole.primaryPhoto => 'primary_photo',
         MediaRole.voiceNote => 'voice_note',
         MediaRole.attachment => 'attachment',
         MediaRole.file => 'file',
+        MediaRole.annotationOverlay => 'annotation_overlay',
+        MediaRole.annotatedRender => 'annotated_render',
       };
 
   static MediaRole fromDb(String v) => switch (v) {
@@ -18,6 +22,8 @@ enum MediaRole {
         'voice_note' => MediaRole.voiceNote,
         'file' => MediaRole.file,
         'attachment' => MediaRole.attachment,
+        'annotation_overlay' => MediaRole.annotationOverlay,
+        'annotated_render' => MediaRole.annotatedRender,
         _ => MediaRole.attachment,
       };
 }

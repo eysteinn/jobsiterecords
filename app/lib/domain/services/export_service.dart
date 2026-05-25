@@ -63,11 +63,25 @@ class ExportService {
 
     for (final t in items) {
       if (t.primaryPhoto != null) {
-        final f = File(_storage.absolutePath(t.primaryPhoto!.relativePath));
-        if (await f.exists()) {
-          final bytes = await f.readAsBytes();
-          final name = _photoName(t);
-          archive.addFile(ArchiveFile('photos/$name', bytes.length, bytes));
+        final name = _photoName(t);
+        if (t.annotatedRender != null) {
+          final annotated = File(_storage.absolutePath(t.annotatedRender!.relativePath));
+          if (await annotated.exists()) {
+            final bytes = await annotated.readAsBytes();
+            archive.addFile(ArchiveFile('photos/$name', bytes.length, bytes));
+          }
+          final original = File(_storage.absolutePath(t.primaryPhoto!.relativePath));
+          if (await original.exists()) {
+            final bytes = await original.readAsBytes();
+            final originalName = name.replaceAll('.jpg', '.original.jpg');
+            archive.addFile(ArchiveFile('photos/$originalName', bytes.length, bytes));
+          }
+        } else {
+          final f = File(_storage.absolutePath(t.primaryPhoto!.relativePath));
+          if (await f.exists()) {
+            final bytes = await f.readAsBytes();
+            archive.addFile(ArchiveFile('photos/$name', bytes.length, bytes));
+          }
         }
       }
       if (t.voiceNote != null) {

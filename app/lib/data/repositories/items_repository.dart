@@ -5,9 +5,11 @@ import '../../core/file_utils.dart';
 import '../../core/ids.dart';
 import '../../domain/models/item.dart';
 import '../../domain/models/media_file.dart';
+import '../../domain/models/photo_annotation.dart';
 import '../../domain/models/tag.dart';
 import '../../domain/models/timeline_item.dart';
 import '../../domain/models/timeline_query.dart';
+import '../../domain/services/photo_annotation_renderer.dart';
 import '../db/database.dart';
 import '../storage/media_storage.dart';
 
@@ -88,18 +90,146 @@ class ItemsRepository {
     MediaFile? photo;
     MediaFile? voice;
     MediaFile? file;
+    MediaFile? annotationOverlay;
+    MediaFile? annotatedRender;
     for (final m in media) {
-      if (m.role == MediaRole.primaryPhoto) photo = m;
-      if (m.role == MediaRole.voiceNote) voice = m;
-      if (m.role == MediaRole.file || m.role == MediaRole.attachment) file = m;
+      switch (m.role) {
+        case MediaRole.primaryPhoto:
+          photo = m;
+        case MediaRole.voiceNote:
+          voice = m;
+        case MediaRole.file:
+        case MediaRole.attachment:
+          file = m;
+        case MediaRole.annotationOverlay:
+          annotationOverlay = m;
+        case MediaRole.annotatedRender:
+          annotatedRender = m;
+      }
     }
     return TimelineItem(
       item: item,
       primaryPhoto: photo,
       voiceNote: voice,
       attachedFile: file,
+      annotationOverlay: annotationOverlay,
+      annotatedRender: annotatedRender,
       tags: tags,
     );
+  }
+
+  Future<PhotoAnnotationDocument?> loadPhotoAnnotations(String itemId) async {
+    final item = await byId(itemId);
+    final overlay = item?.annotationOverlay;
+    if (overlay == null) return null;
+    final file = File(_storage.absolutePath(overlay.relativePath));
+    if (!await file.exists()) return null;
+    return PhotoAnnotationDocument.decode(await file.readAsString());
+  }
+
+  Future<void> savePhotoAnnotations({
+    required String itemId,
+    required PhotoAnnotationDocument document,
+  }) async {
+    final item = await byId(itemId);
+    if (item == null || item.primaryPhoto == null) {
+      throw StateError('Photo item not found');
+    }
+    final jobId = item.item.jobId;
+    if (document.isEmpty) {
+      await clearPhotoAnnotations(itemId: itemId, jobId: jobId);
+      return;
+    }
+
+    final ts = now();
+    final overlayRel = _storage.relativeFor(jobId, itemId, 'photo.annotations.json');
+    final renderRel = _storage.relativeFor(jobId, itemId, 'photo.annotated.jpg');
+    final overlayAbs = _storage.absolutePath(overlayRel);
+    final renderAbs = _storage.absolutePath(renderRel);
+    final photoAbs = _storage.absolutePath(item.primaryPhoto!.relativePath);
+
+    await File(overlayAbs).writeAsString(document.encode(), flush: true);
+    final jpeg = await PhotoAnnotationRenderer.renderJpeg(
+      photoPath: photoAbs,
+      document: document,
+    );
+    await File(renderAbs).writeAsBytes(jpeg, flush: true);
+
+    final overlaySize = await File(overlayAbs).length();
+    final renderSize = await File(renderAbs).length();
+
+    await _db.db.transaction((txn) async {
+      await txn.delete(
+        'media_files',
+        where: 'item_id = ? AND role IN (?, ?)',
+        whereArgs: [itemId, MediaRole.annotationOverlay.dbValue, MediaRole.annotatedRender.dbValue],
+      );
+      await txn.insert(
+        'media_files',
+        MediaFile(
+          id: newId(),
+          itemId: itemId,
+          role: MediaRole.annotationOverlay,
+          relativePath: overlayRel,
+          mimeType: 'application/json',
+          sizeBytes: overlaySize,
+          createdAt: ts,
+        ).toDb(),
+      );
+      await txn.insert(
+        'media_files',
+        MediaFile(
+          id: newId(),
+          itemId: itemId,
+          role: MediaRole.annotatedRender,
+          relativePath: renderRel,
+          mimeType: 'image/jpeg',
+          sizeBytes: renderSize,
+          createdAt: ts,
+        ).toDb(),
+      );
+      await txn.update(
+        'items',
+        {'updated_at': ts.toIso8601String()},
+        where: 'id = ?',
+        whereArgs: [itemId],
+      );
+      await txn.update(
+        'jobs',
+        {'updated_at': ts.toIso8601String()},
+        where: 'id = ?',
+        whereArgs: [jobId],
+      );
+    });
+  }
+
+  Future<void> clearPhotoAnnotations({required String itemId, required String jobId}) async {
+    final ts = now();
+    final overlayAbs = _storage.absolutePath(_storage.relativeFor(jobId, itemId, 'photo.annotations.json'));
+    final renderAbs = _storage.absolutePath(_storage.relativeFor(jobId, itemId, 'photo.annotated.jpg'));
+    for (final path in [overlayAbs, renderAbs]) {
+      final file = File(path);
+      if (await file.exists()) await file.delete();
+    }
+    await _db.db.transaction((txn) async {
+      await txn.delete(
+        'media_files',
+        where: 'item_id = ? AND role IN (?, ?)',
+        whereArgs: [itemId, MediaRole.annotationOverlay.dbValue, MediaRole.annotatedRender.dbValue],
+      );
+      await txn.update(
+        'items',
+        {'updated_at': ts.toIso8601String()},
+        where: 'id = ?',
+        whereArgs: [itemId],
+      );
+      await txn.update(
+        'jobs',
+        {'updated_at': ts.toIso8601String()},
+        where: 'id = ?',
+        whereArgs: [jobId],
+      );
+    });
   }
 
   Future<Map<String, List<MediaFile>>> _mediaForItems(List<String> ids) async {
