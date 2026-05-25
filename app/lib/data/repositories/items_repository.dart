@@ -12,6 +12,7 @@ import '../../domain/models/tag.dart';
 import '../../domain/models/timeline_item.dart';
 import '../../domain/models/timeline_query.dart';
 import '../../domain/services/photo_annotation_renderer.dart';
+import '../../sync/sync_state.dart';
 import '../db/database.dart';
 import '../storage/media_storage.dart';
 
@@ -620,12 +621,14 @@ class ItemsRepository {
   }) async {
     final itemId = newId();
     final ts = now();
+    final syncState = await _syncStateForJob(jobId);
     final item = Item(
       id: itemId,
       jobId: jobId,
       kind: ItemKind.note,
       caption: _trimOrNull(caption),
       body: body.trim(),
+      syncState: syncState,
       capturedAt: ts,
       createdAt: ts,
       updatedAt: ts,
@@ -647,6 +650,23 @@ class ItemsRepository {
     return item;
   }
 
+  Future<SyncState> _syncStateForJob(String jobId) async {
+    final rows = await _db.db.query('jobs', columns: ['workspace_id'], where: 'id = ?', whereArgs: [jobId], limit: 1);
+    if (rows.isEmpty || rows.first['workspace_id'] == null) return SyncState.localOnly;
+    return SyncState.pending;
+  }
+
+  Future<void> _markItemPending(Transaction txn, String itemId, String jobId) async {
+    final syncState = await _syncStateForJob(jobId);
+    if (syncState == SyncState.localOnly) return;
+    await txn.update(
+      'items',
+      {'sync_state': SyncState.pending.dbValue},
+      where: 'id = ?',
+      whereArgs: [itemId],
+    );
+  }
+
   Future<void> updateMeta({
     required String itemId,
     String? caption,
@@ -663,13 +683,18 @@ class ItemsRepository {
       for (final tagId in tagIds) {
         await txn.insert('item_tags', {'item_id': itemId, 'tag_id': tagId});
       }
-      final r = await txn.query('items', columns: ['job_id'], where: 'id = ?', whereArgs: [itemId]);
+      final r = await txn.query('items', columns: ['job_id', 'kind'], where: 'id = ?', whereArgs: [itemId]);
       if (r.isNotEmpty) {
+        final jobId = r.first['job_id'] as String;
+        final kind = r.first['kind'] as String?;
+        if (kind == ItemKind.note.dbValue) {
+          await _markItemPending(txn, itemId, jobId);
+        }
         await txn.update(
           'jobs',
           {'updated_at': ts.toIso8601String()},
           where: 'id = ?',
-          whereArgs: [r.first['job_id']],
+          whereArgs: [jobId],
         );
       }
     });

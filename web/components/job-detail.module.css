@@ -1,0 +1,118 @@
+.backLink {
+  color: #2563eb;
+  font-size: 0.875rem;
+}
+
+.compose {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  display: grid;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.compose h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.compose input,
+.compose textarea {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font: inherit;
+}
+
+.composeActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.primary {
+  border: none;
+  border-radius: 8px;
+  padding: 10px 14px;
+  background: var(--accent);
+  font-weight: 600;
+}
+
+.saved {
+  color: #047857;
+  font-size: 0.875rem;
+}
+
+.empty {
+  color: var(--muted);
+}
+
+.dayGroup h3 {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.timeline {
+  list-style: none;
+  margin: 0 0 20px;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+}
+
+.itemMeta {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.kind {
+  text-transform: capitalize;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.body {
+  margin: 8px 0 0;
+  white-space: pre-wrap;
+}
+
+.captionBtn {
+  border: none;
+  background: none;
+  padding: 0;
+  font-weight: 600;
+  text-align: left;
+}
+
+.inlineEdit {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.inlineEdit input {
+  flex: 1;
+  min-width: 200px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.error {
+  color: var(--danger);
+  font-size: 0.8125rem;
+}

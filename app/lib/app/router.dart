@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../features/auth/sign_in_screen.dart';
 import '../features/capture/capture_hub_screen.dart';
 import '../features/capture/file_capture_screen.dart';
 import '../features/capture/note_capture_screen.dart';
@@ -50,6 +51,11 @@ final appRouter = GoRouter(
           ],
         ),
       ],
+    ),
+    GoRoute(
+      path: '/sign-in',
+      name: 'sign-in',
+      builder: (_, __) => const SignInScreen(),
     ),
     GoRoute(
       path: '/jobs/new',

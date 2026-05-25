@@ -1,0 +1,72 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(17, 24, 39, 0.25);
+  z-index: 40;
+}
+
+.drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: min(420px, 100%);
+  height: 100%;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.08);
+  padding: 20px;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 16px;
+}
+
+.drawer header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.drawer header h2 {
+  margin: 0;
+}
+
+.drawer header button {
+  border: none;
+  background: none;
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.form {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+
+.form label {
+  display: grid;
+  gap: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.form input,
+.form textarea {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.primary {
+  border: none;
+  border-radius: 8px;
+  padding: 11px 14px;
+  background: var(--accent);
+  font-weight: 600;
+}
+
+.error {
+  color: var(--danger);
+  margin: 0;
+  font-size: 0.875rem;
+}

@@ -18,14 +18,16 @@ The repo matches the **Phase 1** architecture in broad strokes. Use this table w
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| Flutter app (`app/`) | **Mostly built** | v0.1.0+1; jobs CRUD, **Google Places address autocomplete** on New/Edit Job (online; location-biased worldwide search; API key in `app/.env`), **batch-first photo capture**, **photo annotation v1 + v2** ([§6.4a](#64a-photo-annotation-mark-up)), voice/note capture, **WYSIWYG text notes** ([§6.6](#66-capture-text-note)), **PDF / file upload** ([§6.6a](#66a-capture-file--pdf-upload)), timeline **filter/search** (type incl. **Files**, tag, full-text incl. filename), bulk tag, item detail (open file via OS), zip export (`files/` folder + rendered note HTML + annotated photos), settings. Voice notes are audio + optional caption/tags; for spoken text users add a **text note** (keyboard dictation on Android/iOS). Automatic transcription is **Phase 2** (server). Default tags include **`Receipt`** (schema v2 migration). Gaps: stretch business tags ([§7](#7-data-model)). |
+| Flutter app (`app/`) | **Mostly built + M3 sync (partial)** | v0.1.0+1; Phase 1 capture/export complete. **M3:** sign-in, workspace switcher (`Local` + workspace), DB v3 sync columns, bidirectional **text-only** sync (jobs + note items) against `services/api`. Pull-to-refresh sync on jobs list and job detail; settings Account/Sync. Photo/voice/file blob sync is **M4**. Gaps: stretch business tags ([§7](#7-data-model)). |
 | Landing (`landing/`) | **Active** | PHP + SQLite waitlist on jobsiterecords.com, plus SEO guides, use cases, trades, answers, and examples — not a single static page ([§14.4](#144-the-landing-site)). |
-| Backend (`services/api/`) | **Partial (M1)** | Go API in Docker Compose: Postgres migrations, email+password + magic-link auth, JWT + rotating refresh tokens, workspace CRUD + leave-workspace. Sync/jobs/reports not started. |
-| Web dashboard (`web/`) | **Partial (M0–M1)** | Next.js shell (nav, empty states, command palette) + real auth via `/api/auth/*` BFF. Jobs CRUD not started (M2). Spec: [`web-dashboard-design.md`](web-dashboard-design.md). |
+| Backend (`services/api/`) | **Partial (M1–M3)** | Go API in Docker Compose: Postgres migrations, auth (JWT + refresh), workspaces, **jobs + note items sync** (`GET/PUT /jobs`, `PUT /jobs/{id}/items/{itemId}`, assignments). Reports/billing not started. |
+| Web dashboard (`web/`) | **Partial (M0–M2)** | Next.js shell + auth BFF + **jobs list/detail** (create job, add note, caption edit). Workspace switcher persistence, tags, soft-delete still partial. Spec: [`web-dashboard-design.md`](web-dashboard-design.md). |
 | Tests | **Minimal** | `note_markdown_test.dart`, `photo_annotation_test.dart`; golden/integration tests not yet written ([§11.3](#113-testing)). |
 | i18n / dark theme | **Not started** | English strings inline; light theme only ([§4](#4-platform--tech-stack), [§10](#10-visual-design)). |
 
-**Milestone progress ([§13](#13-phasing--milestones)):** M0–M3 largely complete in code; M4 (polish, accessibility, golden tests, store assets) still in progress.
+**Phase 2 milestone progress ([`web-dashboard-design.md` §17](web-dashboard-design.md#17-milestones-user-testable-states)):** M0–M1 done; **M2/M3 in progress** (API jobs sync, web jobs CRUD subset, mobile text sync). M4+ (media sync, teams, reports, billing) not started.
+
+**Phase 1 milestone progress ([§13](#13-phasing--milestones)):** M0–M3 largely complete in code; M4 (polish, accessibility, golden tests, store assets) still in progress.
 
 ---
 

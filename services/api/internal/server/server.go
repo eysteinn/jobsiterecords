@@ -12,6 +12,7 @@ import (
 	"github.com/eysteinn/jobsiterecords/services/api/internal/config"
 	"github.com/eysteinn/jobsiterecords/services/api/internal/email"
 	"github.com/eysteinn/jobsiterecords/services/api/internal/handlers"
+	"github.com/eysteinn/jobsiterecords/services/api/internal/jobs"
 	authmw "github.com/eysteinn/jobsiterecords/services/api/internal/middleware"
 	"github.com/eysteinn/jobsiterecords/services/api/internal/ratelimit"
 	"github.com/eysteinn/jobsiterecords/services/api/internal/workspace"
@@ -30,6 +31,8 @@ func New(cfg config.Config, pool *pgxpool.Pool) *Server {
 
 	authH := handlers.NewAuthHandler(cfg, authSvc, wsSvc, mail, limiter)
 	wsH := handlers.NewWorkspaceHandler(wsSvc)
+	jobsSvc := jobs.NewService(pool)
+	jobsH := handlers.NewJobsHandler(jobsSvc)
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
@@ -71,6 +74,11 @@ func New(cfg config.Config, pool *pgxpool.Pool) *Server {
 			protected.Use(authmw.RequireAuth(cfg.JWTSecret))
 			protected.Get("/workspaces", wsH.List)
 			protected.Post("/workspaces/{workspaceID}/leave", wsH.Leave)
+			protected.Get("/workspaces/{workspaceID}/jobs", jobsH.ListWorkspaceJobs)
+			protected.Get("/workspaces/{workspaceID}/assignments", jobsH.AssignedJobIDs)
+			protected.Get("/jobs/{jobID}", jobsH.GetJob)
+			protected.Put("/jobs/{jobID}", jobsH.UpsertJob)
+			protected.Put("/jobs/{jobID}/items/{itemID}", jobsH.UpsertItem)
 		})
 	})
 

@@ -29,4 +29,24 @@ docker compose up --build
 | GET | `/api/v1/workspaces` | List workspaces |
 | POST | `/api/v1/workspaces/{id}/leave` | Member leave workspace |
 
-Migrations run automatically on startup.
+## M2–M3 sync endpoints (auth required)
+
+| Method | Path | Description |
+| --- | --- | --- |
+| GET | `/api/v1/workspaces/{id}/jobs` | List workspace jobs |
+| GET | `/api/v1/workspaces/{id}/assignments` | Job IDs assigned to current user (owners: all jobs) |
+| GET | `/api/v1/jobs/{id}` | Job bundle (`?since=` for item delta) |
+| PUT | `/api/v1/jobs/{id}` | Upsert job (LWW by `updated_at`) |
+| PUT | `/api/v1/jobs/{id}/items/{itemId}` | Upsert item (note metadata in M3) |
+
+Migrations run automatically on API startup. To apply them without starting the server:
+
+```bash
+# From services/api/ (Postgres must be reachable)
+./scripts/migrate.sh
+
+# Or directly:
+DATABASE_URL=postgres://sitelog:sitelog@localhost:5432/sitelog?sslmode=disable go run ./cmd/migrate
+```
+
+Uses the same `schema_migrations` tracking as the API — already-applied files are skipped.

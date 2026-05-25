@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import '../../sync/sync_state.dart';
+
 enum JobStatus {
   planning,
   inProgress,
@@ -36,6 +38,9 @@ class Job {
   final DateTime? endDate;
   final String? notes;
   final String? coverItemId;
+  final String? workspaceId;
+  final SyncState syncState;
+  final DateTime? lastSyncedAt;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -50,6 +55,9 @@ class Job {
     this.endDate,
     this.notes,
     this.coverItemId,
+    this.workspaceId,
+    this.syncState = SyncState.localOnly,
+    this.lastSyncedAt,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -64,6 +72,9 @@ class Job {
     DateTime? endDate,
     String? notes,
     String? coverItemId,
+    String? workspaceId,
+    SyncState? syncState,
+    DateTime? lastSyncedAt,
     DateTime? updatedAt,
   }) {
     return Job(
@@ -77,6 +88,9 @@ class Job {
       endDate: endDate ?? this.endDate,
       notes: notes ?? this.notes,
       coverItemId: coverItemId ?? this.coverItemId,
+      workspaceId: workspaceId ?? this.workspaceId,
+      syncState: syncState ?? this.syncState,
+      lastSyncedAt: lastSyncedAt ?? this.lastSyncedAt,
       createdAt: createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -93,6 +107,9 @@ class Job {
         'end_date': endDate?.toIso8601String(),
         'notes': notes,
         'cover_item_id': coverItemId,
+        'workspace_id': workspaceId,
+        'sync_state': syncState.dbValue,
+        'last_synced_at': lastSyncedAt?.toIso8601String(),
         'created_at': createdAt.toIso8601String(),
         'updated_at': updatedAt.toIso8601String(),
       };
@@ -108,6 +125,9 @@ class Job {
         endDate: _parseDate(r['end_date']),
         notes: r['notes'] as String?,
         coverItemId: r['cover_item_id'] as String?,
+        workspaceId: r['workspace_id'] as String?,
+        syncState: SyncState.fromDb(r['sync_state'] as String?),
+        lastSyncedAt: r['last_synced_at'] == null ? null : DateTime.tryParse(r['last_synced_at']! as String),
         createdAt: DateTime.parse(r['created_at']! as String),
         updatedAt: DateTime.parse(r['updated_at']! as String),
       );

@@ -1,0 +1,69 @@
+.primary {
+  border: none;
+  border-radius: 8px;
+  padding: 10px 14px;
+  background: var(--accent);
+  color: #111827;
+  font-weight: 600;
+}
+
+.secondary {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  background: var(--surface);
+  color: #111827;
+  font-weight: 500;
+}
+
+.secondary:disabled {
+  opacity: 0.6;
+}
+
+.tableWrap {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9375rem;
+}
+
+.table th {
+  position: sticky;
+  top: 0;
+  background: #fafafa;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.jobLink {
+  font-weight: 600;
+  color: #111827;
+}
+
+.sub {
+  color: var(--muted);
+  font-size: 0.8125rem;
+  margin-top: 2px;
+}
+
+.pill {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  font-size: 0.8125rem;
+  text-transform: capitalize;
+}

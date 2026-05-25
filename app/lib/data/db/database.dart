@@ -6,7 +6,7 @@ import 'package:sqflite/sqflite.dart';
 
 import '../../core/ids.dart';
 
-const _dbVersion = 2;
+const _dbVersion = 3;
 
 class AppDatabase {
   AppDatabase._(this.db);
@@ -30,6 +30,19 @@ class AppDatabase {
           await d.execute('ALTER TABLE media_files ADD COLUMN original_filename TEXT');
           await _insertMissingDefaultTags(d);
         }
+        if (oldVersion < 3) {
+          await d.execute('ALTER TABLE jobs ADD COLUMN workspace_id TEXT');
+          await d.execute("ALTER TABLE jobs ADD COLUMN sync_state TEXT NOT NULL DEFAULT 'local_only'");
+          await d.execute('ALTER TABLE jobs ADD COLUMN last_synced_at TEXT');
+          await d.execute("ALTER TABLE items ADD COLUMN sync_state TEXT NOT NULL DEFAULT 'local_only'");
+          await d.execute('ALTER TABLE items ADD COLUMN last_synced_at TEXT');
+          await d.execute('''
+            CREATE TABLE sync_meta (
+              key   TEXT PRIMARY KEY,
+              value TEXT NOT NULL
+            )
+          ''');
+        }
       },
     );
     return AppDatabase._(db);
@@ -51,6 +64,9 @@ Future<void> _createSchema(Database d) async {
       end_date      TEXT,
       notes         TEXT,
       cover_item_id TEXT,
+      workspace_id  TEXT,
+      sync_state    TEXT NOT NULL DEFAULT 'local_only',
+      last_synced_at TEXT,
       created_at    TEXT NOT NULL,
       updated_at    TEXT NOT NULL
     )
@@ -63,6 +79,8 @@ Future<void> _createSchema(Database d) async {
       kind        TEXT NOT NULL,
       caption     TEXT,
       body        TEXT,
+      sync_state  TEXT NOT NULL DEFAULT 'local_only',
+      last_synced_at TEXT,
       captured_at TEXT NOT NULL,
       created_at  TEXT NOT NULL,
       updated_at  TEXT NOT NULL

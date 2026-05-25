@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/providers.dart';
 import '../../app/theme.dart';
 import '../../core/format.dart';
+import '../../sync/sync_providers.dart';
+import '../../sync/sync_runner.dart';
 import '../capture/widgets/tag_chips.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -37,10 +40,77 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final authAsync = ref.watch(authSessionProvider);
+    final ctx = ref.watch(captureContextProvider);
+    final syncStatus = ref.watch(syncStatusProvider);
+    final wifiOnly = ref.watch(syncWifiOnlyProvider);
+
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
         children: [
+          const _SectionHeader('Account & Sync'),
+          authAsync.when(
+            loading: () => const ListTile(title: Text('Checking sign-in…')),
+            error: (e, _) => ListTile(title: Text('Auth error: $e')),
+            data: (session) {
+              if (session == null) {
+                return ListTile(
+                  leading: const Icon(Icons.login),
+                  title: const Text('Sign in'),
+                  subtitle: const Text('Sync jobs and notes with your workspace.'),
+                  onTap: () => context.pushNamed('sign-in'),
+                );
+              }
+              return Column(
+                children: [
+                  ListTile(
+                    leading: const Icon(Icons.person_outline),
+                    title: Text(session.user['email']?.toString() ?? 'Signed in'),
+                    subtitle: Text('Context: ${ctx.workspaceName}'),
+                  ),
+                  SwitchListTile(
+                    secondary: const Icon(Icons.wifi),
+                    title: const Text('Sync on Wi‑Fi only'),
+                    subtitle: const Text('When enabled, sync waits for Wi‑Fi (best effort).'),
+                    value: wifiOnly,
+                    onChanged: (v) => ref.read(syncWifiOnlyProvider.notifier).setEnabled(v),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.sync),
+                    title: const Text('Sync now'),
+                    subtitle: Text(
+                      syncStatus.error ??
+                          (syncStatus.pending > 0
+                              ? '${syncStatus.pending} pending changes'
+                              : syncStatus.lastSyncedAt == null
+                                  ? 'Not synced yet'
+                                  : 'Last synced ${formatRelative(syncStatus.lastSyncedAt!)}'),
+                    ),
+                    onTap: ctx.isWorkspace
+                        ? () async {
+                            await runForegroundSync(ref);
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text(ref.read(syncStatusProvider).error ?? 'Sync complete')),
+                              );
+                            }
+                          }
+                        : null,
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.logout),
+                    title: const Text('Sign out'),
+                    subtitle: const Text('Keeps local data on this device.'),
+                    onTap: () async {
+                      await ref.read(authSessionProvider.notifier).logout();
+                      await ref.read(captureContextProvider.notifier).selectLocal();
+                    },
+                  ),
+                ],
+              );
+            },
+          ),
           const _SectionHeader('Data & Storage'),
           ListTile(
             leading: const Icon(Icons.sd_storage_outlined),
@@ -76,7 +146,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const ListTile(
             leading: Icon(Icons.info_outline),
             title: Text('Job Site Records'),
-            subtitle: Text('jobsiterecords.com · Version 0.1.0 — local-only MVP.\nData stays on your device.'),
+            subtitle: Text('jobsiterecords.com · Version 0.1.0\nLocal capture with optional workspace sync.'),
           ),
           ListTile(
             leading: const Icon(Icons.policy_outlined),
