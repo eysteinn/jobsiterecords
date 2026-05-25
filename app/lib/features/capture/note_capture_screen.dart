@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/providers.dart';
+import 'widgets/note_editor.dart';
 import 'widgets/tag_chips.dart';
 
 class NoteCaptureScreen extends ConsumerStatefulWidget {
@@ -14,25 +15,24 @@ class NoteCaptureScreen extends ConsumerStatefulWidget {
 }
 
 class _NoteCaptureScreenState extends ConsumerState<NoteCaptureScreen> {
-  final _bodyCtrl = TextEditingController();
   final _captionCtrl = TextEditingController();
+  final _noteEditorController = NoteEditorController();
   final Set<String> _tagIds = {};
   bool _saving = false;
 
   @override
   void dispose() {
-    _bodyCtrl.dispose();
     _captionCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _save() async {
-    if (_bodyCtrl.text.trim().isEmpty) return;
+    if (_noteEditorController.isEmpty) return;
     setState(() => _saving = true);
     try {
       await ref.read(itemsRepositoryProvider).createNote(
             jobId: widget.jobId,
-            body: _bodyCtrl.text,
+            body: _noteEditorController.markdown,
             caption: _captionCtrl.text,
             tagIds: _tagIds.toList(),
           );
@@ -68,15 +68,9 @@ class _NoteCaptureScreenState extends ConsumerState<NoteCaptureScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            TextField(
-              controller: _bodyCtrl,
-              minLines: 6,
-              maxLines: 14,
+            NoteEditor(
+              controller: _noteEditorController,
               autofocus: true,
-              decoration: const InputDecoration(
-                labelText: 'Note',
-                hintText: 'What do you want to remember?',
-              ),
             ),
             const SizedBox(height: 16),
             const Text('Tags', style: TextStyle(fontWeight: FontWeight.w600)),

@@ -10,6 +10,7 @@ import 'package:path_provider/path_provider.dart';
 import '../../data/repositories/items_repository.dart';
 import '../../data/repositories/jobs_repository.dart';
 import '../../data/storage/media_storage.dart';
+import '../../core/note_markdown.dart';
 import '../models/item.dart';
 import '../models/job.dart';
 import '../models/timeline_item.dart';
@@ -133,7 +134,7 @@ class ExportService {
 
   String _photoName(TimelineItem t) => '${_stamp(t.item.capturedAt)}_${_shortCaption(t)}.jpg';
   String _voiceName(TimelineItem t) => '${_stamp(t.item.capturedAt)}_${_shortCaption(t)}.m4a';
-  String _noteName(TimelineItem t) => '${_stamp(t.item.capturedAt)}_${_shortCaption(t)}.txt';
+  String _noteName(TimelineItem t) => '${_stamp(t.item.capturedAt)}_${_shortCaption(t)}.md';
 
   String _fileName(TimelineItem t) {
     final file = t.attachedFile!;
@@ -180,7 +181,9 @@ class ExportService {
       .tag{display:inline-block;padding:2px 8px;margin-right:6px;border-radius:999px;background:#fef3c7;color:#92400e;font-size:11px}
       audio{width:100%;margin-top:6px}
       .file-link{display:inline-block;margin-top:6px;padding:8px 12px;background:#f3f4f6;border-radius:6px;text-decoration:none;color:#111;font-size:13px}
-      .note{white-space:pre-wrap;background:#f9fafb;padding:10px;border-radius:6px;font-size:14px}
+      .note{white-space:normal;background:#f9fafb;padding:10px;border-radius:6px;font-size:14px}
+      .note ul,.note ol{margin:8px 0 8px 20px;padding:0}
+      .note h1,.note h2{margin:8px 0 4px;font-size:16px}
       footer{margin-top:32px;font-size:12px;color:#9ca3af;text-align:center}
       @media (max-width:560px){.item{grid-template-columns:1fr}}
     ''');
@@ -215,7 +218,7 @@ class ExportService {
           b.writeln('<div class="cap">${esc(t.item.caption)}</div>');
         }
         if (opts.includeNotes && (t.item.body ?? '').isNotEmpty) {
-          b.writeln('<div class="note">${esc(t.item.body)}</div>');
+          b.writeln('<div class="note">${noteMarkdownToHtml(t.item.body!)}</div>');
         }
         if (t.voiceNote != null) {
           b.writeln('<audio controls preload="none" src="voice_notes/${esc(_voiceName(t))}"></audio>');

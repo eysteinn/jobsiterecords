@@ -32,12 +32,18 @@ dependencies:
   archive: ^3.6.1
   file_picker: ^8.1.7
   open_filex: ^4.7.0
-  intl: ^0.19.0
+  intl: ^0.20.2
   collection: ^1.18.0
   flutter_google_places_sdk:
     path: packages/flutter_google_places_sdk
   flutter_dotenv: ^6.0.1
   geolocator: ^14.0.2
+  flutter_quill: ^11.4.2
+  markdown: ^7.3.1
+  flutter_markdown: ^0.7.7+1
+  flutter_localizations:
+    sdk: flutter
+  dart_quill_delta: ^10.8.3
 
 dev_dependencies:
   flutter_test:
