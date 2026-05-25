@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import '../../core/clock.dart';
+import '../../core/file_utils.dart';
 import '../../core/ids.dart';
 import '../../domain/models/item.dart';
 import '../../domain/models/media_file.dart';
@@ -56,10 +57,17 @@ class ItemsRepository {
             SELECT 1 FROM item_tags it2
             JOIN tags t ON t.id = it2.tag_id
             WHERE it2.item_id = i.id AND t.name LIKE ? COLLATE NOCASE
+          ) OR
+          EXISTS (
+            SELECT 1 FROM media_files mf
+            WHERE mf.item_id = i.id AND (
+              mf.original_filename LIKE ? COLLATE NOCASE OR
+              mf.relative_path LIKE ? COLLATE NOCASE
+            )
           )
         )
       ''');
-      args.addAll([pattern, pattern, pattern]);
+      args.addAll([pattern, pattern, pattern, pattern, pattern]);
     }
 
     final rows = await _db.db.rawQuery('''
@@ -79,11 +87,19 @@ class ItemsRepository {
   TimelineItem _join(Item item, List<MediaFile> media, List<Tag> tags) {
     MediaFile? photo;
     MediaFile? voice;
+    MediaFile? file;
     for (final m in media) {
       if (m.role == MediaRole.primaryPhoto) photo = m;
       if (m.role == MediaRole.voiceNote) voice = m;
+      if (m.role == MediaRole.file || m.role == MediaRole.attachment) file = m;
     }
-    return TimelineItem(item: item, primaryPhoto: photo, voiceNote: voice, tags: tags);
+    return TimelineItem(
+      item: item,
+      primaryPhoto: photo,
+      voiceNote: voice,
+      attachedFile: file,
+      tags: tags,
+    );
   }
 
   Future<Map<String, List<MediaFile>>> _mediaForItems(List<String> ids) async {
@@ -319,6 +335,66 @@ class ItemsRepository {
     return item;
   }
 
+  Future<Item> createFile({
+    required String jobId,
+    required String sourceFilePath,
+    required String originalFilename,
+    required String mimeType,
+    String? caption,
+    List<String> tagIds = const [],
+  }) async {
+    final source = File(sourceFilePath);
+    final fileSize = await source.length();
+    if (fileSize > maxUploadBytes) {
+      throw FileTooLargeException(fileSize);
+    }
+    if (!isAllowedUploadExtension(originalFilename)) {
+      throw UnsupportedFileTypeException(originalFilename);
+    }
+
+    final itemId = newId();
+    final ts = now();
+    final storageName = sanitizeStorageFilename(originalFilename);
+    final dir = await _storage.dirForItem(jobId, itemId);
+    final dest = File('${dir.path}/$storageName');
+    await source.copy(dest.path);
+
+    final item = Item(
+      id: itemId,
+      jobId: jobId,
+      kind: ItemKind.file,
+      caption: _trimOrNull(caption),
+      capturedAt: ts,
+      createdAt: ts,
+      updatedAt: ts,
+    );
+
+    await _db.db.transaction((txn) async {
+      await txn.insert('items', item.toDb());
+      await txn.insert('media_files', MediaFile(
+        id: newId(),
+        itemId: itemId,
+        role: MediaRole.file,
+        relativePath: _storage.relativeFor(jobId, itemId, storageName),
+        mimeType: mimeType,
+        sizeBytes: fileSize,
+        originalFilename: originalFilename,
+        createdAt: ts,
+      ).toDb());
+      for (final tagId in tagIds) {
+        await txn.insert('item_tags', {'item_id': itemId, 'tag_id': tagId});
+      }
+      await txn.update(
+        'jobs',
+        {'updated_at': ts.toIso8601String()},
+        where: 'id = ?',
+        whereArgs: [jobId],
+      );
+    });
+
+    return item;
+  }
+
   Future<Item> createNote({
     required String jobId,
     required String body,
@@ -464,6 +540,16 @@ class BatchPhotoInput {
   const BatchPhotoInput({required this.sourceFilePath, required this.capturedAt});
   final String sourceFilePath;
   final DateTime capturedAt;
+}
+
+class FileTooLargeException implements Exception {
+  FileTooLargeException(this.sizeBytes);
+  final int sizeBytes;
+}
+
+class UnsupportedFileTypeException implements Exception {
+  UnsupportedFileTypeException(this.filename);
+  final String filename;
 }
 
 String? _trimOrNull(String? v) {

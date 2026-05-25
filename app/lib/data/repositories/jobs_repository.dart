@@ -84,6 +84,7 @@ class JobsRepository {
         SUM(CASE WHEN i.kind = 'photo' THEN 1 ELSE 0 END) AS photos,
         SUM(CASE WHEN i.kind = 'voice' THEN 1 ELSE 0 END) AS voice_notes,
         SUM(CASE WHEN i.kind = 'note'  THEN 1 ELSE 0 END) AS notes,
+        SUM(CASE WHEN i.kind = 'file'  THEN 1 ELSE 0 END) AS files,
         MAX(i.updated_at) AS last_item_update
       FROM jobs j
       LEFT JOIN items i ON i.job_id = j.id
@@ -124,6 +125,7 @@ class JobsRepository {
         photos: (r['photos'] as int?) ?? 0,
         voiceNotes: (r['voice_notes'] as int?) ?? 0,
         notes: (r['notes'] as int?) ?? 0,
+        files: (r['files'] as int?) ?? 0,
         issues: issuesByJob[jobId] ?? 0,
         lastUpdated: r['last_item_update'] == null
             ? null

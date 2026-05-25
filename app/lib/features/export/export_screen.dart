@@ -7,6 +7,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../app/providers.dart';
 import '../../app/theme.dart';
 import '../../core/format.dart';
+import '../../domain/models/item.dart';
 import '../../domain/models/timeline_item.dart';
 import '../../domain/models/timeline_query.dart';
 import '../../domain/services/export_service.dart';
@@ -92,7 +93,11 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
                         });
                       },
                       coverPath: t.primaryPhoto == null
-                          ? null
+                          ? (t.attachedFile != null &&
+                                  (t.attachedFile!.mimeType.startsWith('image/') ||
+                                      t.attachedFile!.displayName.toLowerCase().endsWith('.heic'))
+                              ? storage.absolutePath(t.attachedFile!.relativePath)
+                              : null)
                           : storage.absolutePath(t.primaryPhoto!.relativePath),
                     );
                   },
@@ -236,7 +241,7 @@ class _Row extends StatelessWidget {
       activeColor: AppColors.accent,
       controlAffinity: ListTileControlAffinity.leading,
       title: Text(
-        cap.isEmpty ? t.item.kind.label : cap,
+        cap.isEmpty ? (t.hasFile ? t.attachedFile!.displayName : t.item.kind.label) : cap,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: const TextStyle(fontWeight: FontWeight.w600),
@@ -256,10 +261,13 @@ class _Row extends StatelessWidget {
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Icon(
-                  switch (t.item.kind.label) {
-                    'Photo' => Icons.image_outlined,
-                    'Voice Note' => Icons.mic_none,
-                    _ => Icons.sticky_note_2_outlined,
+                  switch (t.item.kind) {
+                    ItemKind.photo => Icons.image_outlined,
+                    ItemKind.voice => Icons.mic_none,
+                    ItemKind.file => t.attachedFile?.mimeType == 'application/pdf'
+                        ? Icons.picture_as_pdf
+                        : Icons.insert_drive_file_outlined,
+                    ItemKind.note => Icons.sticky_note_2_outlined,
                   },
                   color: AppColors.subtle,
                 ),

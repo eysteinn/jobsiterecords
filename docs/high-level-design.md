@@ -18,7 +18,7 @@ The repo matches the **Phase 1** architecture in broad strokes. Use this table w
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| Flutter app (`app/`) | **Mostly built** | v0.1.0+1; jobs CRUD, **Google Places address autocomplete** on New/Edit Job (online; location-biased worldwide search; API key in `app/.env`), **batch-first photo capture**, voice/note capture, timeline **filter/search** (type, tag, full-text), bulk tag, item detail, zip export, settings. Voice notes are audio + optional caption/tags; for spoken text users add a **text note** (keyboard dictation on Android/iOS). Automatic transcription is **Phase 2** (server). Gaps: **PDF / file upload** ([§6.6a](#66a-capture-file--pdf-upload)), **photo annotation** ([§6.4a](#64a-photo-annotation-mark-up)), **markdown note formatting** ([§6.6](#66-capture-text-note)), **`Receipt` default tag** + other business tags ([§7](#7-data-model), [§6.10](#610-implementation-gaps-vs-target-phase-1)). |
+| Flutter app (`app/`) | **Mostly built** | v0.1.0+1; jobs CRUD, **Google Places address autocomplete** on New/Edit Job (online; location-biased worldwide search; API key in `app/.env`), **batch-first photo capture**, voice/note capture, **PDF / file upload** ([§6.6a](#66a-capture-file--pdf-upload)), timeline **filter/search** (type incl. **Files**, tag, full-text incl. filename), bulk tag, item detail (open file via OS), zip export (`files/` folder), settings. Voice notes are audio + optional caption/tags; for spoken text users add a **text note** (keyboard dictation on Android/iOS). Automatic transcription is **Phase 2** (server). Default tags include **`Receipt`** (schema v2 migration). Gaps: **photo annotation** ([§6.4a](#64a-photo-annotation-mark-up)), **markdown note formatting** ([§6.6](#66-capture-text-note)), stretch business tags ([§7](#7-data-model)). |
 | Landing (`landing/`) | **Active** | PHP + SQLite waitlist on jobsiterecords.com, plus SEO guides, use cases, trades, answers, and examples — not a single static page ([§14.4](#144-the-landing-site)). |
 | Backend (`services/`) | **Placeholder** | README only; no deployable services yet. |
 | Web dashboard (`web/`) | **Not started** | Phase 2. Product/UX spec: [`web-dashboard-design.md`](web-dashboard-design.md). Post-MVP: receipt OCR & expense export (§17.8). |
@@ -192,13 +192,13 @@ Aligned with Phase 1 mobile scope ([§13](#13-phasing--milestones)). “Must-hav
 
 - **Framework:** Flutter (Dart 3.9+) — single codebase for Android and iOS. Flutter SDK ≥ 3.41.
 - **Min OS:** iOS 14+, Android 8.0+ (API 26). Android target SDK 34.
-- **Local storage:** `sqflite` for metadata (schema version **1** — `items` has no transcript column); `path_provider` documents directory for media.
+- **Local storage:** `sqflite` for metadata (schema version **2** — `media_files.original_filename`; default tags include **`Receipt`**); `path_provider` documents directory for media.
 - **Camera:** `camera` for live capture; `image_picker` for gallery import on the photo review flow.
 - **Audio:** `record` (v5.1.2) for capture, `just_audio` for playback. No dedicated waveform package yet — voice UI uses elapsed time + play/pause slider.
 - **Voice transcription:** **not on the phone.** Voice items are audio + caption/tags only. Phase 2 adds optional **dashboard/cloud** STT after sync — no native hooks and no `transcript` column in the local `items` table ([§17.7](#177-voice-transcription-as-readable-notes-phase-2)).
 - **Zip export:** `archive` (pure Dart).
 - **Sharing / links:** `share_plus` for exports and single-item share; `url_launcher` for waitlist, feedback `mailto:`, and privacy policy URLs in Settings.
-- **File / PDF upload (*planned*):** `file_picker` (or platform document picker) — copy selected files into app storage; no upload to our servers in Phase 1 ([§6.6a](#66a-capture-file--pdf-upload)).
+- **File / PDF upload (*implemented*):** `file_picker` + `open_filex` — copy selected files into app storage; no upload to our servers in Phase 1 ([§6.6a](#66a-capture-file--pdf-upload)).
 - **State management:** **Riverpod** (`flutter_riverpod`).
 - **Routing:** `go_router` with a 3-tab `ShellRoute` plus stack routes for job/capture/export/item flows.
 - **Permissions:** `permission_handler` — requested when opening camera or starting voice record (no separate in-app rationale screen yet).
@@ -346,7 +346,7 @@ Keep the toolbox shallow on purpose. **Not in v1:** text labels, blur / redact, 
 
 ### 6.6a Capture (File / PDF upload)
 
-**Phase 1 — planned, not yet implemented.** Contractors already have PDFs in email, Drive, and texts; the app must accept them into the job folder without turning into a document manager.
+**Phase 1 — implemented.** Contractors already have PDFs in email, Drive, and texts; the app accepts them into the job folder without turning into a document manager.
 
 **Primary use case:** attach an **existing PDF** (or other file) to the current job — estimates, signed quotes, permits, inspection reports, change orders, receipts, delivery tickets.
 
@@ -447,14 +447,15 @@ Screens in §6.1–6.9 are the **design target**. The shipped app (`app/lib/feat
 | Job detail | Row overflow menus | **Bulk select**, **tag**, and **delete** on timeline (overflow + long-press); no per-row overflow |
 | Job detail | Status pill in header | Status on list card; job notes field on edit form only |
 | Capture tab | Open camera directly | Job picker → mode sheet → capture route |
-| PDF / file upload | Document picker → copy to app storage → timeline item (`kind = file`) | **Not started** — spec in [§6.6a](#66a-capture-file--pdf-upload) |
+| PDF / file upload | Document picker → copy to app storage → timeline item (`kind = file`) | **Implemented** — `FileCaptureScreen`, `ItemsRepository.createFile`, route `capture-file` |
 | Photo annotation | Pen / line / arrow / circle / rectangle in a small color palette; vector overlay + flattened render | **Not started** — spec in [§6.4a](#64a-photo-annotation-mark-up) |
 | Text note formatting | Markdown subset (bold / italics / bullets / numbered / single heading) with a compact toolbar | **Not started** — body is plain text today; spec in [§6.6](#66-capture-text-note) |
-| Default tags | **`Receipt`** + progress/status set (see [§7](#7-data-model)) | **Partial** — ships `Before`, `During`, `After`, `Issue`, `Completed`; **`Receipt` not seeded yet** |
+| Default tags | **`Receipt`** + progress/status set (see [§7](#7-data-model)) | **Implemented** — `Receipt` seeded on fresh install; v2 migration inserts if missing |
 | Job detail | “Today” section when captures exist today | Date grouping only |
 | Photo capture | Batch-first: rapid multi-shot, tag at end | **Implemented** — continuous camera, Done → shared caption/tags; per-photo timestamps |
 | Photo capture | Inline “tap to record” voice on photo | Voice is a separate item kind (repo supports attaching voice to photo, UI does not expose it yet) |
 | Photo capture | Zoom presets | Flash toggle + camera swap + gallery import |
+| Item detail | Open file via OS | **Implemented** — `open_filex` on tap; image files show inline preview |
 | Item detail | Pinch-zoom; swipe between items in job | Single item view; share / edit / delete |
 | Item detail | Waveform for audio | Play/pause + seek slider (`just_audio`) |
 | Item detail | Voice transcript below player | **Out of scope** — Phase 2 transcription is dashboard/cloud only; use text notes on device |
@@ -527,7 +528,7 @@ Tag
 
 **Progress / status (*shipped*):** `Before`, `During`, `After`, `Completed`
 
-**Business / proof (*partially shipped*):** `Issue` (*shipped*); **`Receipt`** (*planned Phase 1 must-have*); `Follow-up`, `Material`, `Change Order`, `Client Request` (*stretch — same seed migration as `Receipt`*)
+**Business / proof (*partially shipped*):** `Issue`, **`Receipt`** (*shipped*); `Follow-up`, `Material`, `Change Order`, `Client Request` (*stretch — not seeded yet*)
 
 | Tag | Color (hex) | Typical use |
 | --- | --- | --- |
@@ -562,7 +563,7 @@ Each seeded tag gets its **color** in `tags.color` (UI uses chip styling). User-
 ```
 
 ### Schema versioning
-- **Current:** `AppDatabase` at schema **version 1**. The local `items` table does **not** include a `transcript` column (and never will for Phase 1).
+- **Current:** `AppDatabase` at schema **version 2** (`media_files.original_filename`; v2 migration adds **`Receipt`** tag on upgrade). The local `items` table does **not** include a `transcript` column (and never will for Phase 1).
 - **Future (Phase 2 sync):** optional local columns only if sync requires them (e.g. `deleted_at`, remote ids). **Transcription text lives in the cloud** (dashboard / `services/transcribe/`), not as a field we pre-wire on the device.
 - Each row carries `created_at`/`updated_at` so the future cloud-sync feature can layer a sync engine on top without changing the model.
 
@@ -790,7 +791,7 @@ What Phase 2 adds (out of scope for **Phase 1**, but mapped here and detailed in
 | --- | --- | --- |
 | **M0 — Skeleton** | Flutter project, theming, routing, SQLite v1 + default tags | **Done** |
 | **M1 — Jobs CRUD** | Create/edit/delete, list, search, status | **Done** |
-| **M2 — Capture loop** | Camera, photo/voice/note/**PDF upload**, captions, tags (**`Receipt`**), timeline, item detail | **Mostly done** — gaps: **PDF / file upload** ([§6.6a](#66a-capture-file--pdf-upload)), **photo annotation** ([§6.4a](#64a-photo-annotation-mark-up)), **markdown note formatting** ([§6.6](#66-capture-text-note)), **`Receipt` tag seed**, photo+voice combo UI, timeline thumbs, “Today” UX |
+| **M2 — Capture loop** | Camera, photo/voice/note/**PDF upload**, captions, tags (**`Receipt`**), timeline, item detail | **Mostly done** — gaps: **photo annotation** ([§6.4a](#64a-photo-annotation-mark-up)), **markdown note formatting** ([§6.6](#66-capture-text-note)), photo+voice combo UI, timeline thumbs, “Today” UX |
 | **M3 — Export** | Selection, options, zip (`index.html` + media), share sheet | **Done** |
 | **M4 — Polish & ship** | Settings completeness, permissions UX, a11y, tests, store assets, beta | **In progress** |
 

@@ -3,7 +3,8 @@ import 'package:flutter/foundation.dart';
 enum ItemKind {
   photo,
   voice,
-  note;
+  note,
+  file;
 
   String get dbValue => name;
 
@@ -16,6 +17,7 @@ enum ItemKind {
         ItemKind.photo => 'Photo',
         ItemKind.voice => 'Voice Note',
         ItemKind.note => 'Note',
+        ItemKind.file => 'File',
       };
 }
 

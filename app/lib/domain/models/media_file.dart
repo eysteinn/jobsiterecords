@@ -3,17 +3,21 @@ import 'package:flutter/foundation.dart';
 enum MediaRole {
   primaryPhoto,
   voiceNote,
-  attachment;
+  attachment,
+  file;
 
   String get dbValue => switch (this) {
         MediaRole.primaryPhoto => 'primary_photo',
         MediaRole.voiceNote => 'voice_note',
         MediaRole.attachment => 'attachment',
+        MediaRole.file => 'file',
       };
 
   static MediaRole fromDb(String v) => switch (v) {
         'primary_photo' => MediaRole.primaryPhoto,
         'voice_note' => MediaRole.voiceNote,
+        'file' => MediaRole.file,
+        'attachment' => MediaRole.attachment,
         _ => MediaRole.attachment,
       };
 }
@@ -29,6 +33,7 @@ class MediaFile {
   final int? height;
   final int? durationMs;
   final int sizeBytes;
+  final String? originalFilename;
   final DateTime createdAt;
 
   const MediaFile({
@@ -41,8 +46,16 @@ class MediaFile {
     this.height,
     this.durationMs,
     required this.sizeBytes,
+    this.originalFilename,
     required this.createdAt,
   });
+
+  String get displayName {
+    final original = originalFilename?.trim();
+    if (original != null && original.isNotEmpty) return original;
+    final parts = relativePath.split('/');
+    return parts.isNotEmpty ? parts.last : relativePath;
+  }
 
   Map<String, Object?> toDb() => {
         'id': id,
@@ -54,6 +67,7 @@ class MediaFile {
         'height': height,
         'duration_ms': durationMs,
         'size_bytes': sizeBytes,
+        'original_filename': originalFilename,
         'created_at': createdAt.toIso8601String(),
       };
 
@@ -67,6 +81,7 @@ class MediaFile {
         height: r['height'] as int?,
         durationMs: r['duration_ms'] as int?,
         sizeBytes: (r['size_bytes'] as int?) ?? 0,
+        originalFilename: r['original_filename'] as String?,
         createdAt: DateTime.parse(r['created_at']! as String),
       );
 }

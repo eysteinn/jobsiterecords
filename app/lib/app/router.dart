@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../features/capture/capture_hub_screen.dart';
+import '../features/capture/file_capture_screen.dart';
 import '../features/capture/note_capture_screen.dart';
 import '../features/capture/photo_capture_screen.dart';
 import '../features/capture/voice_capture_screen.dart';
@@ -78,6 +79,11 @@ final appRouter = GoRouter(
       path: '/jobs/:id/capture/note',
       name: 'capture-note',
       builder: (_, state) => NoteCaptureScreen(jobId: state.pathParameters['id']!),
+    ),
+    GoRoute(
+      path: '/jobs/:id/capture/file',
+      name: 'capture-file',
+      builder: (_, state) => FileCaptureScreen(jobId: state.pathParameters['id']!),
     ),
     GoRoute(
       path: '/jobs/:id/export',
