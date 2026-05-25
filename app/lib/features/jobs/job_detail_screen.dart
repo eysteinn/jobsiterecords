@@ -394,6 +394,15 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                 context.pushNamed('capture-note', pathParameters: {'id': jobId});
               },
             ),
+            ListTile(
+              leading: const Icon(Icons.upload_file_outlined),
+              title: const Text('File / PDF'),
+              subtitle: const Text('Receipts, permits, quotes'),
+              onTap: () {
+                Navigator.pop(context);
+                context.pushNamed('capture-file', pathParameters: {'id': jobId});
+              },
+            ),
             const SizedBox(height: 8),
           ],
         ),
@@ -583,12 +592,13 @@ class _Body extends StatelessWidget {
       photos: summary.photos,
       voiceNotes: summary.voiceNotes,
       notes: summary.notes,
+      files: summary.files,
       issues: summary.issues,
     );
   }
 
   _CountsData _counts(List<TimelineItem> items) {
-    var photos = 0, voices = 0, notes = 0, issues = 0;
+    var photos = 0, voices = 0, notes = 0, files = 0, issues = 0;
     for (final t in items) {
       switch (t.item.kind) {
         case ItemKind.photo:
@@ -597,10 +607,19 @@ class _Body extends StatelessWidget {
           voices++;
         case ItemKind.note:
           notes++;
+        case ItemKind.file:
+          files++;
       }
       if (t.tags.any((tag) => tag.name.toLowerCase() == 'issue')) issues++;
     }
-    return _CountsData(items: items.length, photos: photos, voiceNotes: voices, notes: notes, issues: issues);
+    return _CountsData(
+      items: items.length,
+      photos: photos,
+      voiceNotes: voices,
+      notes: notes,
+      files: files,
+      issues: issues,
+    );
   }
 }
 
@@ -625,8 +644,15 @@ class _Header extends StatelessWidget {
 }
 
 class _CountsData {
-  final int items, photos, voiceNotes, notes, issues;
-  _CountsData({required this.items, required this.photos, required this.voiceNotes, required this.notes, required this.issues});
+  final int items, photos, voiceNotes, notes, files, issues;
+  _CountsData({
+    required this.items,
+    required this.photos,
+    required this.voiceNotes,
+    required this.notes,
+    required this.files,
+    required this.issues,
+  });
 }
 
 class _Counts extends StatelessWidget {
@@ -643,6 +669,7 @@ class _Counts extends StatelessWidget {
           _stat('${counts.photos}', 'Photos'),
           _stat('${counts.voiceNotes}', 'Voice'),
           _stat('${counts.notes}', 'Notes'),
+          _stat('${counts.files}', 'Files'),
           _stat('${counts.issues}', 'Issues'),
         ],
       ),
@@ -679,7 +706,10 @@ class _ItemRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = timeline;
     final hasPhoto = t.primaryPhoto != null;
-    final caption = (t.item.caption ?? '').trim();
+    final isImageFile = t.hasFile &&
+        (t.attachedFile!.mimeType.startsWith('image/') ||
+            t.attachedFile!.displayName.toLowerCase().endsWith('.heic'));
+    final fileThumbPath = isImageFile ? storage(t.attachedFile!.relativePath) : null;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Material(
@@ -713,13 +743,18 @@ class _ItemRow extends StatelessWidget {
                     height: 60,
                     child: hasPhoto && File(storage(t.primaryPhoto!.relativePath)).existsSync()
                         ? Image.file(File(storage(t.primaryPhoto!.relativePath)), fit: BoxFit.cover)
-                        : Container(
+                        : fileThumbPath != null && File(fileThumbPath).existsSync()
+                            ? Image.file(File(fileThumbPath), fit: BoxFit.cover)
+                            : Container(
                             color: const Color(0xFFF3F4F6),
                             child: Icon(
                               switch (t.item.kind) {
                                 ItemKind.photo => Icons.image_outlined,
                                 ItemKind.voice => Icons.mic_none,
                                 ItemKind.note => Icons.sticky_note_2_outlined,
+                                ItemKind.file => t.attachedFile?.mimeType == 'application/pdf'
+                                    ? Icons.picture_as_pdf
+                                    : Icons.insert_drive_file_outlined,
                               },
                               color: AppColors.subtle,
                             ),
@@ -746,9 +781,7 @@ class _ItemRow extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        caption.isEmpty
-                            ? (t.item.body?.trim().isNotEmpty == true ? t.item.body! : '(no caption)')
-                            : caption,
+                        t.previewText,
                         style: const TextStyle(color: AppColors.ink, fontSize: 13),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -945,6 +978,7 @@ String _kindFilterLabel(ItemKind kind) => switch (kind) {
       ItemKind.photo => 'Photos',
       ItemKind.voice => 'Voice',
       ItemKind.note => 'Notes',
+      ItemKind.file => 'Files',
     };
 
 List<String> _activeFilterLabels(TimelineQuery query, List<Tag> allTags) {

@@ -4,12 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:open_filex/open_filex.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../app/providers.dart';
 import '../../app/theme.dart';
 import '../../core/format.dart';
 import '../../domain/models/item.dart';
+import '../../domain/models/media_file.dart';
 import '../../domain/models/tag.dart';
 import '../../domain/models/timeline_item.dart';
 import '../capture/widgets/tag_chips.dart';
@@ -97,6 +99,9 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
     if (t.voiceNote != null) {
       files.add(XFile(storage.absolutePath(t.voiceNote!.relativePath)));
     }
+    if (t.attachedFile != null) {
+      files.add(XFile(storage.absolutePath(t.attachedFile!.relativePath)));
+    }
     final caption = (t.item.caption ?? '').trim();
     final body = (t.item.body ?? '').trim();
     final text = [caption, body].where((s) => s.isNotEmpty).join('\n\n');
@@ -104,6 +109,18 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
       await Share.share(text.isEmpty ? '(empty note)' : text);
     } else {
       await Share.shareXFiles(files, text: text.isEmpty ? null : text);
+    }
+  }
+
+  Future<void> _openFile(TimelineItem t, String Function(String) absolutePath) async {
+    final file = t.attachedFile;
+    if (file == null) return;
+    final result = await OpenFilex.open(absolutePath(file.relativePath));
+    if (!mounted) return;
+    if (result.type != ResultType.done) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result.message.isEmpty ? 'Could not open file' : result.message)),
+      );
     }
   }
 
@@ -158,6 +175,9 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
   Widget _view(TimelineItem t, String Function(String) absolutePath) {
     final hasPhoto = t.primaryPhoto != null;
     final body = (t.item.body ?? '').trim();
+    final file = t.attachedFile;
+    final isImageFile = file != null &&
+        (file.mimeType.startsWith('image/') || file.displayName.toLowerCase().endsWith('.heic'));
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -166,8 +186,21 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
             borderRadius: BorderRadius.circular(12),
             child: Image.file(File(absolutePath(t.primaryPhoto!.relativePath)), fit: BoxFit.cover),
           ),
-        if (t.voiceNote != null) ...[
+        if (file != null) ...[
           if (hasPhoto) const SizedBox(height: 14),
+          if (isImageFile)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.file(File(absolutePath(file.relativePath)), fit: BoxFit.cover),
+            )
+          else
+            _FileCard(
+              file: file,
+              onOpen: () => _openFile(t, absolutePath),
+            ),
+        ],
+        if (t.voiceNote != null) ...[
+          if (hasPhoto || file != null) const SizedBox(height: 14),
           _AudioPlayer(path: absolutePath(t.voiceNote!.relativePath)),
         ],
         const SizedBox(height: 14),
@@ -240,6 +273,58 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
           error: (e, _) => Text('Error: $e'),
         ),
       ],
+    );
+  }
+}
+
+class _FileCard extends StatelessWidget {
+  const _FileCard({required this.file, required this.onOpen});
+  final MediaFile file;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final isPdf = file.mimeType == 'application/pdf' ||
+        file.displayName.toLowerCase().endsWith('.pdf');
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onOpen,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Icon(
+                isPdf ? Icons.picture_as_pdf : Icons.insert_drive_file_outlined,
+                size: 40,
+                color: isPdf ? const Color(0xFFDC2626) : AppColors.subtle,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      file.displayName,
+                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${formatBytes(file.sizeBytes)} · ${file.mimeType}',
+                      style: const TextStyle(color: AppColors.subtle, fontSize: 12),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text('Tap to open', style: TextStyle(color: AppColors.accent, fontSize: 12)),
+                  ],
+                ),
+              ),
+              const Icon(Icons.open_in_new, color: AppColors.subtle, size: 20),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

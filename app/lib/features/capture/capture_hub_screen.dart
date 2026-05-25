@@ -103,6 +103,15 @@ class CaptureHubScreen extends ConsumerWidget {
                 context.pushNamed('capture-note', pathParameters: {'id': job.id});
               },
             ),
+            ListTile(
+              leading: const Icon(Icons.upload_file_outlined),
+              title: const Text('File / PDF'),
+              subtitle: const Text('Receipts, permits, quotes'),
+              onTap: () {
+                Navigator.pop(context);
+                context.pushNamed('capture-file', pathParameters: {'id': job.id});
+              },
+            ),
             const SizedBox(height: 8),
           ],
         ),

@@ -83,6 +83,14 @@ class ExportService {
         final bytes = utf8.encode(body);
         archive.addFile(ArchiveFile('notes/$name', bytes.length, bytes));
       }
+      if (t.attachedFile != null) {
+        final f = File(_storage.absolutePath(t.attachedFile!.relativePath));
+        if (await f.exists()) {
+          final bytes = await f.readAsBytes();
+          final name = _fileName(t);
+          archive.addFile(ArchiveFile('files/$name', bytes.length, bytes));
+        }
+      }
     }
 
     final html = _buildHtml(job, items, options);
@@ -127,6 +135,13 @@ class ExportService {
   String _voiceName(TimelineItem t) => '${_stamp(t.item.capturedAt)}_${_shortCaption(t)}.m4a';
   String _noteName(TimelineItem t) => '${_stamp(t.item.capturedAt)}_${_shortCaption(t)}.txt';
 
+  String _fileName(TimelineItem t) {
+    final file = t.attachedFile!;
+    final ext = p.extension(file.displayName);
+    final safeExt = ext.isNotEmpty ? ext : p.extension(file.relativePath);
+    return '${_stamp(t.item.capturedAt)}_${_shortCaption(t)}${safeExt.isEmpty ? '' : safeExt}';
+  }
+
   String _buildHtml(Job job, List<TimelineItem> items, ExportOptions opts) {
     String esc(String? s) {
       if (s == null) return '';
@@ -164,6 +179,7 @@ class ExportService {
       .tags{margin-top:6px}
       .tag{display:inline-block;padding:2px 8px;margin-right:6px;border-radius:999px;background:#fef3c7;color:#92400e;font-size:11px}
       audio{width:100%;margin-top:6px}
+      .file-link{display:inline-block;margin-top:6px;padding:8px 12px;background:#f3f4f6;border-radius:6px;text-decoration:none;color:#111;font-size:13px}
       .note{white-space:pre-wrap;background:#f9fafb;padding:10px;border-radius:6px;font-size:14px}
       footer{margin-top:32px;font-size:12px;color:#9ca3af;text-align:center}
       @media (max-width:560px){.item{grid-template-columns:1fr}}
@@ -203,6 +219,10 @@ class ExportService {
         }
         if (t.voiceNote != null) {
           b.writeln('<audio controls preload="none" src="voice_notes/${esc(_voiceName(t))}"></audio>');
+        }
+        if (t.attachedFile != null) {
+          final label = esc(t.attachedFile!.displayName);
+          b.writeln('<a class="file-link" href="files/${esc(_fileName(t))}">📎 $label</a>');
         }
         if (opts.includeTags && t.tags.isNotEmpty) {
           b.writeln('<div class="tags">');
