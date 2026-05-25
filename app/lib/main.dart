@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app/back_handler.dart';
@@ -38,6 +40,13 @@ class JobSiteRecordsApp extends StatelessWidget {
       title: 'Job Site Records',
       debugShowCheckedModeBanner: false,
       theme: buildLightTheme(),
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+        FlutterQuillLocalizations.delegate,
+      ],
+      supportedLocales: FlutterQuillLocalizations.supportedLocales,
       routerConfig: appRouter,
     );
   }

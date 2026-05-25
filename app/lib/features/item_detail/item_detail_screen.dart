@@ -10,10 +10,13 @@ import 'package:share_plus/share_plus.dart';
 import '../../app/providers.dart';
 import '../../app/theme.dart';
 import '../../core/format.dart';
+import '../../core/note_markdown.dart';
 import '../../domain/models/item.dart';
 import '../../domain/models/media_file.dart';
 import '../../domain/models/tag.dart';
 import '../../domain/models/timeline_item.dart';
+import '../capture/widgets/note_body_view.dart';
+import '../capture/widgets/note_editor.dart';
 import '../capture/widgets/tag_chips.dart';
 
 class ItemDetailScreen extends ConsumerStatefulWidget {
@@ -27,39 +30,38 @@ class ItemDetailScreen extends ConsumerStatefulWidget {
 class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
   bool _editing = false;
   late TextEditingController _captionCtrl;
-  late TextEditingController _bodyCtrl;
+  final _noteEditorController = NoteEditorController();
   Set<String>? _tagIds;
   bool _saving = false;
+  String _noteEditorSeed = '';
 
   @override
   void initState() {
     super.initState();
     _captionCtrl = TextEditingController();
-    _bodyCtrl = TextEditingController();
   }
 
   @override
   void dispose() {
     _captionCtrl.dispose();
-    _bodyCtrl.dispose();
     super.dispose();
   }
 
   void _enterEdit(TimelineItem t) {
     _captionCtrl.text = t.item.caption ?? '';
-    _bodyCtrl.text = t.item.body ?? '';
+    _noteEditorSeed = t.item.body ?? '';
     _tagIds = t.tags.map((e) => e.id).toSet();
     setState(() => _editing = true);
   }
 
-  Future<void> _save() async {
+  Future<void> _save(TimelineItem t) async {
     if (_tagIds == null) return;
     setState(() => _saving = true);
     try {
       await ref.read(itemsRepositoryProvider).updateMeta(
             itemId: widget.itemId,
             caption: _captionCtrl.text,
-            body: _bodyCtrl.text,
+            body: t.item.kind == ItemKind.note ? _noteEditorController.markdown : t.item.body,
             tagIds: _tagIds!.toList(),
           );
       bumpDataRevision(ref);
@@ -103,8 +105,8 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
       files.add(XFile(storage.absolutePath(t.attachedFile!.relativePath)));
     }
     final caption = (t.item.caption ?? '').trim();
-    final body = (t.item.body ?? '').trim();
-    final text = [caption, body].where((s) => s.isNotEmpty).join('\n\n');
+    final bodyPreview = notePlainTextPreview(t.item.body);
+    final text = [caption, bodyPreview].where((s) => s.isNotEmpty).join('\n\n');
     if (files.isEmpty) {
       await Share.share(text.isEmpty ? '(empty note)' : text);
     } else {
@@ -133,9 +135,14 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
         title: Text(_editing ? 'Edit' : 'Item'),
         actions: [
           if (_editing)
-            TextButton(
-              onPressed: _saving ? null : _save,
-              child: Text(_saving ? 'Saving…' : 'Save'),
+            itemAsync.maybeWhen(
+              data: (t) => t == null
+                  ? const SizedBox.shrink()
+                  : TextButton(
+                      onPressed: _saving ? null : () => _save(t),
+                      child: Text(_saving ? 'Saving…' : 'Save'),
+                    ),
+              orElse: () => const SizedBox.shrink(),
             )
           else
             itemAsync.maybeWhen(
@@ -219,7 +226,7 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10)),
-            child: Text(body, style: const TextStyle(fontSize: 14, color: AppColors.ink)),
+            child: NoteBodyView(markdown: t.item.body ?? ''),
           ),
         ],
         if (t.tags.isNotEmpty) ...[
@@ -242,13 +249,15 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
           decoration: const InputDecoration(labelText: 'Caption'),
         ),
         const SizedBox(height: 12),
-        if (t.item.kind == ItemKind.note)
-          TextField(
-            controller: _bodyCtrl,
-            minLines: 4,
-            maxLines: 12,
-            decoration: const InputDecoration(labelText: 'Note'),
+        if (t.item.kind == ItemKind.note) ...[
+          NoteEditor(
+            key: ValueKey('note-editor-$_noteEditorSeed'),
+            controller: _noteEditorController,
+            initialMarkdown: _noteEditorSeed,
+            minHeight: 200,
           ),
+          const SizedBox(height: 12),
+        ],
         const Text('Tags', style: TextStyle(fontWeight: FontWeight.w600)),
         const SizedBox(height: 8),
         tagsAsync.when(

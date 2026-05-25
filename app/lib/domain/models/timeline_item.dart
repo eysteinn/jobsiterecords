@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../../core/note_markdown.dart';
 import 'item.dart';
 import 'media_file.dart';
 import 'tag.dart';
@@ -30,7 +31,7 @@ class TimelineItem {
     final caption = (item.caption ?? '').trim();
     if (caption.isNotEmpty) return caption;
     if (hasFile) return attachedFile!.displayName;
-    final body = (item.body ?? '').trim();
+    final body = notePlainTextPreview(item.body);
     if (body.isNotEmpty) return body;
     return '(no caption)';
   }

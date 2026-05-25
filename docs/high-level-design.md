@@ -18,11 +18,11 @@ The repo matches the **Phase 1** architecture in broad strokes. Use this table w
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| Flutter app (`app/`) | **Mostly built** | v0.1.0+1; jobs CRUD, **Google Places address autocomplete** on New/Edit Job (online; location-biased worldwide search; API key in `app/.env`), **batch-first photo capture**, voice/note capture, **PDF / file upload** ([§6.6a](#66a-capture-file--pdf-upload)), timeline **filter/search** (type incl. **Files**, tag, full-text incl. filename), bulk tag, item detail (open file via OS), zip export (`files/` folder), settings. Voice notes are audio + optional caption/tags; for spoken text users add a **text note** (keyboard dictation on Android/iOS). Automatic transcription is **Phase 2** (server). Default tags include **`Receipt`** (schema v2 migration). Gaps: **photo annotation** ([§6.4a](#64a-photo-annotation-mark-up)), **markdown note formatting** ([§6.6](#66-capture-text-note)), stretch business tags ([§7](#7-data-model)). |
+| Flutter app (`app/`) | **Mostly built** | v0.1.0+1; jobs CRUD, **Google Places address autocomplete** on New/Edit Job (online; location-biased worldwide search; API key in `app/.env`), **batch-first photo capture**, voice/note capture, **WYSIWYG text notes** ([§6.6](#66-capture-text-note)), **PDF / file upload** ([§6.6a](#66a-capture-file--pdf-upload)), timeline **filter/search** (type incl. **Files**, tag, full-text incl. filename), bulk tag, item detail (open file via OS), zip export (`files/` folder + rendered note HTML), settings. Voice notes are audio + optional caption/tags; for spoken text users add a **text note** (keyboard dictation on Android/iOS). Automatic transcription is **Phase 2** (server). Default tags include **`Receipt`** (schema v2 migration). Gaps: **photo annotation** ([§6.4a](#64a-photo-annotation-mark-up)), stretch business tags ([§7](#7-data-model)). |
 | Landing (`landing/`) | **Active** | PHP + SQLite waitlist on jobsiterecords.com, plus SEO guides, use cases, trades, answers, and examples — not a single static page ([§14.4](#144-the-landing-site)). |
 | Backend (`services/`) | **Placeholder** | README only; no deployable services yet. |
 | Web dashboard (`web/`) | **Not started** | Phase 2. Product/UX spec: [`web-dashboard-design.md`](web-dashboard-design.md). Post-MVP: receipt OCR & expense export (§17.8). |
-| Tests | **Minimal** | Placeholder unit test only; golden/integration tests not yet written ([§11.3](#113-testing)). |
+| Tests | **Minimal** | `note_markdown_test.dart` covers markdown roundtrip; golden/integration tests not yet written ([§11.3](#113-testing)). |
 | i18n / dark theme | **Not started** | English strings inline; light theme only ([§4](#4-platform--tech-stack), [§10](#10-visual-design)). |
 
 **Milestone progress ([§13](#13-phasing--milestones)):** M0–M3 largely complete in code; M4 (polish, accessibility, golden tests, store assets) still in progress.
@@ -173,7 +173,7 @@ Aligned with Phase 1 mobile scope ([§13](#13-phasing--milestones)). “Must-hav
 - Tag files and notes with business-oriented categories
 - **“Today”** section or pin at top of job timeline (same date grouping, faster scan)
 - Additional default tags: Follow-up, Material, Change Order, Client Request (see [§7](#7-data-model))
-- **Lightweight note formatting** — markdown-style bold / italics / bullets / numbered lists / headings in text notes ([§6.6](#66-capture-text-note))
+- **Formatted text notes** — WYSIWYG editor with bold, italics, and bullet lists ([§6.6](#66-capture-text-note))
 - **Photo annotation** — pen, straight line, arrow, circle, and rectangle in a few high-contrast colors so contractors can mark up site photos directly (“circle the cracked tile”, “arrow at the leak”) without leaving the app ([§6.4a](#64a-photo-annotation-mark-up))
 
 **Defer (Phase 2 or later)**
@@ -197,6 +197,7 @@ Aligned with Phase 1 mobile scope ([§13](#13-phasing--milestones)). “Must-hav
 - **Audio:** `record` (v5.1.2) for capture, `just_audio` for playback. No dedicated waveform package yet — voice UI uses elapsed time + play/pause slider.
 - **Voice transcription:** **not on the phone.** Voice items are audio + caption/tags only. Phase 2 adds optional **dashboard/cloud** STT after sync — no native hooks and no `transcript` column in the local `items` table ([§17.7](#177-voice-transcription-as-readable-notes-phase-2)).
 - **Zip export:** `archive` (pure Dart).
+- **Rich text notes:** `flutter_quill` (WYSIWYG editor) + `markdown` / `flutter_markdown` (serialize to `items.body`, render read-only + export HTML).
 - **Sharing / links:** `share_plus` for exports and single-item share; `url_launcher` for waitlist, feedback `mailto:`, and privacy policy URLs in Settings.
 - **File / PDF upload (*implemented*):** `file_picker` + `open_filex` — copy selected files into app storage; no upload to our servers in Phase 1 ([§6.6a](#66a-capture-file--pdf-upload)).
 - **State management:** **Riverpod** (`flutter_riverpod`).
@@ -337,12 +338,13 @@ Keep the toolbox shallow on purpose. **Not in v1:** text labels, blur / redact, 
 - **Implemented (Phase 1):** record audio, optional caption and tags; item detail shows **player**, caption, and metadata. No transcript on device — use a **text note** for dictated/written text. Phase 2 transcription is **dashboard-only** ([§17.7](#177-voice-transcription-as-readable-notes-phase-2)).
 
 ### 6.6 Capture (Text Note)
-- Plain multi-line note, optional caption, tags.
-- **Lightweight formatting (*planned*):** the note body accepts **Markdown** so contractors can write short checklists, emphasis, and section headings instead of one wall of text. Supported subset for v1: **bold**, **italics**, **bullet list**, **numbered list**, and a single level of **heading**. Editor shows a compact toolbar (**B** / *I* / • / 1. / H) that wraps the current selection in the matching markdown; typing markdown by hand also works. Long-press on a bullet promotes / demotes (one nesting level).
-- **Storage:** the body is plain markdown text in `items.body` — **no schema change** ([§7](#7-data-model)). Existing plain-text notes are valid markdown (no migration needed). Caption stays single-line plain text.
-- **Display:** Item Detail and the timeline preview render the markdown; an **Edit** action drops back into the source view. Export `index.html` and the per-item `.md` file ([§9](#9-export--sharing)) render from the same source so the on-device and in-zip views match.
-- **Scope limits (Phase 1):** no tables, images, links, code blocks, footnotes, deeper nested lists, or raw HTML. The editor is "markdown shortcuts on top of a text field," not a full WYSIWYG word processor. If users want a richer document, they import a PDF ([§6.6a](#66a-capture-file--pdf-upload)).
-- **Why markdown (vs. rich text):** plain text is the safest long-lived storage format; it survives zip exports, sync, and the future web dashboard ([§17](#17-phase-2-dashboard-sync-subscription-and-teams)) without a custom document model; and the syntax is already familiar from messaging apps that style **bold** and *italics* the same way.
+- Multi-line note with optional caption and tags.
+- **Formatted note editor (*implemented*):** contractors work in a **visual editor** — bold looks bold, bullets look like bullets. They must **never** see or edit raw markdown, HTML, or other markup syntax. Toolbar: **B**, *I*, and bullet list only (plus undo/redo). Implemented with `flutter_quill` in `app/lib/features/capture/widgets/note_editor.dart`; markdown serialization in `app/lib/core/note_markdown.dart`.
+- **Supported formatting (v1):** **bold**, **italics**, and **bullet list** only. No headings, numbered lists, or nested-list controls.
+- **Capture & edit:** New Note and Item Detail **Edit** use the **same WYSIWYG editor** — no separate “preview” or “source” mode. Read-only Item Detail shows the formatted body; tapping **Edit** opens the editor with formatting intact.
+- **Storage (internal):** on save, serialize the document to **markdown** in `items.body` ([§7](#7-data-model)) — **no schema change**. Markdown is an implementation detail for export, search, and future sync; the app loads it back into the editor on open. Existing plain-text notes open as unformatted paragraphs (no migration). Caption stays single-line plain text.
+- **Export:** `index.html` and per-note files in the zip ([§9](#9-export--sharing)) render the stored markdown to HTML so handoffs match what the user saw in the app.
+- **Scope limits (Phase 1):** no headings, numbered lists, tables, embedded images, hyperlinks, code blocks, footnotes, font picker, colors, or alignment controls. Not a word processor — if users need a richer document, they import a PDF ([§6.6a](#66a-capture-file--pdf-upload)). Legacy notes that already contain headings or numbered lists still **display** correctly; re-saving normalizes toward the supported subset when edited.
 
 ### 6.6a Capture (File / PDF upload)
 
@@ -408,7 +410,7 @@ Keep the toolbox shallow on purpose. **Not in v1:** text labels, blur / redact, 
 ### 6.7 Item Detail
 - Large media area (photo, audio player, file type icon + filename, or note body).
 - For photos: pinch-zoom, swipe between items in the same job. When an **annotation overlay** exists ([§6.4a](#64a-photo-annotation-mark-up)), the view shows the annotated render by default; a long-press / toggle peeks the original underneath. An **Annotate** action opens the mark-up editor with existing strokes loaded as editable shapes.
-- For text notes: body is rendered from **markdown** ([§6.6](#66-capture-text-note)) — bold, italics, bullet / numbered lists, single-level heading. **Edit** drops into the markdown source view; tags and caption stay on the same screen.
+- For text notes: read-only view shows **formatted** body ([§6.6](#66-capture-text-note)) — bold, italics, bullet lists. **Edit** opens the same WYSIWYG editor (not raw markup); tags and caption stay on the same screen.
 - For files: show name, mime type, size; open via OS “Open with…” when user taps (no built-in PDF viewer required in Phase 1).
 - Below: timestamp, caption, tag chips, optional voice note player, free-text note.
 - **Voice items (*implemented*):** audio player, caption, tags. Transcription deferred to Phase 2 **web dashboard** ([§17.7](#177-voice-transcription-as-readable-notes-phase-2)). Photos/notes/files unchanged.
@@ -449,7 +451,7 @@ Screens in §6.1–6.9 are the **design target**. The shipped app (`app/lib/feat
 | Capture tab | Open camera directly | Job picker → mode sheet → capture route |
 | PDF / file upload | Document picker → copy to app storage → timeline item (`kind = file`) | **Implemented** — `FileCaptureScreen`, `ItemsRepository.createFile`, route `capture-file` |
 | Photo annotation | Pen / line / arrow / circle / rectangle in a small color palette; vector overlay + flattened render | **Not started** — spec in [§6.4a](#64a-photo-annotation-mark-up) |
-| Text note formatting | Markdown subset (bold / italics / bullets / numbered / single heading) with a compact toolbar | **Not started** — body is plain text today; spec in [§6.6](#66-capture-text-note) |
+| Text note formatting | WYSIWYG editor (bold / italics / bullet list); markdown serialized in `items.body` | **Implemented** — `NoteEditor` + `NoteBodyView`; export renders markdown to HTML |
 | Default tags | **`Receipt`** + progress/status set (see [§7](#7-data-model)) | **Implemented** — `Receipt` seeded on fresh install; v2 migration inserts if missing |
 | Job detail | “Today” section when captures exist today | Date grouping only |
 | Photo capture | Batch-first: rapid multi-shot, tag at end | **Implemented** — continuous camera, Done → shared caption/tags; per-photo timestamps |
@@ -490,7 +492,7 @@ Item                (a single timeline entry)
   job_id (fk Job)
   kind              (photo | voice | note | file)
   caption?
-  body?             (text note content — plain text today; markdown subset planned, §6.6)
+  body?             (text note content — plain text today; markdown serialized from WYSIWYG editor, §6.6)
   captured_at       (defaults to created_at; user can edit)
   created_at
   updated_at
@@ -632,7 +634,7 @@ JobSiteRecords_<JobName>_<YYYY-MM-DD>.zip
  ├─ voice_notes/
  │   └─ 2026-05-13_10-42_water-damage.m4a
  ├─ notes/
- │   └─ 2026-05-13_10-42.md           (markdown — bold / italics / bullets / headings preserved, §6.6)
+ │   └─ 2026-05-13_10-42.md           (markdown — bold / italics / bullets preserved, §6.6)
  └─ files/
      └─ 2026-05-13_14-30_change-order-signed.pdf
 ```
@@ -791,7 +793,7 @@ What Phase 2 adds (out of scope for **Phase 1**, but mapped here and detailed in
 | --- | --- | --- |
 | **M0 — Skeleton** | Flutter project, theming, routing, SQLite v1 + default tags | **Done** |
 | **M1 — Jobs CRUD** | Create/edit/delete, list, search, status | **Done** |
-| **M2 — Capture loop** | Camera, photo/voice/note/**PDF upload**, captions, tags (**`Receipt`**), timeline, item detail | **Mostly done** — gaps: **photo annotation** ([§6.4a](#64a-photo-annotation-mark-up)), **markdown note formatting** ([§6.6](#66-capture-text-note)), photo+voice combo UI, timeline thumbs, “Today” UX |
+| **M2 — Capture loop** | Camera, photo/voice/note/**PDF upload**, captions, tags (**`Receipt`**), timeline, item detail | **Mostly done** — gaps: **photo annotation** ([§6.4a](#64a-photo-annotation-mark-up)), photo+voice combo UI, timeline thumbs, “Today” UX |
 | **M3 — Export** | Selection, options, zip (`index.html` + media), share sheet | **Done** |
 | **M4 — Polish & ship** | Settings completeness, permissions UX, a11y, tests, store assets, beta | **In progress** |
 
@@ -902,7 +904,7 @@ We re-evaluate funding **Phase 2** after **3 months post–Phase 1 launch** with
 7. **Single-photo vs. multi-photo item** — current model is one primary photo per item; do we want a "burst" / album-style item from day one?
 8. **Edit history** — do we keep prior versions of captions/tags, or is overwrite fine for Phase 1? (Overwrite is fine for Phase 1; revisit with sync.)
 9. **Crash reporting** — none in Phase 1, or local-only logs the user can email if something breaks?
-10. **Markdown editor approach** — ship a true WYSIWYG-style editor (renders inline as the user types) or a simpler “source + preview toggle” for Phase 1? Initial direction in [§6.6](#66-capture-text-note) is **markdown shortcuts on a plain text field** rendered on display; revisit if users find the source view confusing.
+10. ~~**Note editor UX**~~ — **Decided:** users edit in a **WYSIWYG editor** only; markdown is internal serialization, never shown ([§6.6](#66-capture-text-note)). Open sub-question: which Flutter rich-text package and whether v1 stores markdown or Quill Delta in `items.body` (markdown preferred for export/sync simplicity).
 11. **Annotation tool palette** — does the v1 set (pen, line, arrow, circle, rectangle + 5 colors) cover the common asks, or do we need **blur / redact** for client privacy before public launch? ([§6.4a](#64a-photo-annotation-mark-up))
 12. **Annotated photos in zip exports** — always include the **original** alongside the flattened render (current plan), or make “include originals” an export toggle to keep zips small?
 
@@ -913,7 +915,7 @@ We re-evaluate funding **Phase 2** after **3 months post–Phase 1 launch** with
 **Fence, not a backlog:** features below stay out unless we consciously open a new phase and accept the cost. Default answer remains **no**.
 
 To keep **Phase 1** shippable on its own, the following are **explicitly not in scope**:
-PDF generation, **PDF annotation**, **rich-text (WYSIWYG) note editing beyond the markdown subset in [§6.6](#66-capture-text-note)**, **image filters / cropping / measurement tools beyond the annotation set in [§6.4a](#64a-photo-annotation-mark-up)**, accounts, login, cloud, sync, web app, team sharing, comments, push notifications, in-app purchases, transcription, AI summaries, custom report templates, logos/branding, multi-language UI, tablet-optimized layouts, Apple Watch / Wear OS companions.
+PDF generation, **PDF annotation**, **full word-processor note editing** (tables, embedded images, links, fonts/colors — the **basic WYSIWYG subset in [§6.6](#66-capture-text-note) is in scope**), **image filters / cropping / measurement tools beyond the annotation set in [§6.4a](#64a-photo-annotation-mark-up)**, accounts, login, cloud, sync, web app, team sharing, comments, push notifications, in-app purchases, transcription, AI summaries, custom report templates, logos/branding, multi-language UI, tablet-optimized layouts, Apple Watch / Wear OS companions.
 
 Most of the above list becomes **in scope in Phase 2** under a paid team subscription; see [§17](#17-phase-2-dashboard-sync-subscription-and-teams). Phase 1 remains a free, local-only app path indefinitely.
 
