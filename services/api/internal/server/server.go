@@ -1,0 +1,82 @@
+package server
+
+import (
+	"net/http"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/eysteinn/jobsiterecords/services/api/internal/auth"
+	"github.com/eysteinn/jobsiterecords/services/api/internal/config"
+	"github.com/eysteinn/jobsiterecords/services/api/internal/email"
+	"github.com/eysteinn/jobsiterecords/services/api/internal/handlers"
+	authmw "github.com/eysteinn/jobsiterecords/services/api/internal/middleware"
+	"github.com/eysteinn/jobsiterecords/services/api/internal/ratelimit"
+	"github.com/eysteinn/jobsiterecords/services/api/internal/workspace"
+)
+
+type Server struct {
+	cfg    config.Config
+	router chi.Router
+}
+
+func New(cfg config.Config, pool *pgxpool.Pool) *Server {
+	authSvc := auth.NewService(pool, cfg.JWTSecret, cfg.AccessTokenTTL, cfg.RefreshTokenDays, cfg.MagicLinkMinutes, cfg.ResetTokenMinutes)
+	wsSvc := workspace.NewService(pool)
+	mail := email.New(cfg.DevLogEmailLinks)
+	limiter := ratelimit.New()
+
+	authH := handlers.NewAuthHandler(cfg, authSvc, wsSvc, mail, limiter)
+	wsH := handlers.NewWorkspaceHandler(wsSvc)
+
+	r := chi.NewRouter()
+	r.Use(middleware.RequestID)
+	r.Use(middleware.RealIP)
+	r.Use(middleware.Recoverer)
+	r.Use(cors.Handler(cors.Options{
+		AllowedOrigins:   cfg.CORSOrigins,
+		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-Request-Id"},
+		ExposedHeaders:   []string{"Retry-After"},
+		AllowCredentials: true,
+		MaxAge:           300,
+	}))
+
+	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"status":"ok"}`))
+	})
+
+	r.Route("/api/v1", func(api chi.Router) {
+		api.Route("/auth", func(auth chi.Router) {
+			auth.Post("/signup", authH.SignUp)
+			auth.Post("/login", authH.Login)
+			auth.Post("/refresh", authH.Refresh)
+			auth.Post("/magic-link", authH.MagicLink)
+			auth.Get("/magic-link/verify", authH.VerifyMagicLink)
+			auth.Post("/magic-link/verify", authH.VerifyMagicLink)
+			auth.Post("/forgot-password", authH.ForgotPassword)
+			auth.Post("/reset-password", authH.ResetPassword)
+
+			auth.Group(func(protected chi.Router) {
+				protected.Use(authmw.RequireAuth(cfg.JWTSecret))
+				protected.Get("/me", authH.Me)
+				protected.Post("/logout", authH.Logout)
+			})
+		})
+
+		api.Group(func(protected chi.Router) {
+			protected.Use(authmw.RequireAuth(cfg.JWTSecret))
+			protected.Get("/workspaces", wsH.List)
+			protected.Post("/workspaces/{workspaceID}/leave", wsH.Leave)
+		})
+	})
+
+	return &Server{cfg: cfg, router: r}
+}
+
+func (s *Server) Router() http.Handler {
+	return s.router
+}

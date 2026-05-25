@@ -1,25 +1,35 @@
-# Job Site Records (jobsiterecords.com) — Backend Services
+# Job Site Records — Backend Services
 
-**Status: placeholder. No services exist yet.**
+Phase 2 backend services for the web dashboard, sync, and workers.
 
-The MVP is offline-only by promise (see §8.2 of [`docs/high-level-design.md`](../docs/high-level-design.md)). Nothing in this folder is built or deployed during the MVP.
+## Run locally
 
-This folder exists now so the repository structure is honest about the intended long-term shape of the project, and so contributors don't put backend code anywhere else by accident.
+From the repo root:
 
-## What goes here (eventually)
+```bash
+docker compose up --build
+```
 
-When the paid tier is greenlit (see §14.5 of the design doc), expect roughly:
+| Service | URL | Status |
+| --- | --- | --- |
+| `api/` | http://localhost:8080 | **M1 implemented** — auth, workspaces, Postgres migrations |
+| `pdf/` | — | Not started (M7) |
+| `transcribe/` | — | Post-MVP |
 
-| Service | Purpose |
-| --- | --- |
-| `api/` | Public REST/GraphQL API for the web dashboard and synced clients |
-| `sync/` | Sync engine — workspace/job replication from mobile clients |
-| `auth/` | Authentication, subscription / billing webhook handler |
-| `transcribe/` | Async worker for voice-note transcription (cloud/dashboard; not stored in the mobile `items` table) |
-| `pdf/` | Server-side PDF report renderer (templates, branding) |
+See [`api/README.md`](api/README.md) for endpoint list.
+
+## Architecture (MVP target)
+
+```
+services/
+├── api/          Go — auth, CRUD, sync, signed URLs, Paddle webhooks, email
+└── pdf/          Rust — HTML → PDF worker (future)
+```
+
+Auth, sync, and webhooks live inside **`api/`** for MVP — no separate `auth/`, `sync/`, or `webhooks/` services until load justifies splitting.
 
 ## Rules
 
 - Each service is its own deployable unit with its own README, dependency manifest, and CI lane.
-- Services share data contracts via a future `shared/` folder, **not** by reaching into each other's source.
-- No service is added until there is a real, scoped reason to build it.
+- Cross-language contracts live in `shared/` (OpenAPI) when introduced.
+- Local dev uses **Docker Compose** — no host Go/Node toolchain required.

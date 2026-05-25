@@ -1,0 +1,46 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: sitelog
+      POSTGRES_PASSWORD: sitelog
+      POSTGRES_DB: sitelog
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sitelog -d sitelog"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./services/api
+    ports:
+      - "8080:8080"
+    environment:
+      DATABASE_URL: postgres://sitelog:sitelog@postgres:5432/sitelog?sslmode=disable
+      JWT_SECRET: dev-jwt-secret-change-me-in-production
+      APP_URL: http://localhost:3000
+      CORS_ORIGINS: http://localhost:3000
+      DEV_LOG_EMAIL_LINKS: "true"
+      PORT: "8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ./web
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8080
+      API_INTERNAL_URL: http://api:8080
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:

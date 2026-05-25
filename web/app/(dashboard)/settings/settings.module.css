@@ -1,0 +1,34 @@
+.grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+}
+
+.card h2 {
+  margin: 0 0 14px;
+  font-size: 1rem;
+}
+
+.card dl {
+  margin: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.card dt {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+
+.card dd {
+  margin: 0;
+  font-size: 0.9375rem;
+}

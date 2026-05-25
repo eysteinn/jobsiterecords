@@ -8,17 +8,28 @@ This repository is a **monorepo**. No code lives at the root — only top-level 
 
 | Folder | What lives here | Status |
 | --- | --- | --- |
-| [`app/`](app/) | Flutter mobile app (Android + iOS) — the MVP | Active |
+| [`app/`](app/) | Flutter mobile app (Android + iOS) — Phase 1 | Active |
 | [`landing/`](landing/) | Early-access site for jobsiterecords.com (PHP + SQLite waitlist) | Active |
-| [`services/`](services/) | Backend services (API, sync, auth, transcription, PDF) | Placeholder — built when the paid tier is greenlit |
+| [`web/`](web/) | Next.js web dashboard (Phase 2) | **M0–M1** — shell + auth |
+| [`services/`](services/) | Backend (`api/` Go, `pdf/` Rust worker) | **M1** — auth API in Docker |
 | [`docs/`](docs/) | Design docs, MVP brief, UI mockups | Active |
+
+## Phase 2 dashboard (local dev)
+
+```bash
+docker compose up --build
+```
+
+- Web dashboard: http://localhost:3000
+- API health: http://localhost:8080/health
+
+See [`web/README.md`](web/README.md) and [`services/api/README.md`](services/api/README.md).
 
 Future top-level folders (added only when justified by actual work):
 
 | Folder | What it will hold |
 | --- | --- |
-| `web/` | Web dashboard for the paid tier |
-| `shared/` | Cross-language contracts (e.g. sync API schemas for Phase 2) |
+| `shared/` | Cross-language contracts (OpenAPI) |
 | `infra/` | Infrastructure-as-code, once there's anything to deploy |
 | `tools/` | One-off scripts, codegen, CI helpers |
 

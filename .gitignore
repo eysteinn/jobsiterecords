@@ -59,6 +59,12 @@ app/ios/Runner.xcodeproj/project.xcworkspace/xcuserdata/
 app/coverage/
 
 # ---------------------------------------------------------------------------
+# Web dashboard (web/)
+# ---------------------------------------------------------------------------
+web/node_modules/
+web/.next/
+
+# ---------------------------------------------------------------------------
 # Services (placeholder; each service will add its own rules under its folder)
 # ---------------------------------------------------------------------------
 services/**/node_modules/
