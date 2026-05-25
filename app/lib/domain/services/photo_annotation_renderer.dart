@@ -153,7 +153,48 @@ class PhotoAnnotationRenderer {
         final rect = shape.rect;
         if (rect == null) return;
         canvas.drawRect(layout.normRect(rect), stroke);
+      case 'text':
+        final p1 = shape.p1;
+        final label = shape.text;
+        if (p1 == null || label == null || label.isEmpty) return;
+        _paintTextLabel(canvas, layout, p1, label, color);
     }
+  }
+
+  static void _paintTextLabel(
+    Canvas canvas,
+    ImageLayoutMetrics layout,
+    List<double> anchor,
+    String label,
+    Color color,
+  ) {
+    final fontSize = math.max(14.0, layout.imageSize.width * 0.028);
+    final textColor = color.value == 0xFFFFFFFF ? Colors.white : color;
+    final tp = TextPainter(
+      text: TextSpan(
+        text: label,
+        style: TextStyle(
+          color: textColor,
+          fontSize: fontSize,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    final topLeft = layout.normPoint(anchor);
+    final padding = fontSize * 0.2;
+    final bgRect = Rect.fromLTWH(
+      topLeft.dx,
+      topLeft.dy,
+      tp.width + padding * 2,
+      tp.height + padding * 2,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(bgRect, Radius.circular(fontSize * 0.25)),
+      Paint()..color = const Color(0x99000000),
+    );
+    tp.paint(canvas, topLeft + Offset(padding, padding));
   }
 
   static void _paintPen(

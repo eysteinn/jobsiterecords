@@ -120,6 +120,7 @@ class AnnotationCanvasState extends State<AnnotationCanvas> {
           p1: s.p1 == null ? null : [s.p1![0], s.p1![1]],
           p2: s.p2 == null ? null : [s.p2![0], s.p2![1]],
           rect: s.rect == null ? null : [s.rect![0], s.rect![1], s.rect![2], s.rect![3]],
+          text: s.text,
         ),
     ];
   }
@@ -153,6 +154,8 @@ class AnnotationCanvasState extends State<AnnotationCanvas> {
       case AnnotationTool.rectangle:
         _dragStart = norm;
         _preview = _shapeForDrag(widget.tool, colorHex, norm, norm);
+      case AnnotationTool.text:
+        break;
     }
     setState(() {});
   }
@@ -173,6 +176,8 @@ class AnnotationCanvasState extends State<AnnotationCanvas> {
       case AnnotationTool.rectangle:
         final start = _dragStart ?? norm;
         _preview = _shapeForDrag(widget.tool, colorHex, start, norm);
+      case AnnotationTool.text:
+        break;
     }
     setState(() {});
   }
@@ -182,7 +187,7 @@ class AnnotationCanvasState extends State<AnnotationCanvas> {
     if (preview == null) return;
 
     if (preview.type == 'pen') {
-      if (_penPoints.length >= 1) _commitShape(preview);
+      if (_penPoints.isNotEmpty) _commitShape(preview);
       return;
     }
 
@@ -221,6 +226,7 @@ class AnnotationCanvasState extends State<AnnotationCanvas> {
       AnnotationTool.ellipse => 'ellipse',
       AnnotationTool.rectangle => 'rectangle',
       AnnotationTool.pen => 'pen',
+      AnnotationTool.text => 'text',
     };
     if (tool == AnnotationTool.ellipse || tool == AnnotationTool.rectangle) {
       final left = start.dx < end.dx ? start.dx : end.dx;
@@ -241,6 +247,28 @@ class AnnotationCanvasState extends State<AnnotationCanvas> {
     );
   }
 
+  Future<void> _onTextTap(TapUpDetails details) async {
+    if (widget.tool != AnnotationTool.text) return;
+    final layout = _layout;
+    if (layout == null) return;
+    final norm = layout.displayToNorm(details.localPosition);
+    final text = await showDialog<String>(
+      context: context,
+      builder: (context) => const _TextLabelDialog(),
+    );
+    if (!mounted || text == null) return;
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return;
+    _commitShape(
+      PhotoAnnotationShape(
+        type: 'text',
+        colorHex: AnnotationPalette.hexFor(widget.color),
+        p1: [norm.dx, norm.dy],
+        text: trimmed,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final image = _image;
@@ -256,9 +284,10 @@ class AnnotationCanvasState extends State<AnnotationCanvas> {
         _layout = layout;
 
         return GestureDetector(
-          onPanStart: _onPanStart,
-          onPanUpdate: _onPanUpdate,
-          onPanEnd: _onPanEnd,
+          onTapUp: widget.tool == AnnotationTool.text ? _onTextTap : null,
+          onPanStart: widget.tool == AnnotationTool.text ? null : _onPanStart,
+          onPanUpdate: widget.tool == AnnotationTool.text ? null : _onPanUpdate,
+          onPanEnd: widget.tool == AnnotationTool.text ? null : _onPanEnd,
           child: ColoredBox(
             color: Colors.black,
             child: Stack(
@@ -375,6 +404,12 @@ class AnnotationToolbar extends StatelessWidget {
                       selected: tool == AnnotationTool.rectangle,
                       onTap: () => onToolChanged(AnnotationTool.rectangle),
                     ),
+                    _ToolButton(
+                      icon: Icons.text_fields,
+                      label: 'Text',
+                      selected: tool == AnnotationTool.text,
+                      onTap: () => onToolChanged(AnnotationTool.text),
+                    ),
                     IconButton(
                       tooltip: 'Undo',
                       onPressed: canUndo ? onUndo : null,
@@ -465,6 +500,46 @@ class _ToolButton extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _TextLabelDialog extends StatefulWidget {
+  const _TextLabelDialog();
+
+  @override
+  State<_TextLabelDialog> createState() => _TextLabelDialogState();
+}
+
+class _TextLabelDialogState extends State<_TextLabelDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Add label'),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        maxLength: 80,
+        decoration: const InputDecoration(
+          hintText: 'e.g. Leak here',
+        ),
+        onSubmitted: (value) => Navigator.pop(context, value),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        TextButton(
+          onPressed: () => Navigator.pop(context, _controller.text),
+          child: const Text('Add'),
+        ),
+      ],
     );
   }
 }

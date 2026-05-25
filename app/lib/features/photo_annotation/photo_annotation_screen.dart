@@ -9,8 +9,21 @@ import '../../domain/models/photo_annotation.dart';
 import 'widgets/annotation_canvas.dart';
 
 class PhotoAnnotationScreen extends ConsumerStatefulWidget {
-  const PhotoAnnotationScreen({super.key, required this.itemId});
-  final String itemId;
+  const PhotoAnnotationScreen({super.key, required this.itemId})
+      : draftPhotoPath = null,
+        draftInitialDocument = const PhotoAnnotationDocument();
+
+  const PhotoAnnotationScreen.draft({
+    super.key,
+    required this.draftPhotoPath,
+    this.draftInitialDocument = const PhotoAnnotationDocument(),
+  }) : itemId = null;
+
+  final String? itemId;
+  final String? draftPhotoPath;
+  final PhotoAnnotationDocument draftInitialDocument;
+
+  bool get isDraft => itemId == null;
 
   @override
   ConsumerState<PhotoAnnotationScreen> createState() => _PhotoAnnotationScreenState();
@@ -32,13 +45,19 @@ class _PhotoAnnotationScreenState extends ConsumerState<PhotoAnnotationScreen> {
   @override
   void initState() {
     super.initState();
-    _annotationsFuture = ref.read(itemsRepositoryProvider).loadPhotoAnnotations(widget.itemId);
-    _loadPhotoPath();
+    if (widget.isDraft) {
+      _photoPath = widget.draftPhotoPath;
+      _loadingPhoto = false;
+      _annotationsFuture = Future.value(widget.draftInitialDocument);
+    } else {
+      _annotationsFuture = ref.read(itemsRepositoryProvider).loadPhotoAnnotations(widget.itemId!);
+      _loadPhotoPath();
+    }
   }
 
   Future<void> _loadPhotoPath() async {
     try {
-      final item = await ref.read(itemsRepositoryProvider).byId(widget.itemId);
+      final item = await ref.read(itemsRepositoryProvider).byId(widget.itemId!);
       final storage = ref.read(mediaStorageProvider);
       if (!mounted) return;
       setState(() {
@@ -60,11 +79,17 @@ class _PhotoAnnotationScreenState extends ConsumerState<PhotoAnnotationScreen> {
 
   Future<void> _save() async {
     final shapes = PhotoAnnotationDocument.cloneShapes(_currentShapes);
+    final document = PhotoAnnotationDocument(shapes: shapes);
     setState(() => _saving = true);
     try {
+      if (widget.isDraft) {
+        if (mounted) Navigator.pop(context, document);
+        return;
+      }
+
       await ref.read(itemsRepositoryProvider).savePhotoAnnotations(
-            itemId: widget.itemId,
-            document: PhotoAnnotationDocument(shapes: shapes),
+            itemId: widget.itemId!,
+            document: document,
           );
       await _evictRenderedImageCache();
       if (mounted) {
@@ -77,7 +102,7 @@ class _PhotoAnnotationScreenState extends ConsumerState<PhotoAnnotationScreen> {
   }
 
   Future<void> _evictRenderedImageCache() async {
-    final updated = await ref.read(itemsRepositoryProvider).byId(widget.itemId);
+    final updated = await ref.read(itemsRepositoryProvider).byId(widget.itemId!);
     if (updated == null) return;
     final storage = ref.read(mediaStorageProvider);
     final paths = <String>[
@@ -91,7 +116,7 @@ class _PhotoAnnotationScreenState extends ConsumerState<PhotoAnnotationScreen> {
 
   Future<void> _confirmDiscard() async {
     if (!_dirty) {
-      if (mounted) context.pop();
+      if (mounted) Navigator.pop(context);
       return;
     }
     final leave = await showDialog<bool>(
@@ -108,7 +133,7 @@ class _PhotoAnnotationScreenState extends ConsumerState<PhotoAnnotationScreen> {
         ],
       ),
     );
-    if (leave == true && mounted) context.pop();
+    if (leave == true && mounted) Navigator.pop(context);
   }
 
   Future<void> _confirmClear() async {
