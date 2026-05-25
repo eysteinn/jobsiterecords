@@ -32,6 +32,23 @@ void main() {
     expect(decoded.shapes.last.points.length, 3);
   });
 
+  test('text label shape roundtrips in document json', () {
+    const doc = PhotoAnnotationDocument(
+      shapes: [
+        PhotoAnnotationShape(
+          type: 'text',
+          colorHex: '#111827',
+          p1: [0.4, 0.6],
+          text: 'Leak here',
+        ),
+      ],
+    );
+
+    final decoded = PhotoAnnotationDocument.decode(doc.encode());
+    expect(decoded.shapes.single.text, 'Leak here');
+    expect(decoded.shapes.single.type, 'text');
+  });
+
   test('layout maps normalized coordinates both ways', () {
     const layout = ImageLayoutMetrics(
       imageSize: Size(4000, 3000),

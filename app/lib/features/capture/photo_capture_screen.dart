@@ -11,12 +11,20 @@ import '../../app/providers.dart';
 import '../../app/theme.dart';
 import '../../core/clock.dart';
 import '../../data/repositories/items_repository.dart';
+import '../../domain/models/photo_annotation.dart';
+import '../photo_annotation/photo_annotation_screen.dart';
 import 'widgets/tag_chips.dart';
 
 class _BatchPhoto {
-  const _BatchPhoto({required this.path, required this.capturedAt});
+  _BatchPhoto({
+    required this.path,
+    required this.capturedAt,
+    PhotoAnnotationDocument? annotations,
+  }) : annotations = annotations ?? const PhotoAnnotationDocument();
+
   final String path;
   final DateTime capturedAt;
+  PhotoAnnotationDocument annotations;
 }
 
 class PhotoCaptureScreen extends ConsumerStatefulWidget {
@@ -168,7 +176,11 @@ class _PhotoCaptureScreenState extends ConsumerState<PhotoCaptureScreen> {
             jobId: widget.jobId,
             photos: [
               for (final p in _batch)
-                BatchPhotoInput(sourceFilePath: p.path, capturedAt: p.capturedAt),
+                BatchPhotoInput(
+                  sourceFilePath: p.path,
+                  capturedAt: p.capturedAt,
+                  annotations: p.annotations.isEmpty ? null : p.annotations,
+                ),
             ],
             caption: _captionCtrl.text,
             tagIds: _tagIds.toList(),
@@ -177,6 +189,23 @@ class _PhotoCaptureScreenState extends ConsumerState<PhotoCaptureScreen> {
       if (mounted) context.pop();
     } finally {
       if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _annotateBatchPhoto(int index) async {
+    if (_saving) return;
+    final photo = _batch[index];
+    final result = await Navigator.push<PhotoAnnotationDocument>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PhotoAnnotationScreen.draft(
+          draftPhotoPath: photo.path,
+          draftInitialDocument: photo.annotations,
+        ),
+      ),
+    );
+    if (result != null && mounted) {
+      setState(() => photo.annotations = result);
     }
   }
 
@@ -249,6 +278,7 @@ class _PhotoCaptureScreenState extends ConsumerState<PhotoCaptureScreen> {
           setState(() => _tagIds.add(tag.id));
         },
         onRemove: _removeFromBatch,
+        onAnnotate: _annotateBatchPhoto,
         onBack: _onBack,
         onSave: _saving ? null : _saveBatch,
         saving: _saving,
@@ -456,6 +486,7 @@ class _BatchReviewView extends ConsumerWidget {
     required this.onToggleTag,
     required this.onAddTag,
     required this.onRemove,
+    required this.onAnnotate,
     required this.onBack,
     required this.onSave,
     required this.saving,
@@ -466,6 +497,7 @@ class _BatchReviewView extends ConsumerWidget {
   final ValueChanged<String> onToggleTag;
   final VoidCallback onAddTag;
   final ValueChanged<int> onRemove;
+  final ValueChanged<int> onAnnotate;
   final Future<void> Function() onBack;
   final VoidCallback? onSave;
   final bool saving;
@@ -506,13 +538,28 @@ class _BatchReviewView extends ConsumerWidget {
                         ),
                         itemCount: batch.length,
                         itemBuilder: (context, i) {
+                          final photo = batch[i];
+                          final annotated = !photo.annotations.isEmpty;
                           return Stack(
                             fit: StackFit.expand,
                             children: [
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: Image.file(File(batch[i].path), fit: BoxFit.cover),
+                              Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(8),
+                                  onTap: saving ? null : () => onAnnotate(i),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Image.file(File(photo.path), fit: BoxFit.cover),
+                                  ),
+                                ),
                               ),
+                              if (annotated)
+                                const Positioned(
+                                  left: 4,
+                                  bottom: 4,
+                                  child: Icon(Icons.draw_outlined, size: 16, color: Colors.white),
+                                ),
                               Positioned(
                                 top: 4,
                                 right: 4,
@@ -532,6 +579,11 @@ class _BatchReviewView extends ConsumerWidget {
                             ],
                           );
                         },
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Tap a photo to annotate before saving.',
+                        style: TextStyle(color: AppColors.subtle, fontSize: 12),
                       ),
                       const SizedBox(height: 16),
                       TextField(

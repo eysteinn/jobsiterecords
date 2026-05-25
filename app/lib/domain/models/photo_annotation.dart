@@ -3,7 +3,7 @@ import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 
-enum AnnotationTool { pen, line, arrow, ellipse, rectangle }
+enum AnnotationTool { pen, line, arrow, ellipse, rectangle, text }
 
 @immutable
 class PhotoAnnotationShape {
@@ -14,6 +14,7 @@ class PhotoAnnotationShape {
     this.p1,
     this.p2,
     this.rect,
+    this.text,
   });
 
   final String type;
@@ -22,6 +23,7 @@ class PhotoAnnotationShape {
   final List<double>? p1;
   final List<double>? p2;
   final List<double>? rect;
+  final String? text;
 
   static const strokeWidthNorm = 0.0035;
 
@@ -32,6 +34,7 @@ class PhotoAnnotationShape {
     List<double>? p1,
     List<double>? p2,
     List<double>? rect,
+    String? text,
   }) {
     return PhotoAnnotationShape(
       type: type ?? this.type,
@@ -40,6 +43,7 @@ class PhotoAnnotationShape {
       p1: p1 ?? this.p1,
       p2: p2 ?? this.p2,
       rect: rect ?? this.rect,
+      text: text ?? this.text,
     );
   }
 
@@ -50,6 +54,7 @@ class PhotoAnnotationShape {
         if (p1 != null) 'p1': p1,
         if (p2 != null) 'p2': p2,
         if (rect != null) 'rect': rect,
+        if (text != null && text!.isNotEmpty) 'text': text,
       };
 
   factory PhotoAnnotationShape.fromJson(Map<String, dynamic> json) {
@@ -60,6 +65,7 @@ class PhotoAnnotationShape {
       p1: _readPoint(json['p1']),
       p2: _readPoint(json['p2']),
       rect: _readRect(json['rect']),
+      text: json['text'] as String?,
     );
   }
 
@@ -91,7 +97,7 @@ class PhotoAnnotationShape {
 class PhotoAnnotationDocument {
   const PhotoAnnotationDocument({this.shapes = const []});
 
-  static const int version = 1;
+  static const int version = 2;
 
   final List<PhotoAnnotationShape> shapes;
 
@@ -135,6 +141,7 @@ class PhotoAnnotationDocument {
           p1: s.p1 == null ? null : [s.p1![0], s.p1![1]],
           p2: s.p2 == null ? null : [s.p2![0], s.p2![1]],
           rect: s.rect == null ? null : [s.rect![0], s.rect![1], s.rect![2], s.rect![3]],
+          text: s.text,
         ),
     ];
   }

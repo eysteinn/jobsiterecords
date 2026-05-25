@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:sqflite/sqflite.dart';
+
 import '../../core/clock.dart';
 import '../../core/file_utils.dart';
 import '../../core/ids.dart';
@@ -148,59 +150,95 @@ class ItemsRepository {
     final renderAbs = _storage.absolutePath(renderRel);
     final photoAbs = _storage.absolutePath(item.primaryPhoto!.relativePath);
 
-    await File(overlayAbs).writeAsString(document.encode(), flush: true);
-    final jpeg = await PhotoAnnotationRenderer.renderJpeg(
-      photoPath: photoAbs,
+    await _writeAnnotationFiles(
+      photoAbsPath: photoAbs,
+      overlayAbsPath: overlayAbs,
+      renderAbsPath: renderAbs,
       document: document,
     );
-    await File(renderAbs).writeAsBytes(jpeg, flush: true);
 
     final overlaySize = await File(overlayAbs).length();
     final renderSize = await File(renderAbs).length();
 
     await _db.db.transaction((txn) async {
-      await txn.delete(
-        'media_files',
-        where: 'item_id = ? AND role IN (?, ?)',
-        whereArgs: [itemId, MediaRole.annotationOverlay.dbValue, MediaRole.annotatedRender.dbValue],
-      );
-      await txn.insert(
-        'media_files',
-        MediaFile(
-          id: newId(),
-          itemId: itemId,
-          role: MediaRole.annotationOverlay,
-          relativePath: overlayRel,
-          mimeType: 'application/json',
-          sizeBytes: overlaySize,
-          createdAt: ts,
-        ).toDb(),
-      );
-      await txn.insert(
-        'media_files',
-        MediaFile(
-          id: newId(),
-          itemId: itemId,
-          role: MediaRole.annotatedRender,
-          relativePath: renderRel,
-          mimeType: 'image/jpeg',
-          sizeBytes: renderSize,
-          createdAt: ts,
-        ).toDb(),
-      );
-      await txn.update(
-        'items',
-        {'updated_at': ts.toIso8601String()},
-        where: 'id = ?',
-        whereArgs: [itemId],
-      );
-      await txn.update(
-        'jobs',
-        {'updated_at': ts.toIso8601String()},
-        where: 'id = ?',
-        whereArgs: [jobId],
+      await _replaceAnnotationMedia(
+        txn: txn,
+        itemId: itemId,
+        jobId: jobId,
+        overlayRel: overlayRel,
+        renderRel: renderRel,
+        overlaySize: overlaySize,
+        renderSize: renderSize,
+        ts: ts,
       );
     });
+  }
+
+  Future<void> _writeAnnotationFiles({
+    required String photoAbsPath,
+    required String overlayAbsPath,
+    required String renderAbsPath,
+    required PhotoAnnotationDocument document,
+  }) async {
+    await File(overlayAbsPath).writeAsString(document.encode(), flush: true);
+    final jpeg = await PhotoAnnotationRenderer.renderJpeg(
+      photoPath: photoAbsPath,
+      document: document,
+    );
+    await File(renderAbsPath).writeAsBytes(jpeg, flush: true);
+  }
+
+  Future<void> _replaceAnnotationMedia({
+    required Transaction txn,
+    required String itemId,
+    required String jobId,
+    required String overlayRel,
+    required String renderRel,
+    required int overlaySize,
+    required int renderSize,
+    required DateTime ts,
+  }) async {
+    await txn.delete(
+      'media_files',
+      where: 'item_id = ? AND role IN (?, ?)',
+      whereArgs: [itemId, MediaRole.annotationOverlay.dbValue, MediaRole.annotatedRender.dbValue],
+    );
+    await txn.insert(
+      'media_files',
+      MediaFile(
+        id: newId(),
+        itemId: itemId,
+        role: MediaRole.annotationOverlay,
+        relativePath: overlayRel,
+        mimeType: 'application/json',
+        sizeBytes: overlaySize,
+        createdAt: ts,
+      ).toDb(),
+    );
+    await txn.insert(
+      'media_files',
+      MediaFile(
+        id: newId(),
+        itemId: itemId,
+        role: MediaRole.annotatedRender,
+        relativePath: renderRel,
+        mimeType: 'image/jpeg',
+        sizeBytes: renderSize,
+        createdAt: ts,
+      ).toDb(),
+    );
+    await txn.update(
+      'items',
+      {'updated_at': ts.toIso8601String()},
+      where: 'id = ?',
+      whereArgs: [itemId],
+    );
+    await txn.update(
+      'jobs',
+      {'updated_at': ts.toIso8601String()},
+      where: 'id = ?',
+      whereArgs: [jobId],
+    );
   }
 
   Future<void> clearPhotoAnnotations({required String itemId, required String jobId}) async {
@@ -275,7 +313,12 @@ class ItemsRepository {
   }) async {
     if (photos.isEmpty) return const [];
     final trimmedCaption = _trimOrNull(caption);
-    final prepared = <({Item item, int photoSize})>[];
+    final prepared = <({
+      Item item,
+      int photoSize,
+      String photoAbsPath,
+      PhotoAnnotationDocument? annotations,
+    })>[];
 
     for (final photo in photos) {
       final itemId = newId();
@@ -301,7 +344,37 @@ class ItemsRepository {
           updatedAt: ts,
         ),
         photoSize: photoSize,
+        photoAbsPath: photoDest.path,
+        annotations: photo.annotations,
       ));
+    }
+
+    final annotationMeta = <String, ({
+      String overlayRel,
+      String renderRel,
+      int overlaySize,
+      int renderSize,
+    })>{};
+
+    for (final p in prepared) {
+      final annotations = p.annotations;
+      if (annotations == null || annotations.isEmpty) continue;
+      final overlayRel = _storage.relativeFor(jobId, p.item.id, 'photo.annotations.json');
+      final renderRel = _storage.relativeFor(jobId, p.item.id, 'photo.annotated.jpg');
+      final overlayAbs = _storage.absolutePath(overlayRel);
+      final renderAbs = _storage.absolutePath(renderRel);
+      await _writeAnnotationFiles(
+        photoAbsPath: p.photoAbsPath,
+        overlayAbsPath: overlayAbs,
+        renderAbsPath: renderAbs,
+        document: annotations,
+      );
+      annotationMeta[p.item.id] = (
+        overlayRel: overlayRel,
+        renderRel: renderRel,
+        overlaySize: await File(overlayAbs).length(),
+        renderSize: await File(renderAbs).length(),
+      );
     }
 
     await _db.db.transaction((txn) async {
@@ -319,6 +392,20 @@ class ItemsRepository {
         ).toDb());
         for (final tagId in tagIds) {
           await txn.insert('item_tags', {'item_id': item.id, 'tag_id': tagId});
+        }
+
+        final meta = annotationMeta[item.id];
+        if (meta != null) {
+          await _replaceAnnotationMedia(
+            txn: txn,
+            itemId: item.id,
+            jobId: jobId,
+            overlayRel: meta.overlayRel,
+            renderRel: meta.renderRel,
+            overlaySize: meta.overlaySize,
+            renderSize: meta.renderSize,
+            ts: item.capturedAt,
+          );
         }
       }
       await txn.update(
@@ -667,9 +754,15 @@ class ItemsRepository {
 }
 
 class BatchPhotoInput {
-  const BatchPhotoInput({required this.sourceFilePath, required this.capturedAt});
+  const BatchPhotoInput({
+    required this.sourceFilePath,
+    required this.capturedAt,
+    this.annotations,
+  });
+
   final String sourceFilePath;
   final DateTime capturedAt;
+  final PhotoAnnotationDocument? annotations;
 }
 
 class FileTooLargeException implements Exception {
