@@ -57,6 +57,9 @@ class SyncEngine {
     var access = session.accessToken;
     var refresh = session.refreshToken;
     try {
+      // Push local changes before pull — and never use INSERT OR REPLACE on jobs/items
+      // (SQLite ON DELETE CASCADE would wipe unpushed photos and their media rows).
+      final pushed = await _pushPending(access, workspaceId, wifiOnly: wifiOnly);
       final pulled = await _pullRemote(
         accessToken: access,
         refreshToken: refresh,
@@ -66,7 +69,6 @@ class SyncEngine {
           refresh = r;
         },
       );
-      final pushed = await _pushPending(access, workspaceId, wifiOnly: wifiOnly);
       return SyncResult(
         pushedJobs: pushed.$1,
         pushedItems: pushed.$2,
@@ -80,13 +82,13 @@ class SyncEngine {
           final renewed = await _auth.refreshSession(refresh);
           access = renewed.accessToken;
           refresh = renewed.refreshToken;
+          final pushed = await _pushPending(access, workspaceId, wifiOnly: wifiOnly);
           final pulled = await _pullRemote(
             accessToken: access,
             refreshToken: refresh,
             workspaceId: workspaceId,
             onTokenRefreshed: (_, __) {},
           );
-          final pushed = await _pushPending(access, workspaceId, wifiOnly: wifiOnly);
           return SyncResult(
             pushedJobs: pushed.$1,
             pushedItems: pushed.$2,
@@ -410,7 +412,7 @@ class SyncEngine {
       'created_at': json['created_at'],
       'updated_at': json['updated_at'],
     };
-    await _db.db.insert('media_files', row, conflictAlgorithm: ConflictAlgorithm.replace);
+    await _upsertRow('media_files', row, id: id);
   }
 
   MediaRole _localRole(MediaRole serverRole) {
@@ -490,7 +492,7 @@ class SyncEngine {
     final row = job.toDb()
       ..['sync_state'] = markSynced ? SyncState.synced.dbValue : SyncState.pending.dbValue
       ..['last_synced_at'] = DateTime.now().toUtc().toIso8601String();
-    await _db.db.insert('jobs', row, conflictAlgorithm: ConflictAlgorithm.replace);
+    await _upsertRow('jobs', row, id: job.id);
   }
 
   Future<void> _applyItemFromServer(Map<String, dynamic> json, {required bool markSynced}) async {
@@ -498,7 +500,18 @@ class SyncEngine {
     final row = item.toDb()
       ..['sync_state'] = markSynced ? SyncState.synced.dbValue : SyncState.pending.dbValue
       ..['last_synced_at'] = DateTime.now().toUtc().toIso8601String();
-    await _db.db.insert('items', row, conflictAlgorithm: ConflictAlgorithm.replace);
+    await _upsertRow('items', row, id: item.id);
+  }
+
+  /// UPDATE when the row exists; INSERT otherwise. Avoid INSERT OR REPLACE — with
+  /// foreign_keys ON, replacing jobs/items CASCADE-deletes child rows (items, media).
+  Future<void> _upsertRow(String table, Map<String, Object?> row, {required String id}) async {
+    final existing = await _db.db.query(table, columns: ['id'], where: 'id = ?', whereArgs: [id], limit: 1);
+    if (existing.isEmpty) {
+      await _db.db.insert(table, row);
+    } else {
+      await _db.db.update(table, row, where: 'id = ?', whereArgs: [id]);
+    }
   }
 
   Job _jobFromApi(Map<String, dynamic> json) {
