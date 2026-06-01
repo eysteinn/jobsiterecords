@@ -10,6 +10,8 @@ import '../domain/models/tag.dart';
 import '../domain/models/timeline_item.dart';
 import '../domain/models/timeline_query.dart';
 import '../domain/services/export_service.dart';
+import '../sync/sync_engine.dart';
+import '../sync/sync_providers.dart';
 
 final databaseProvider = Provider<AppDatabase>(
   (ref) => throw UnimplementedError('Database not initialized'),
@@ -54,12 +56,21 @@ class JobsListQuery {
 
 final jobsListProvider = FutureProvider.family<List<Job>, String?>((ref, search) async {
   ref.watch(dataRevisionProvider);
-  return ref.watch(jobsRepositoryProvider).all(query: search);
+  final ctx = ref.watch(captureContextProvider);
+  return ref.watch(jobsRepositoryProvider).all(
+        query: search,
+        localOnly: ctx.isLocal,
+        workspaceId: ctx.workspaceId,
+      );
 });
 
 final jobSummariesProvider = FutureProvider<Map<String, JobSummary>>((ref) {
   ref.watch(dataRevisionProvider);
-  return ref.watch(jobsRepositoryProvider).summaries();
+  final ctx = ref.watch(captureContextProvider);
+  return ref.watch(jobsRepositoryProvider).summaries(
+        localOnly: ctx.isLocal,
+        workspaceId: ctx.workspaceId,
+      );
 });
 
 final jobProvider = FutureProvider.family<Job?, String>((ref, jobId) {
@@ -84,3 +95,47 @@ final tagsProvider = FutureProvider<List<Tag>>((ref) {
   ref.watch(dataRevisionProvider);
   return ref.watch(tagsRepositoryProvider).all();
 });
+
+final syncEngineProvider = Provider<SyncEngine>((ref) {
+  return SyncEngine(
+    db: ref.watch(databaseProvider),
+    api: ref.watch(apiClientProvider),
+    auth: ref.watch(authServiceProvider),
+    storage: ref.watch(mediaStorageProvider),
+  );
+});
+
+final syncStatusProvider = StateProvider<SyncStatus>((_) => const SyncStatus.never());
+
+class SyncStatus {
+  const SyncStatus({
+    this.lastSyncedAt,
+    this.pending = 0,
+    this.error,
+    this.pushedJobs = 0,
+    this.pushedItems = 0,
+  });
+  const SyncStatus.never() : this();
+
+  final DateTime? lastSyncedAt;
+  final int pending;
+  final String? error;
+  final int pushedJobs;
+  final int pushedItems;
+
+  SyncStatus copyWith({
+    DateTime? lastSyncedAt,
+    int? pending,
+    String? error,
+    int? pushedJobs,
+    int? pushedItems,
+  }) {
+    return SyncStatus(
+      lastSyncedAt: lastSyncedAt ?? this.lastSyncedAt,
+      pending: pending ?? this.pending,
+      error: error,
+      pushedJobs: pushedJobs ?? this.pushedJobs,
+      pushedItems: pushedItems ?? this.pushedItems,
+    );
+  }
+}

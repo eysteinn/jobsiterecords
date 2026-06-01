@@ -13,6 +13,7 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+!.env.deploy.example
 
 # Logs
 *.log
@@ -57,6 +58,12 @@ app/ios/Runner.xcodeproj/project.xcworkspace/xcuserdata/
 
 # Coverage
 app/coverage/
+
+# ---------------------------------------------------------------------------
+# Web dashboard (web/)
+# ---------------------------------------------------------------------------
+web/node_modules/
+web/.next/
 
 # ---------------------------------------------------------------------------
 # Services (placeholder; each service will add its own rules under its folder)

@@ -12,6 +12,7 @@ import '../../domain/models/tag.dart';
 import '../../domain/models/timeline_item.dart';
 import '../../domain/models/timeline_query.dart';
 import '../../domain/services/photo_annotation_renderer.dart';
+import '../../sync/sync_state.dart';
 import '../db/database.dart';
 import '../storage/media_storage.dart';
 
@@ -160,6 +161,7 @@ class ItemsRepository {
     final overlaySize = await File(overlayAbs).length();
     final renderSize = await File(renderAbs).length();
 
+    final syncState = await _syncStateForJob(jobId);
     await _db.db.transaction((txn) async {
       await _replaceAnnotationMedia(
         txn: txn,
@@ -170,6 +172,7 @@ class ItemsRepository {
         overlaySize: overlaySize,
         renderSize: renderSize,
         ts: ts,
+        syncState: syncState,
       );
     });
   }
@@ -197,6 +200,7 @@ class ItemsRepository {
     required int overlaySize,
     required int renderSize,
     required DateTime ts,
+    required SyncState syncState,
   }) async {
     await txn.delete(
       'media_files',
@@ -205,31 +209,36 @@ class ItemsRepository {
     );
     await txn.insert(
       'media_files',
-      MediaFile(
+      _mediaFile(
         id: newId(),
         itemId: itemId,
+        syncState: SyncState.localOnly,
         role: MediaRole.annotationOverlay,
         relativePath: overlayRel,
         mimeType: 'application/json',
         sizeBytes: overlaySize,
-        createdAt: ts,
+        ts: ts,
       ).toDb(),
     );
     await txn.insert(
       'media_files',
-      MediaFile(
+      _mediaFile(
         id: newId(),
         itemId: itemId,
+        syncState: syncState,
         role: MediaRole.annotatedRender,
         relativePath: renderRel,
         mimeType: 'image/jpeg',
         sizeBytes: renderSize,
-        createdAt: ts,
+        ts: ts,
       ).toDb(),
     );
     await txn.update(
       'items',
-      {'updated_at': ts.toIso8601String()},
+      {
+        'updated_at': ts.toIso8601String(),
+        if (syncState != SyncState.localOnly) 'sync_state': SyncState.pending.dbValue,
+      },
       where: 'id = ?',
       whereArgs: [itemId],
     );
@@ -313,6 +322,7 @@ class ItemsRepository {
   }) async {
     if (photos.isEmpty) return const [];
     final trimmedCaption = _trimOrNull(caption);
+    final syncState = await _syncStateForJob(jobId);
     final prepared = <({
       Item item,
       int photoSize,
@@ -339,6 +349,7 @@ class ItemsRepository {
           jobId: jobId,
           kind: ItemKind.photo,
           caption: trimmedCaption,
+          syncState: syncState,
           capturedAt: ts,
           createdAt: ts,
           updatedAt: ts,
@@ -381,14 +392,15 @@ class ItemsRepository {
       for (final p in prepared) {
         final item = p.item;
         await txn.insert('items', item.toDb());
-        await txn.insert('media_files', MediaFile(
+        await txn.insert('media_files', _mediaFile(
           id: newId(),
           itemId: item.id,
+          syncState: syncState,
           role: MediaRole.primaryPhoto,
           relativePath: _storage.relativeFor(jobId, item.id, 'photo.jpg'),
           mimeType: 'image/jpeg',
           sizeBytes: p.photoSize,
-          createdAt: item.capturedAt,
+          ts: item.capturedAt,
         ).toDb());
         for (final tagId in tagIds) {
           await txn.insert('item_tags', {'item_id': item.id, 'tag_id': tagId});
@@ -405,6 +417,7 @@ class ItemsRepository {
             overlaySize: meta.overlaySize,
             renderSize: meta.renderSize,
             ts: item.capturedAt,
+            syncState: syncState,
           );
         }
       }
@@ -429,6 +442,7 @@ class ItemsRepository {
   }) async {
     final itemId = newId();
     final ts = now();
+    final syncState = await _syncStateForJob(jobId);
     final dir = await _storage.dirForItem(jobId, itemId);
 
     final photoFile = File(sourceFilePath);
@@ -456,6 +470,7 @@ class ItemsRepository {
       jobId: jobId,
       kind: ItemKind.photo,
       caption: _trimOrNull(caption),
+      syncState: syncState,
       capturedAt: ts,
       createdAt: ts,
       updatedAt: ts,
@@ -463,25 +478,27 @@ class ItemsRepository {
 
     await _db.db.transaction((txn) async {
       await txn.insert('items', item.toDb());
-      await txn.insert('media_files', MediaFile(
+      await txn.insert('media_files', _mediaFile(
         id: newId(),
         itemId: itemId,
+        syncState: syncState,
         role: MediaRole.primaryPhoto,
         relativePath: _storage.relativeFor(jobId, itemId, photoName),
         mimeType: 'image/jpeg',
         sizeBytes: photoSize,
-        createdAt: ts,
+        ts: ts,
       ).toDb());
       if (voiceDest != null) {
-        await txn.insert('media_files', MediaFile(
+        await txn.insert('media_files', _mediaFile(
           id: newId(),
           itemId: itemId,
+          syncState: syncState,
           role: MediaRole.voiceNote,
           relativePath: _storage.relativeFor(jobId, itemId, 'voice.m4a'),
           mimeType: 'audio/mp4',
           durationMs: voiceDurationMs,
           sizeBytes: voiceSize ?? 0,
-          createdAt: ts,
+          ts: ts,
         ).toDb());
       }
       for (final tagId in tagIds) {
@@ -507,6 +524,7 @@ class ItemsRepository {
   }) async {
     final itemId = newId();
     final ts = now();
+    final syncState = await _syncStateForJob(jobId);
     final dir = await _storage.dirForItem(jobId, itemId);
 
     final voiceFile = File(sourceFilePath);
@@ -521,6 +539,7 @@ class ItemsRepository {
       jobId: jobId,
       kind: ItemKind.voice,
       caption: _trimOrNull(caption),
+      syncState: syncState,
       capturedAt: ts,
       createdAt: ts,
       updatedAt: ts,
@@ -528,15 +547,16 @@ class ItemsRepository {
 
     await _db.db.transaction((txn) async {
       await txn.insert('items', item.toDb());
-      await txn.insert('media_files', MediaFile(
+      await txn.insert('media_files', _mediaFile(
         id: newId(),
         itemId: itemId,
+        syncState: syncState,
         role: MediaRole.voiceNote,
         relativePath: _storage.relativeFor(jobId, itemId, 'voice.m4a'),
         mimeType: 'audio/mp4',
         durationMs: durationMs,
         sizeBytes: voiceSize,
-        createdAt: ts,
+        ts: ts,
       ).toDb());
       for (final tagId in tagIds) {
         await txn.insert('item_tags', {'item_id': itemId, 'tag_id': tagId});
@@ -571,6 +591,7 @@ class ItemsRepository {
 
     final itemId = newId();
     final ts = now();
+    final syncState = await _syncStateForJob(jobId);
     final storageName = sanitizeStorageFilename(originalFilename);
     final dir = await _storage.dirForItem(jobId, itemId);
     final dest = File('${dir.path}/$storageName');
@@ -581,6 +602,7 @@ class ItemsRepository {
       jobId: jobId,
       kind: ItemKind.file,
       caption: _trimOrNull(caption),
+      syncState: syncState,
       capturedAt: ts,
       createdAt: ts,
       updatedAt: ts,
@@ -588,15 +610,16 @@ class ItemsRepository {
 
     await _db.db.transaction((txn) async {
       await txn.insert('items', item.toDb());
-      await txn.insert('media_files', MediaFile(
+      await txn.insert('media_files', _mediaFile(
         id: newId(),
         itemId: itemId,
+        syncState: syncState,
         role: MediaRole.file,
         relativePath: _storage.relativeFor(jobId, itemId, storageName),
         mimeType: mimeType,
         sizeBytes: fileSize,
         originalFilename: originalFilename,
-        createdAt: ts,
+        ts: ts,
       ).toDb());
       for (final tagId in tagIds) {
         await txn.insert('item_tags', {'item_id': itemId, 'tag_id': tagId});
@@ -620,12 +643,14 @@ class ItemsRepository {
   }) async {
     final itemId = newId();
     final ts = now();
+    final syncState = await _syncStateForJob(jobId);
     final item = Item(
       id: itemId,
       jobId: jobId,
       kind: ItemKind.note,
       caption: _trimOrNull(caption),
       body: body.trim(),
+      syncState: syncState,
       capturedAt: ts,
       createdAt: ts,
       updatedAt: ts,
@@ -647,6 +672,54 @@ class ItemsRepository {
     return item;
   }
 
+  Future<SyncState> _syncStateForJob(String jobId) async {
+    final rows = await _db.db.query('jobs', columns: ['workspace_id'], where: 'id = ?', whereArgs: [jobId], limit: 1);
+    if (rows.isEmpty || rows.first['workspace_id'] == null) return SyncState.localOnly;
+    return SyncState.pending;
+  }
+
+  MediaFile _mediaFile({
+    required String id,
+    required String itemId,
+    required SyncState syncState,
+    required MediaRole role,
+    required String relativePath,
+    required String mimeType,
+    required int sizeBytes,
+    required DateTime ts,
+    String? originalFilename,
+    int? width,
+    int? height,
+    int? durationMs,
+  }) {
+    return MediaFile(
+      id: id,
+      itemId: itemId,
+      role: role,
+      relativePath: relativePath,
+      mimeType: mimeType,
+      width: width,
+      height: height,
+      durationMs: durationMs,
+      sizeBytes: sizeBytes,
+      originalFilename: originalFilename,
+      syncState: syncState,
+      createdAt: ts,
+      updatedAt: ts,
+    );
+  }
+
+  Future<void> _markItemPending(Transaction txn, String itemId, String jobId) async {
+    final syncState = await _syncStateForJob(jobId);
+    if (syncState == SyncState.localOnly) return;
+    await txn.update(
+      'items',
+      {'sync_state': SyncState.pending.dbValue},
+      where: 'id = ?',
+      whereArgs: [itemId],
+    );
+  }
+
   Future<void> updateMeta({
     required String itemId,
     String? caption,
@@ -663,13 +736,18 @@ class ItemsRepository {
       for (final tagId in tagIds) {
         await txn.insert('item_tags', {'item_id': itemId, 'tag_id': tagId});
       }
-      final r = await txn.query('items', columns: ['job_id'], where: 'id = ?', whereArgs: [itemId]);
+      final r = await txn.query('items', columns: ['job_id', 'kind'], where: 'id = ?', whereArgs: [itemId]);
       if (r.isNotEmpty) {
+        final jobId = r.first['job_id'] as String;
+        final kind = r.first['kind'] as String?;
+        if (kind != null) {
+          await _markItemPending(txn, itemId, jobId);
+        }
         await txn.update(
           'jobs',
           {'updated_at': ts.toIso8601String()},
           where: 'id = ?',
-          whereArgs: [r.first['job_id']],
+          whereArgs: [jobId],
         );
       }
     });

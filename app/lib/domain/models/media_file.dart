@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import '../../sync/sync_state.dart';
+
 enum MediaRole {
   primaryPhoto,
   voiceNote,
@@ -17,6 +19,16 @@ enum MediaRole {
         MediaRole.annotatedRender => 'annotated_render',
       };
 
+  /// Server-side role for blob upload.
+  String get serverRole => switch (this) {
+        MediaRole.annotatedRender => 'primary_photo',
+        MediaRole.primaryPhoto => 'primary_photo',
+        MediaRole.voiceNote => 'voice_note',
+        MediaRole.file => 'file',
+        MediaRole.attachment => 'attachment',
+        _ => 'file',
+      };
+
   static MediaRole fromDb(String v) => switch (v) {
         'primary_photo' => MediaRole.primaryPhoto,
         'voice_note' => MediaRole.voiceNote,
@@ -26,6 +38,8 @@ enum MediaRole {
         'annotated_render' => MediaRole.annotatedRender,
         _ => MediaRole.attachment,
       };
+
+  static MediaRole fromServer(String v) => fromDb(v);
 }
 
 @immutable
@@ -40,7 +54,10 @@ class MediaFile {
   final int? durationMs;
   final int sizeBytes;
   final String? originalFilename;
+  final SyncState syncState;
+  final String? remoteStorageKey;
   final DateTime createdAt;
+  final DateTime updatedAt;
 
   const MediaFile({
     required this.id,
@@ -53,8 +70,14 @@ class MediaFile {
     this.durationMs,
     required this.sizeBytes,
     this.originalFilename,
+    this.syncState = SyncState.localOnly,
+    this.remoteStorageKey,
     required this.createdAt,
-  });
+    DateTime? updatedAt,
+  }) : updatedAt = updatedAt ?? createdAt;
+
+  bool get needsBlobUpload =>
+      syncState.needsPush && role != MediaRole.annotationOverlay;
 
   String get displayName {
     final original = originalFilename?.trim();
@@ -74,7 +97,10 @@ class MediaFile {
         'duration_ms': durationMs,
         'size_bytes': sizeBytes,
         'original_filename': originalFilename,
+        'sync_state': syncState.dbValue,
+        'remote_storage_key': remoteStorageKey,
         'created_at': createdAt.toIso8601String(),
+        'updated_at': updatedAt.toIso8601String(),
       };
 
   factory MediaFile.fromDb(Map<String, Object?> r) => MediaFile(
@@ -88,6 +114,9 @@ class MediaFile {
         durationMs: r['duration_ms'] as int?,
         sizeBytes: (r['size_bytes'] as int?) ?? 0,
         originalFilename: r['original_filename'] as String?,
+        syncState: SyncState.fromDb(r['sync_state'] as String?),
+        remoteStorageKey: r['remote_storage_key'] as String?,
         createdAt: DateTime.parse(r['created_at']! as String),
+        updatedAt: DateTime.parse((r['updated_at'] ?? r['created_at'])! as String),
       );
 }

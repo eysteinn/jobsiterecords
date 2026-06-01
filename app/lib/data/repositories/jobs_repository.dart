@@ -2,6 +2,7 @@ import '../../core/clock.dart';
 import '../../core/ids.dart';
 import '../../domain/models/job.dart';
 import '../../domain/models/timeline_item.dart';
+import '../../sync/sync_state.dart';
 import '../db/database.dart';
 import '../storage/media_storage.dart';
 
@@ -10,9 +11,15 @@ class JobsRepository {
   final AppDatabase _db;
   final MediaStorage _storage;
 
-  Future<List<Job>> all({String? query}) async {
+  Future<List<Job>> all({String? query, bool localOnly = true, String? workspaceId}) async {
     final where = <String>[];
     final args = <Object?>[];
+    if (localOnly) {
+      where.add('workspace_id IS NULL');
+    } else if (workspaceId != null) {
+      where.add('workspace_id = ?');
+      args.add(workspaceId);
+    }
     if (query != null && query.trim().isNotEmpty) {
       where.add('(name LIKE ? OR client_name LIKE ? OR address LIKE ?)');
       final q = '%${query.trim()}%';
@@ -42,8 +49,10 @@ class JobsRepository {
     DateTime? startDate,
     DateTime? endDate,
     String? notes,
+    String? workspaceId,
   }) async {
     final ts = now();
+    final syncState = workspaceId == null ? SyncState.localOnly : SyncState.pending;
     final job = Job(
       id: newId(),
       name: name.trim(),
@@ -54,6 +63,8 @@ class JobsRepository {
       startDate: startDate,
       endDate: endDate,
       notes: _trimOrNull(notes),
+      workspaceId: workspaceId,
+      syncState: syncState,
       createdAt: ts,
       updatedAt: ts,
     );
@@ -62,7 +73,10 @@ class JobsRepository {
   }
 
   Future<Job> update(Job j) async {
-    final updated = j.copyWith(updatedAt: now());
+    final syncState = j.workspaceId == null
+        ? SyncState.localOnly
+        : (j.syncState == SyncState.synced ? SyncState.pending : j.syncState);
+    final updated = j.copyWith(updatedAt: now(), syncState: syncState);
     await _db.db.update('jobs', updated.toDb(), where: 'id = ?', whereArgs: [j.id]);
     return updated;
   }
@@ -76,7 +90,16 @@ class JobsRepository {
 
   /// Compute counts + cover photo for every job in one pass. Cheap enough for
   /// realistic dataset sizes; we can index later if needed.
-  Future<Map<String, JobSummary>> summaries() async {
+  Future<Map<String, JobSummary>> summaries({bool localOnly = true, String? workspaceId}) async {
+    final where = <String>[];
+    final args = <Object?>[];
+    if (localOnly) {
+      where.add('j.workspace_id IS NULL');
+    } else if (workspaceId != null) {
+      where.add('j.workspace_id = ?');
+      args.add(workspaceId);
+    }
+    final filter = where.isEmpty ? '' : 'WHERE ${where.join(' AND ')}';
     final rows = await _db.db.rawQuery('''
       SELECT
         j.id AS job_id,
@@ -88,8 +111,9 @@ class JobsRepository {
         MAX(i.updated_at) AS last_item_update
       FROM jobs j
       LEFT JOIN items i ON i.job_id = j.id
+      $filter
       GROUP BY j.id
-    ''');
+    ''', args);
 
     final issuesRows = await _db.db.rawQuery('''
       SELECT i.job_id AS job_id, COUNT(DISTINCT i.id) AS issues

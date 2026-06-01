@@ -1,0 +1,130 @@
+# Production stack for a single VPS (dashboard + API + Postgres + MinIO).
+# TLS and routing are handled by Traefik already running on the host.
+# Landing (jobsiterecords.com PHP) is deployed separately — not included here.
+#
+#   cp .env.deploy.example .env.deploy   # edit secrets, domains, Traefik settings
+#   docker compose -f docker-compose.deploy.yml --env-file .env.deploy up -d --build
+#
+# Prerequisites:
+#   - External Docker network TRAEFIK_NETWORK (Traefik must be attached to it)
+#   - DNS for APP_HOST, API_HOST, MEDIA_HOST pointing at the server
+#   - Traefik entrypoint + cert resolver names must match your Traefik static config
+
+name: sitelog
+
+networks:
+  traefik:
+    external: true
+    name: ${TRAEFIK_NETWORK}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_SERVER_URL: ${MINIO_SERVER_URL}
+    volumes:
+      - minio_data:/data
+    networks:
+      - default
+      - traefik
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=${TRAEFIK_NETWORK}
+      - traefik.http.routers.sitelog-minio.rule=Host(`${MEDIA_HOST}`)
+      - traefik.http.routers.sitelog-minio.entrypoints=${TRAEFIK_ENTRYPOINT}
+      - traefik.http.routers.sitelog-minio.tls.certresolver=${TRAEFIK_CERT_RESOLVER}
+      - traefik.http.routers.sitelog-minio.service=sitelog-minio
+      - traefik.http.services.sitelog-minio.loadbalancer.server.port=9000
+
+  api:
+    build:
+      context: ./services/api
+    restart: unless-stopped
+    environment:
+      PORT: "8080"
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      JWT_SECRET: ${JWT_SECRET}
+      APP_URL: ${APP_URL}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      COOKIE_SECURE: "true"
+      DEV_LOG_EMAIL_LINKS: "false"
+      S3_ENDPOINT: minio:9000
+      S3_PUBLIC_ENDPOINT: ${MEDIA_HOST}
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      S3_BUCKET: ${S3_BUCKET}
+      S3_USE_SSL: "false"
+      S3_PUBLIC_USE_SSL: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    networks:
+      - default
+      - traefik
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=${TRAEFIK_NETWORK}
+      - traefik.http.routers.sitelog-api.rule=Host(`${API_HOST}`)
+      - traefik.http.routers.sitelog-api.entrypoints=${TRAEFIK_ENTRYPOINT}
+      - traefik.http.routers.sitelog-api.tls.certresolver=${TRAEFIK_CERT_RESOLVER}
+      - traefik.http.routers.sitelog-api.service=sitelog-api
+      - traefik.http.services.sitelog-api.loadbalancer.server.port=8080
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 8080 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile.deploy
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+    restart: unless-stopped
+    environment:
+      API_INTERNAL_URL: http://api:8080
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - default
+      - traefik
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=${TRAEFIK_NETWORK}
+      - traefik.http.routers.sitelog-web.rule=Host(`${APP_HOST}`)
+      - traefik.http.routers.sitelog-web.entrypoints=${TRAEFIK_ENTRYPOINT}
+      - traefik.http.routers.sitelog-web.tls.certresolver=${TRAEFIK_CERT_RESOLVER}
+      - traefik.http.routers.sitelog-web.service=sitelog-web
+      - traefik.http.services.sitelog-web.loadbalancer.server.port=3000
+
+volumes:
+  postgres_data:
+  minio_data:

@@ -18,14 +18,17 @@ The repo matches the **Phase 1** architecture in broad strokes. Use this table w
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| Flutter app (`app/`) | **Mostly built** | v0.1.0+1; jobs CRUD, **Google Places address autocomplete** on New/Edit Job (online; location-biased worldwide search; API key in `app/.env`), **batch-first photo capture**, **photo annotation v1 + v2** ([§6.4a](#64a-photo-annotation-mark-up)), voice/note capture, **WYSIWYG text notes** ([§6.6](#66-capture-text-note)), **PDF / file upload** ([§6.6a](#66a-capture-file--pdf-upload)), timeline **filter/search** (type incl. **Files**, tag, full-text incl. filename), bulk tag, item detail (open file via OS), zip export (`files/` folder + rendered note HTML + annotated photos), settings. Voice notes are audio + optional caption/tags; for spoken text users add a **text note** (keyboard dictation on Android/iOS). Automatic transcription is **Phase 2** (server). Default tags include **`Receipt`** (schema v2 migration). Gaps: stretch business tags ([§7](#7-data-model)). |
+| Flutter app (`app/`) | **Mostly built + M4 sync (partial)** | Phase 1 capture/export complete. **M3–M4:** sign-in, workspace switcher, bidirectional sync for jobs, notes, and **photo/voice/file blobs** (direct-to-MinIO). Pull-to-refresh + Settings sync; Wi‑Fi-only blob gate. Gaps: stretch business tags ([§7](#7-data-model)). |
 | Landing (`landing/`) | **Active** | PHP + SQLite waitlist on jobsiterecords.com, plus SEO guides, use cases, trades, answers, and examples — not a single static page ([§14.4](#144-the-landing-site)). |
-| Backend (`services/`) | **Placeholder** | README only; no deployable services yet. |
-| Web dashboard (`web/`) | **Not started** | Phase 2. Product/UX spec: [`web-dashboard-design.md`](web-dashboard-design.md). Post-MVP: receipt OCR & expense export (§17.8). |
+| Backend (`services/api/`) | **Partial (M1–M4)** | Go API + Postgres + **MinIO** in Docker Compose: auth, workspaces, jobs/items sync, **media_files** mint/complete/download, lazy thumbnails. Reports/billing not started. |
+| Web dashboard (`web/`) | **Partial (M0–M4)** | Next.js shell + auth BFF + jobs list/detail with **photo thumbnails, voice player, file download**, lightbox. Tags, soft-delete, full job edit still partial. Spec: [`web-dashboard-design.md`](web-dashboard-design.md). |
+| Production deploy | **Scaffolded** | `docker-compose.deploy.yml` — `web`, `api`, Postgres, MinIO behind host **Traefik**; `landing/` stays separate. See [`deploy/README.md`](../deploy/README.md). |
 | Tests | **Minimal** | `note_markdown_test.dart`, `photo_annotation_test.dart`; golden/integration tests not yet written ([§11.3](#113-testing)). |
 | i18n / dark theme | **Not started** | English strings inline; light theme only ([§4](#4-platform--tech-stack), [§10](#10-visual-design)). |
 
-**Milestone progress ([§13](#13-phasing--milestones)):** M0–M3 largely complete in code; M4 (polish, accessibility, golden tests, store assets) still in progress.
+**Phase 2 milestone progress ([`web-dashboard-design.md` §17](web-dashboard-design.md#17-milestones-user-testable-states)):** M0–M1 done; M2/M3 largely done; **M4 in progress** (blob sync API, mobile upload/pull, web media timeline). M5+ (teams, reports, billing) not started.
+
+**Phase 1 milestone progress ([§13](#13-phasing--milestones)):** M0–M3 largely complete in code; M4 (polish, accessibility, golden tests, store assets) still in progress.
 
 ---
 

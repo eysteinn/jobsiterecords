@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/providers.dart';
 import '../../app/theme.dart';
+import '../../sync/sync_runner.dart';
 import '../../core/format.dart';
 import '../../domain/models/item.dart';
 import '../../domain/models/job.dart';
@@ -307,6 +308,12 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
             onClearFilters: _clearFilters,
             onToggle: _toggleSelected,
             onLongPress: (id) => _enterSelection(initialItemId: id),
+            onRefresh: () async {
+              await runForegroundSync(ref);
+              ref.invalidate(jobProvider(jobId));
+              ref.invalidate(jobTimelineProvider((jobId: jobId, query: _query)));
+              ref.invalidate(jobSummariesProvider);
+            },
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -470,6 +477,7 @@ class _Body extends StatelessWidget {
     required this.onClearFilters,
     required this.onToggle,
     required this.onLongPress,
+    required this.onRefresh,
   });
   final Job job;
   final List<TimelineItem> items;
@@ -492,6 +500,7 @@ class _Body extends StatelessWidget {
   final VoidCallback onClearFilters;
   final void Function(String itemId) onToggle;
   final void Function(String itemId) onLongPress;
+  final Future<void> Function() onRefresh;
 
   @override
   Widget build(BuildContext context) {
@@ -503,8 +512,11 @@ class _Body extends StatelessWidget {
     final days = byDay.keys.toList()..sort((a, b) => b.compareTo(a));
     final bottomPad = selecting ? 100.0 : 100.0;
 
-    return ListView(
+    return RefreshIndicator(
+      onRefresh: onRefresh,
+      child: ListView(
       padding: EdgeInsets.fromLTRB(16, 12, 16, bottomPad),
+      physics: const AlwaysScrollableScrollPhysics(),
       children: [
         _Header(job: job),
         const SizedBox(height: 12),
@@ -582,6 +594,7 @@ class _Body extends StatelessWidget {
             ),
         ],
       ],
+    ),
     );
   }
 
