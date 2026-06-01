@@ -101,6 +101,7 @@ final syncEngineProvider = Provider<SyncEngine>((ref) {
     db: ref.watch(databaseProvider),
     api: ref.watch(apiClientProvider),
     auth: ref.watch(authServiceProvider),
+    storage: ref.watch(mediaStorageProvider),
   );
 });
 

@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import type { Item, Job } from "@/lib/api-jobs";
+import { useMemo, useState } from "react";
+import type { Item, Job, MediaFile } from "@/lib/api-jobs";
 import { formatDate, formatDayKey, formatTime } from "@/lib/format";
 import { PageShell } from "@/components/page-shell";
 import styles from "./job-detail.module.css";
@@ -11,16 +11,29 @@ import styles from "./job-detail.module.css";
 type Props = {
   job: Job;
   items: Item[];
+  mediaFiles: MediaFile[];
   workspaceId: string;
 };
 
-export function JobDetailClient({ job, items: initialItems, workspaceId }: Props) {
+export function JobDetailClient({ job, items: initialItems, mediaFiles, workspaceId }: Props) {
   const router = useRouter();
   const [items, setItems] = useState(initialItems ?? []);
   const [noteBody, setNoteBody] = useState("");
   const [noteCaption, setNoteCaption] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [lightbox, setLightbox] = useState<{ itemId: string; mediaId?: string } | null>(null);
+
+  const mediaByItem = useMemo(() => {
+    const map = new Map<string, MediaFile[]>();
+    for (const mf of mediaFiles ?? []) {
+      if (mf.status !== "uploaded") continue;
+      const list = map.get(mf.item_id) ?? [];
+      list.push(mf);
+      map.set(mf.item_id, list);
+    }
+    return map;
+  }, [mediaFiles]);
 
   async function addNote() {
     if (!noteBody.trim()) return;
@@ -122,6 +135,11 @@ export function JobDetailClient({ job, items: initialItems, workspaceId }: Props
                     <time>{formatTime(item.captured_at)}</time>
                   </div>
                   <InlineCaption item={item} onSave={saveCaption} />
+                  <ItemMedia
+                    item={item}
+                    media={mediaByItem.get(item.id) ?? []}
+                    onOpenPhoto={(mediaId) => setLightbox({ itemId: item.id, mediaId })}
+                  />
                   {item.body && <p className={styles.body}>{item.body}</p>}
                 </li>
               ))}
@@ -129,8 +147,78 @@ export function JobDetailClient({ job, items: initialItems, workspaceId }: Props
           </section>
         ))
       )}
+
+      {lightbox && (
+        <div className={styles.lightbox} onClick={() => setLightbox(null)}>
+          <div className={styles.lightboxInner} onClick={(e) => e.stopPropagation()}>
+            <button type="button" className={styles.lightboxClose} onClick={() => setLightbox(null)} aria-label="Close">
+              ×
+            </button>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={
+                lightbox.mediaId
+                  ? `/api/media/${lightbox.mediaId}/download?inline=1`
+                  : `/api/items/${lightbox.itemId}/thumb?w=1200`
+              }
+              alt=""
+              className={styles.lightboxImg}
+            />
+          </div>
+        </div>
+      )}
     </PageShell>
   );
+}
+
+function ItemMedia({
+  item,
+  media,
+  onOpenPhoto,
+}: {
+  item: Item;
+  media: MediaFile[];
+  onOpenPhoto: (mediaId: string) => void;
+}) {
+  if (item.kind === "photo") {
+    const photo = media.find((m) => m.role === "primary_photo") ?? media[0];
+    if (!photo) {
+      return <p className={styles.mediaPending}>Photo pending upload…</p>;
+    }
+    return (
+      <button type="button" className={styles.thumbBtn} onClick={() => onOpenPhoto(photo.id)}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={`/api/items/${item.id}/thumb?w=512`} alt={item.caption || "Job photo"} className={styles.thumb} />
+      </button>
+    );
+  }
+
+  if (item.kind === "voice") {
+    const voice = media.find((m) => m.role === "voice_note") ?? media[0];
+    if (!voice) {
+      return <p className={styles.mediaPending}>Voice note pending upload…</p>;
+    }
+    return (
+      <audio controls preload="none" className={styles.audio} src={`/api/media/${voice.id}/download?inline=1`}>
+        <track kind="captions" />
+      </audio>
+    );
+  }
+
+  if (item.kind === "file") {
+    const file = media.find((m) => m.role === "file") ?? media[0];
+    if (!file) {
+      return <p className={styles.mediaPending}>File pending upload…</p>;
+    }
+    const label = file.original_filename || "Download file";
+    return (
+      <a className={styles.fileLink} href={`/api/media/${file.id}/download`}>
+        ↓ {label}
+      </a>
+    );
+  }
+
+  return null;
 }
 
 function InlineCaption({

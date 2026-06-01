@@ -19,6 +19,7 @@ export default async function JobDetailPage({
       <JobDetailClient
         job={bundle.job}
         items={bundle.items ?? []}
+        mediaFiles={bundle.media_files ?? []}
         workspaceId={workspace.id}
       />
     );

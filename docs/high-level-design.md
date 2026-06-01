@@ -18,14 +18,15 @@ The repo matches the **Phase 1** architecture in broad strokes. Use this table w
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| Flutter app (`app/`) | **Mostly built + M3 sync (partial)** | v0.1.0+1; Phase 1 capture/export complete. **M3:** sign-in, workspace switcher (`Local` + workspace), DB v3 sync columns, bidirectional **text-only** sync (jobs + note items) against `services/api`. Pull-to-refresh sync on jobs list and job detail; settings Account/Sync. Photo/voice/file blob sync is **M4**. Gaps: stretch business tags ([§7](#7-data-model)). |
+| Flutter app (`app/`) | **Mostly built + M4 sync (partial)** | Phase 1 capture/export complete. **M3–M4:** sign-in, workspace switcher, bidirectional sync for jobs, notes, and **photo/voice/file blobs** (direct-to-MinIO). Pull-to-refresh + Settings sync; Wi‑Fi-only blob gate. Gaps: stretch business tags ([§7](#7-data-model)). |
 | Landing (`landing/`) | **Active** | PHP + SQLite waitlist on jobsiterecords.com, plus SEO guides, use cases, trades, answers, and examples — not a single static page ([§14.4](#144-the-landing-site)). |
-| Backend (`services/api/`) | **Partial (M1–M3)** | Go API in Docker Compose: Postgres migrations, auth (JWT + refresh), workspaces, **jobs + note items sync** (`GET/PUT /jobs`, `PUT /jobs/{id}/items/{itemId}`, assignments). Reports/billing not started. |
-| Web dashboard (`web/`) | **Partial (M0–M2)** | Next.js shell + auth BFF + **jobs list/detail** (create job, add note, caption edit). Workspace switcher persistence, tags, soft-delete still partial. Spec: [`web-dashboard-design.md`](web-dashboard-design.md). |
+| Backend (`services/api/`) | **Partial (M1–M4)** | Go API + Postgres + **MinIO** in Docker Compose: auth, workspaces, jobs/items sync, **media_files** mint/complete/download, lazy thumbnails. Reports/billing not started. |
+| Web dashboard (`web/`) | **Partial (M0–M4)** | Next.js shell + auth BFF + jobs list/detail with **photo thumbnails, voice player, file download**, lightbox. Tags, soft-delete, full job edit still partial. Spec: [`web-dashboard-design.md`](web-dashboard-design.md). |
+| Production deploy | **Scaffolded** | `docker-compose.deploy.yml` — `web`, `api`, Postgres, MinIO behind host **Traefik**; `landing/` stays separate. See [`deploy/README.md`](../deploy/README.md). |
 | Tests | **Minimal** | `note_markdown_test.dart`, `photo_annotation_test.dart`; golden/integration tests not yet written ([§11.3](#113-testing)). |
 | i18n / dark theme | **Not started** | English strings inline; light theme only ([§4](#4-platform--tech-stack), [§10](#10-visual-design)). |
 
-**Phase 2 milestone progress ([`web-dashboard-design.md` §17](web-dashboard-design.md#17-milestones-user-testable-states)):** M0–M1 done; **M2/M3 in progress** (API jobs sync, web jobs CRUD subset, mobile text sync). M4+ (media sync, teams, reports, billing) not started.
+**Phase 2 milestone progress ([`web-dashboard-design.md` §17](web-dashboard-design.md#17-milestones-user-testable-states)):** M0–M1 done; M2/M3 largely done; **M4 in progress** (blob sync API, mobile upload/pull, web media timeline). M5+ (teams, reports, billing) not started.
 
 **Phase 1 milestone progress ([§13](#13-phasing--milestones)):** M0–M3 largely complete in code; M4 (polish, accessibility, golden tests, store assets) still in progress.
 

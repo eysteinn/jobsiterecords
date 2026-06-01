@@ -43,9 +43,10 @@ type Item struct {
 }
 
 type JobBundle struct {
-	Job       Job    `json:"job"`
-	Items     []Item `json:"items"`
-	ReadOnly  bool   `json:"read_only,omitempty"`
+	Job        Job         `json:"job"`
+	Items      []Item      `json:"items"`
+	MediaFiles []MediaFile `json:"media_files"`
+	ReadOnly   bool        `json:"read_only,omitempty"`
 }
 
 type Service struct {
@@ -84,7 +85,11 @@ func (s *Service) GetJobBundle(ctx context.Context, userID, jobID string, since 
 	if err != nil {
 		return JobBundle{}, err
 	}
-	return JobBundle{Job: job, Items: items, ReadOnly: readOnly}, nil
+	media, err := s.listMediaFiles(ctx, jobID, since)
+	if err != nil {
+		return JobBundle{}, err
+	}
+	return JobBundle{Job: job, Items: items, MediaFiles: media, ReadOnly: readOnly}, nil
 }
 
 func (s *Service) UpsertJob(ctx context.Context, userID string, in Job) (Job, error) {

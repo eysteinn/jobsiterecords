@@ -14,9 +14,11 @@ Future<SyncStatus> runForegroundSync(WidgetRef ref) async {
   }
 
   final engine = ref.read(syncEngineProvider);
+  final wifiOnly = ref.read(syncWifiOnlyProvider);
   final result = await engine.sync(
     session: session,
     workspaceId: ctx.workspaceId!,
+    wifiOnly: wifiOnly,
   );
 
   final pending = await engine.countPending(ctx.workspaceId!);

@@ -28,7 +28,10 @@ func main() {
 		log.Fatalf("migrations: %v", err)
 	}
 
-	srv := server.New(cfg, pool)
+	srv, err := server.New(cfg, pool)
+	if err != nil {
+		log.Fatalf("server: %v", err)
+	}
 	httpServer := &http.Server{
 		Addr:         ":" + cfg.Port,
 		Handler:      srv.Router(),

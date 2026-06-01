@@ -17,6 +17,13 @@ type Config struct {
 	RefreshTokenDays  int
 	MagicLinkMinutes  int
 	ResetTokenMinutes int
+	S3Endpoint        string
+	S3PublicEndpoint  string
+	S3AccessKey       string
+	S3SecretKey       string
+	S3Bucket          string
+	S3UseSSL          bool
+	S3PublicUseSSL    bool
 }
 
 func Load() Config {
@@ -32,6 +39,13 @@ func Load() Config {
 		RefreshTokenDays:  30,
 		MagicLinkMinutes:  15,
 		ResetTokenMinutes: 30,
+		S3Endpoint:        env("S3_ENDPOINT", "localhost:9000"),
+		S3PublicEndpoint:  env("S3_PUBLIC_ENDPOINT", env("S3_ENDPOINT", "localhost:9000")),
+		S3AccessKey:       env("S3_ACCESS_KEY", "minioadmin"),
+		S3SecretKey:       env("S3_SECRET_KEY", "minioadmin"),
+		S3Bucket:          env("S3_BUCKET", "sitelog"),
+		S3UseSSL:          env("S3_USE_SSL", "false") == "true",
+		S3PublicUseSSL:    env("S3_PUBLIC_USE_SSL", env("S3_USE_SSL", "false")) == "true",
 	}
 }
 

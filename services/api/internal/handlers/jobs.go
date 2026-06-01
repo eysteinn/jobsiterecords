@@ -48,6 +48,9 @@ func (h *JobsHandler) GetJob(w http.ResponseWriter, r *http.Request) {
 	if bundle.Items == nil {
 		bundle.Items = []jobs.Item{}
 	}
+	if bundle.MediaFiles == nil {
+		bundle.MediaFiles = []jobs.MediaFile{}
+	}
 	httpx.JSON(w, http.StatusOK, bundle)
 }
 

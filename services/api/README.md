@@ -12,6 +12,15 @@ docker compose up --build
 
 - API: http://localhost:8080/health
 - Web: http://localhost:3000
+- MinIO: http://localhost:9000 (API console: http://localhost:9001)
+
+For blob upload from a physical phone, set `S3_PUBLIC_ENDPOINT` in the repo root `.env` (see `.env.example`) to your LAN IP on port 9000, then recreate the API container:
+
+```bash
+docker compose up -d api
+```
+
+Flutter uses the same `.env` via `app/.env` → `../.env`; set `API_BASE_URL` to the same host on port 8080 and fully restart `flutter run`.
 
 ## M1 endpoints
 
@@ -37,7 +46,18 @@ docker compose up --build
 | GET | `/api/v1/workspaces/{id}/assignments` | Job IDs assigned to current user (owners: all jobs) |
 | GET | `/api/v1/jobs/{id}` | Job bundle (`?since=` for item delta) |
 | PUT | `/api/v1/jobs/{id}` | Upsert job (LWW by `updated_at`) |
-| PUT | `/api/v1/jobs/{id}/items/{itemId}` | Upsert item (note metadata in M3) |
+| PUT | `/api/v1/jobs/{id}/items/{itemId}` | Upsert item (note + media item metadata) |
+
+## M4 media endpoints (auth required)
+
+| Method | Path | Description |
+| --- | --- | --- |
+| POST | `/api/v1/items/{itemId}/media-files` | Mint signed PUT URL; creates `media_files` row (`status=pending`) |
+| POST | `/api/v1/media-files/{id}/complete` | Verify S3 object + mark `status=uploaded` |
+| GET | `/api/v1/media-files/{id}/download` | Redirect to signed GET URL (`?inline=1` for browser display) |
+| GET | `/api/v1/items/{itemId}/thumb?w=512` | Lazy thumbnail (resize + S3 cache) |
+
+Job bundle (`GET /api/v1/jobs/{id}`) includes `media_files` metadata array alongside `items`.
 
 Migrations run automatically on API startup. To apply them without starting the server:
 

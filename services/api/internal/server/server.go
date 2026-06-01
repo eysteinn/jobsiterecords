@@ -1,6 +1,8 @@
 package server
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -15,6 +17,7 @@ import (
 	"github.com/eysteinn/jobsiterecords/services/api/internal/jobs"
 	authmw "github.com/eysteinn/jobsiterecords/services/api/internal/middleware"
 	"github.com/eysteinn/jobsiterecords/services/api/internal/ratelimit"
+	"github.com/eysteinn/jobsiterecords/services/api/internal/storage"
 	"github.com/eysteinn/jobsiterecords/services/api/internal/workspace"
 )
 
@@ -23,16 +26,30 @@ type Server struct {
 	router chi.Router
 }
 
-func New(cfg config.Config, pool *pgxpool.Pool) *Server {
+func New(cfg config.Config, pool *pgxpool.Pool) (*Server, error) {
 	authSvc := auth.NewService(pool, cfg.JWTSecret, cfg.AccessTokenTTL, cfg.RefreshTokenDays, cfg.MagicLinkMinutes, cfg.ResetTokenMinutes)
 	wsSvc := workspace.NewService(pool)
 	mail := email.New(cfg.DevLogEmailLinks)
 	limiter := ratelimit.New()
 
+	store, err := storage.New(context.Background(), storage.Config{
+		Endpoint:       cfg.S3Endpoint,
+		PublicEndpoint: cfg.S3PublicEndpoint,
+		AccessKey:      cfg.S3AccessKey,
+		SecretKey:      cfg.S3SecretKey,
+		Bucket:         cfg.S3Bucket,
+		UseSSL:         cfg.S3UseSSL,
+		PublicUseSSL:   cfg.S3PublicUseSSL,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("storage: %w", err)
+	}
+
 	authH := handlers.NewAuthHandler(cfg, authSvc, wsSvc, mail, limiter)
 	wsH := handlers.NewWorkspaceHandler(wsSvc)
 	jobsSvc := jobs.NewService(pool)
 	jobsH := handlers.NewJobsHandler(jobsSvc)
+	mediaH := handlers.NewMediaHandler(jobsSvc, store)
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
@@ -79,10 +96,14 @@ func New(cfg config.Config, pool *pgxpool.Pool) *Server {
 			protected.Get("/jobs/{jobID}", jobsH.GetJob)
 			protected.Put("/jobs/{jobID}", jobsH.UpsertJob)
 			protected.Put("/jobs/{jobID}/items/{itemID}", jobsH.UpsertItem)
+			protected.Post("/items/{itemID}/media-files", mediaH.CreateMedia)
+			protected.Get("/items/{itemID}/thumb", mediaH.ItemThumb)
+			protected.Post("/media-files/{mediaID}/complete", mediaH.CompleteMedia)
+			protected.Get("/media-files/{mediaID}/download", mediaH.DownloadMedia)
 		})
 	})
 
-	return &Server{cfg: cfg, router: r}
+	return &Server{cfg: cfg, router: r}, nil
 }
 
 func (s *Server) Router() http.Handler {

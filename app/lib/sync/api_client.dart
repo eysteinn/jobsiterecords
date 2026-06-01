@@ -66,6 +66,51 @@ class ApiClient {
         .timeout(_timeout);
   }
 
+  Future<http.Response> putBytes(
+    Uri url, {
+    required List<int> body,
+    required String contentType,
+    Duration? timeout,
+  }) {
+    return _client
+        .put(
+          url,
+          headers: {'Content-Type': contentType},
+          body: body,
+        )
+        .timeout(timeout ?? const Duration(minutes: 10));
+  }
+
+  Future<http.Response> getRaw(
+    Uri url, {
+    Map<String, String>? headers,
+    Duration? timeout,
+  }) {
+    return _client.get(url, headers: headers).timeout(timeout ?? const Duration(minutes: 5));
+  }
+
+  Future<List<int>> downloadMedia(String mediaId, {required String accessToken}) async {
+    final first = await get(
+      '/api/v1/media-files/$mediaId/download',
+      accessToken: accessToken,
+    );
+    if (first.statusCode >= 300 && first.statusCode < 400) {
+      final location = first.headers['location'];
+      if (location == null) {
+        throw ApiException('Missing download redirect', statusCode: first.statusCode);
+      }
+      final bytes = await getRaw(Uri.parse(location));
+      if (bytes.statusCode >= 400) {
+        throw ApiException('Download failed', statusCode: bytes.statusCode);
+      }
+      return bytes.bodyBytes;
+    }
+    if (first.statusCode >= 400) {
+      throw ApiException('Download failed', statusCode: first.statusCode);
+    }
+    return first.bodyBytes;
+  }
+
   Map<String, String> _headers(Map<String, String>? extra, String? accessToken) {
     return {
       'Content-Type': 'application/json',

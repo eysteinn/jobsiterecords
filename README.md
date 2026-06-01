@@ -25,6 +25,15 @@ docker compose up --build
 
 See [`web/README.md`](web/README.md) and [`services/api/README.md`](services/api/README.md).
 
+## Production deploy (single VPS)
+
+```bash
+cp .env.deploy.example .env.deploy   # edit secrets + domains
+docker compose -f docker-compose.deploy.yml --env-file .env.deploy up -d --build
+```
+
+Traefik (already on the server) routes the app, API, and MinIO (media) subdomains via Docker labels. See [`deploy/README.md`](deploy/README.md).
+
 Future top-level folders (added only when justified by actual work):
 
 | Folder | What it will hold |

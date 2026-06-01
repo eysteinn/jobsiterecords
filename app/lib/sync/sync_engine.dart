@@ -1,17 +1,23 @@
+import 'dart:io';
+
 import 'package:http/http.dart' as http;
 import 'package:sqflite/sqflite.dart';
 
 import '../data/db/database.dart';
+import '../data/storage/media_storage.dart';
 import '../domain/models/item.dart';
 import '../domain/models/job.dart';
+import '../domain/models/media_file.dart';
 import 'api_client.dart';
 import 'auth_service.dart';
+import 'network_gate.dart';
 import 'sync_state.dart';
 
 class SyncResult {
   const SyncResult({
     this.pushedJobs = 0,
     this.pushedItems = 0,
+    this.pushedMedia = 0,
     this.pulledJobs = 0,
     this.error,
     this.pushError,
@@ -19,6 +25,7 @@ class SyncResult {
 
   final int pushedJobs;
   final int pushedItems;
+  final int pushedMedia;
   final int pulledJobs;
   final String? error;
   final String? pushError;
@@ -31,22 +38,25 @@ class SyncEngine {
     required AppDatabase db,
     required ApiClient api,
     required AuthService auth,
+    required MediaStorage storage,
   })  : _db = db,
         _api = api,
-        _auth = auth;
+        _auth = auth,
+        _storage = storage;
 
   final AppDatabase _db;
   final ApiClient _api;
   final AuthService _auth;
+  final MediaStorage _storage;
 
   Future<SyncResult> sync({
     required AuthSession session,
     required String workspaceId,
+    bool wifiOnly = false,
   }) async {
     var access = session.accessToken;
     var refresh = session.refreshToken;
     try {
-      final pushed = await _pushPending(access, workspaceId);
       final pulled = await _pullRemote(
         accessToken: access,
         refreshToken: refresh,
@@ -56,9 +66,11 @@ class SyncEngine {
           refresh = r;
         },
       );
+      final pushed = await _pushPending(access, workspaceId, wifiOnly: wifiOnly);
       return SyncResult(
         pushedJobs: pushed.$1,
         pushedItems: pushed.$2,
+        pushedMedia: pushed.$4,
         pulledJobs: pulled,
         pushError: pushed.$3,
       );
@@ -68,16 +80,17 @@ class SyncEngine {
           final renewed = await _auth.refreshSession(refresh);
           access = renewed.accessToken;
           refresh = renewed.refreshToken;
-          final pushed = await _pushPending(access, workspaceId);
           final pulled = await _pullRemote(
             accessToken: access,
             refreshToken: refresh,
             workspaceId: workspaceId,
             onTokenRefreshed: (_, __) {},
           );
+          final pushed = await _pushPending(access, workspaceId, wifiOnly: wifiOnly);
           return SyncResult(
             pushedJobs: pushed.$1,
             pushedItems: pushed.$2,
+            pushedMedia: pushed.$4,
             pulledJobs: pulled,
             pushError: pushed.$3,
           );
@@ -91,9 +104,14 @@ class SyncEngine {
     }
   }
 
-  Future<(int, int, String?)> _pushPending(String accessToken, String workspaceId) async {
+  Future<(int, int, String?, int)> _pushPending(
+    String accessToken,
+    String workspaceId, {
+    required bool wifiOnly,
+  }) async {
     var jobsPushed = 0;
     var itemsPushed = 0;
+    var mediaPushed = 0;
     String? lastError;
 
     final jobRows = await _db.db.query(
@@ -125,7 +143,6 @@ class SyncEngine {
       SELECT i.* FROM items i
       JOIN jobs j ON j.id = i.job_id
       WHERE j.workspace_id = ?
-        AND i.kind = 'note'
         AND i.sync_state IN ('pending', 'failed')
     ''', [workspaceId]);
 
@@ -152,7 +169,128 @@ class SyncEngine {
       }
     }
 
-    return (jobsPushed, itemsPushed, lastError);
+    if (await canUploadBlobs(wifiOnly: wifiOnly)) {
+      final pendingMedia = await _db.db.rawQuery('''
+        SELECT m.* FROM media_files m
+        JOIN items i ON i.id = m.item_id
+        JOIN jobs j ON j.id = i.job_id
+        WHERE j.workspace_id = ?
+          AND m.sync_state IN ('pending', 'failed')
+          AND m.role IN ('primary_photo', 'annotated_render', 'voice_note', 'file')
+      ''', [workspaceId]);
+
+      for (final row in pendingMedia) {
+        final media = MediaFile.fromDb(row);
+        if (!_shouldUploadMedia(media.itemId, media)) continue;
+        try {
+          await _uploadMediaFile(media, accessToken);
+          mediaPushed++;
+        } catch (e) {
+          lastError ??= e.toString();
+          await _db.db.update(
+            'media_files',
+            {'sync_state': SyncState.failed.dbValue},
+            where: 'id = ?',
+            whereArgs: [media.id],
+          );
+        }
+      }
+    }
+
+    return (jobsPushed, itemsPushed, lastError, mediaPushed);
+  }
+
+  bool _shouldUploadMedia(String itemId, MediaFile media) {
+    if (media.role == MediaRole.annotatedRender) return true;
+    if (media.role != MediaRole.primaryPhoto) {
+      return media.needsBlobUpload;
+    }
+    // Prefer annotated render over raw photo when present.
+    return true;
+  }
+
+  Future<void> _uploadMediaFile(MediaFile media, String accessToken) async {
+    final itemRows = await _db.db.query('items', where: 'id = ?', whereArgs: [media.itemId], limit: 1);
+    if (itemRows.isEmpty) return;
+    final item = Item.fromDb(itemRows.first);
+    if (item.syncState == SyncState.pending || item.syncState == SyncState.failed) {
+      final body = _itemPayload(item);
+      final res = await _api.put(
+        '/api/v1/jobs/${item.jobId}/items/${item.id}',
+        body: body,
+        accessToken: accessToken,
+      );
+      await _applyItemFromServer(decodeJsonMap(res), markSynced: true);
+    }
+
+    if (media.role == MediaRole.primaryPhoto) {
+      final annotated = await _db.db.query(
+        'media_files',
+        where: 'item_id = ? AND role = ?',
+        whereArgs: [media.itemId, MediaRole.annotatedRender.dbValue],
+        limit: 1,
+      );
+      if (annotated.isNotEmpty) {
+        final state = annotated.first['sync_state'] as String?;
+        if (state == SyncState.synced.dbValue || state == SyncState.pending.dbValue) {
+          await _db.db.update(
+            'media_files',
+            {'sync_state': SyncState.synced.dbValue},
+            where: 'id = ?',
+            whereArgs: [media.id],
+          );
+          return;
+        }
+      }
+    }
+
+    final absPath = _storage.absolutePath(media.relativePath);
+    final bytes = await File(absPath).readAsBytes();
+    final mintRes = await _api.post(
+      '/api/v1/items/${media.itemId}/media-files',
+      body: {
+        'id': media.id,
+        'role': media.role.serverRole,
+        'mime_type': media.mimeType,
+        'size_bytes': bytes.length,
+        'original_filename': media.originalFilename,
+        'width': media.width,
+        'height': media.height,
+        'duration_ms': media.durationMs,
+      },
+      accessToken: accessToken,
+    );
+    final mint = decodeJsonMap(mintRes);
+    final uploadUrl = mint['upload_url'] as String;
+    final uploadRes = await _api.putBytes(
+      Uri.parse(uploadUrl),
+      body: bytes,
+      contentType: media.mimeType,
+    );
+    if (uploadRes.statusCode >= 400) {
+      throw ApiException('Blob upload failed', statusCode: uploadRes.statusCode);
+    }
+    final etag = uploadRes.headers['etag'];
+    final completeRes = await _api.post(
+      '/api/v1/media-files/${media.id}/complete',
+      body: {
+        'etag': etag ?? '',
+        'size_bytes': bytes.length,
+      },
+      accessToken: accessToken,
+    );
+    final complete = decodeJsonMap(completeRes);
+    final remote = Map<String, dynamic>.from(complete['media_file'] as Map);
+    await _db.db.update(
+      'media_files',
+      {
+        'sync_state': SyncState.synced.dbValue,
+        'remote_storage_key': remote['storage_key'],
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+      },
+      where: 'id = ?',
+      whereArgs: [media.id],
+    );
   }
 
   Future<int> _pullRemote({
@@ -185,11 +323,9 @@ class SyncEngine {
     final ids = (assignments['job_ids'] as List? ?? []).cast<String>();
 
     for (final jobId in ids) {
-      final since = await _lastSyncedAt(jobId);
-      final path = since == null
-          ? '/api/v1/jobs/$jobId'
-          : '/api/v1/jobs/$jobId?since=${Uri.encodeQueryComponent(since.toUtc().toIso8601String())}';
-      final bundleRes = await _api.get(path, accessToken: access);
+      // Full pull every sync — incremental `since` used wall-clock last_synced_at and
+      // skipped older web items that were never downloaded to the phone.
+      final bundleRes = await _api.get('/api/v1/jobs/$jobId', accessToken: access);
       final bundle = decodeJsonMap(bundleRes);
       final jobJson = Map<String, dynamic>.from(bundle['job'] as Map);
       if (jobJson['deleted_at'] != null) {
@@ -201,17 +337,98 @@ class SyncEngine {
       for (final raw in items) {
         final itemJson = Map<String, dynamic>.from(raw as Map);
         if (itemJson['deleted_at'] != null) {
-          await _db.db.delete('items', where: 'id = ?', whereArgs: [itemJson['id']]);
+          await _deleteLocalItem(itemJson['id'] as String, jobId);
           continue;
         }
-        if (itemJson['kind'] != 'note') continue;
         await _mergeItemFromServer(itemJson);
       }
-      await _setLastSyncedAt(jobId, DateTime.now().toUtc());
+      final mediaFiles = (bundle['media_files'] as List? ?? []);
+      for (final raw in mediaFiles) {
+        final mediaJson = Map<String, dynamic>.from(raw as Map);
+        await _mergeMediaFromServer(mediaJson, jobId, access);
+      }
+      final cursor = _syncCursorFromBundle(jobJson, items, mediaFiles);
+      if (cursor != null) {
+        await _setLastSyncedAt(jobId, cursor);
+      }
       pulled++;
     }
 
     return pulled;
+  }
+
+  Future<void> _mergeMediaFromServer(
+    Map<String, dynamic> json,
+    String jobId,
+    String accessToken,
+  ) async {
+    final id = json['id'] as String;
+    if (json['deleted_at'] != null) {
+      await _db.db.delete('media_files', where: 'id = ?', whereArgs: [id]);
+      return;
+    }
+    final status = json['status'] as String? ?? 'pending';
+    final itemId = json['item_id'] as String;
+    final role = MediaRole.fromServer(json['role'] as String);
+    final remoteUpdated = DateTime.parse(json['updated_at'] as String).toLocal();
+
+    final existing = await _db.db.query('media_files', where: 'id = ?', whereArgs: [id], limit: 1);
+    if (existing.isNotEmpty) {
+      final local = MediaFile.fromDb(existing.first);
+      if (local.syncState.needsPush && local.updatedAt.isAfter(remoteUpdated)) {
+        return;
+      }
+    }
+
+    final relativePath = existing.isNotEmpty
+        ? existing.first['relative_path']! as String
+        : _defaultRelativePath(jobId, itemId, role, json['original_filename'] as String?);
+
+    if (status == 'uploaded') {
+      final absPath = _storage.absolutePath(relativePath);
+      final file = File(absPath);
+      if (!await file.exists()) {
+        await _storage.dirForItem(jobId, itemId);
+        final bytes = await _api.downloadMedia(id, accessToken: accessToken);
+        await file.writeAsBytes(bytes, flush: true);
+      }
+    }
+
+    final row = {
+      'id': id,
+      'item_id': itemId,
+      'role': _localRole(role).dbValue,
+      'relative_path': relativePath,
+      'mime_type': json['mime_type'],
+      'width': json['width'],
+      'height': json['height'],
+      'duration_ms': json['duration_ms'],
+      'size_bytes': json['size_bytes'],
+      'original_filename': json['original_filename'],
+      'sync_state': SyncState.synced.dbValue,
+      'remote_storage_key': json['storage_key'],
+      'created_at': json['created_at'],
+      'updated_at': json['updated_at'],
+    };
+    await _db.db.insert('media_files', row, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  MediaRole _localRole(MediaRole serverRole) {
+    return switch (serverRole) {
+      MediaRole.primaryPhoto => MediaRole.primaryPhoto,
+      MediaRole.voiceNote => MediaRole.voiceNote,
+      MediaRole.file => MediaRole.file,
+      _ => MediaRole.attachment,
+    };
+  }
+
+  String _defaultRelativePath(String jobId, String itemId, MediaRole role, String? originalFilename) {
+    return switch (role) {
+      MediaRole.primaryPhoto => _storage.relativeFor(jobId, itemId, 'photo.jpg'),
+      MediaRole.voiceNote => _storage.relativeFor(jobId, itemId, 'voice.m4a'),
+      MediaRole.file => _storage.relativeFor(jobId, itemId, originalFilename ?? 'file.bin'),
+      _ => _storage.relativeFor(jobId, itemId, originalFilename ?? 'attachment.bin'),
+    };
   }
 
   Map<String, dynamic> _jobPayload(Job job) => {
@@ -231,7 +448,6 @@ class SyncEngine {
       };
 
   Map<String, dynamic> _itemPayload(Item item) => {
-        'id': item.id,
         'job_id': item.jobId,
         'kind': item.kind.dbValue,
         'caption': item.caption,
@@ -319,27 +535,51 @@ class SyncEngine {
   }
 
   Future<void> _deleteLocalJob(String jobId) async {
+    await _storage.deleteForJob(jobId);
     await _db.db.transaction((txn) async {
       await txn.delete('items', where: 'job_id = ?', whereArgs: [jobId]);
       await txn.delete('jobs', where: 'id = ?', whereArgs: [jobId]);
     });
   }
 
-  Future<DateTime?> _lastSyncedAt(String jobId) async {
-    final rows = await _db.db.query('jobs', columns: ['last_synced_at'], where: 'id = ?', whereArgs: [jobId], limit: 1);
-    if (rows.isEmpty) return null;
-    final raw = rows.first['last_synced_at'] as String?;
-    if (raw == null || raw.isEmpty) return null;
-    return DateTime.tryParse(raw);
+  Future<void> _deleteLocalItem(String itemId, String jobId) async {
+    await _storage.deleteForItem(jobId, itemId);
+    await _db.db.delete('items', where: 'id = ?', whereArgs: [itemId]);
   }
 
   Future<void> _setLastSyncedAt(String jobId, DateTime at) async {
     await _db.db.update(
       'jobs',
-      {'last_synced_at': at.toIso8601String()},
+      {'last_synced_at': at.toUtc().toIso8601String()},
       where: 'id = ?',
       whereArgs: [jobId],
     );
+  }
+
+  DateTime? _syncCursorFromBundle(
+    Map<String, dynamic> jobJson,
+    List<dynamic> items,
+    List<dynamic> mediaFiles,
+  ) {
+    DateTime? max;
+    void consider(Object? raw) {
+      if (raw == null) return;
+      final t = DateTime.tryParse(raw.toString());
+      if (t == null) return;
+      final utc = t.toUtc();
+      if (max == null || utc.isAfter(max!)) max = utc;
+    }
+
+    consider(jobJson['updated_at']);
+    for (final raw in items) {
+      final map = Map<String, dynamic>.from(raw as Map);
+      consider(map['updated_at']);
+    }
+    for (final raw in mediaFiles) {
+      final map = Map<String, dynamic>.from(raw as Map);
+      consider(map['updated_at']);
+    }
+    return max;
   }
 
   Future<int> countPending(String workspaceId) async {
@@ -350,10 +590,18 @@ class SyncEngine {
     final items = Sqflite.firstIntValue(await _db.db.rawQuery('''
       SELECT COUNT(*) FROM items i
       JOIN jobs j ON j.id = i.job_id
-      WHERE j.workspace_id = ? AND i.kind = 'note'
+      WHERE j.workspace_id = ?
         AND i.sync_state IN ('pending', 'failed')
     ''', [workspaceId])) ?? 0;
-    return jobs + items;
+    final media = Sqflite.firstIntValue(await _db.db.rawQuery('''
+      SELECT COUNT(*) FROM media_files m
+      JOIN items i ON i.id = m.item_id
+      JOIN jobs j ON j.id = i.job_id
+      WHERE j.workspace_id = ?
+        AND m.sync_state IN ('pending', 'failed')
+        AND m.role IN ('primary_photo', 'annotated_render', 'voice_note', 'file')
+    ''', [workspaceId])) ?? 0;
+    return jobs + items + media;
   }
 }
 

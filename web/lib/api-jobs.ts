@@ -16,6 +16,22 @@ export type Job = {
   updated_at: string;
 };
 
+export type MediaFile = {
+  id: string;
+  workspace_id: string;
+  item_id: string;
+  role: "primary_photo" | "voice_note" | "attachment" | "file";
+  mime_type: string;
+  width?: number | null;
+  height?: number | null;
+  duration_ms?: number | null;
+  size_bytes: number;
+  original_filename?: string | null;
+  status: "pending" | "uploaded" | "failed";
+  created_at: string;
+  updated_at: string;
+};
+
 export type Item = {
   id: string;
   workspace_id: string;
@@ -31,6 +47,7 @@ export type Item = {
 export type JobBundle = {
   job: Job;
   items: Item[];
+  media_files: MediaFile[];
   read_only?: boolean;
 };
 
