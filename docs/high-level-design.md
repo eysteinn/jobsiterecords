@@ -22,7 +22,7 @@ The repo matches the **Phase 1** architecture in broad strokes. Use this table w
 | Landing (`landing/`) | **Active** | PHP + SQLite waitlist on jobsiterecords.com, plus SEO guides, use cases, trades, answers, and examples — not a single static page ([§14.4](#144-the-landing-site)). |
 | Backend (`services/api/`) | **Partial (M1–M4)** | Go API + Postgres + **MinIO** in Docker Compose: auth, workspaces, jobs/items sync, **media_files** mint/complete/download, lazy thumbnails. Reports/billing not started. |
 | Web dashboard (`web/`) | **Partial (M0–M4)** | Next.js shell + auth BFF + jobs list/detail with **photo thumbnails, voice player, file download**, lightbox. Tags, soft-delete, full job edit still partial. Spec: [`web-dashboard-design.md`](web-dashboard-design.md). |
-| Production deploy | **Scaffolded** | `docker-compose.deploy.yml` — `web`, `api`, Postgres, MinIO behind host **Traefik**; `landing/` stays separate. See [`deploy/README.md`](../deploy/README.md). |
+| Production deploy | **Scaffolded** | `docker-compose.deploy.yml` — `web`, `api`, Postgres, MinIO behind host **Traefik** (`tls=true` + `letsencrypt` per router); `landing/` stays separate. DNS: **A** records for `api`/`media`/`app` to the VPS. See [`deploy/README.md`](../deploy/README.md). |
 | Tests | **Minimal** | `note_markdown_test.dart`, `photo_annotation_test.dart`; golden/integration tests not yet written ([§11.3](#113-testing)). |
 | i18n / dark theme | **Not started** | English strings inline; light theme only ([§4](#4-platform--tech-stack), [§10](#10-visual-design)). |
 
