@@ -55,6 +55,7 @@ services:
       - traefik.docker.network=${TRAEFIK_NETWORK}
       - traefik.http.routers.sitelog-minio.rule=Host(`${MEDIA_HOST}`)
       - traefik.http.routers.sitelog-minio.entrypoints=${TRAEFIK_ENTRYPOINT}
+      - traefik.http.routers.sitelog-minio.tls=true
       - traefik.http.routers.sitelog-minio.tls.certresolver=${TRAEFIK_CERT_RESOLVER}
       - traefik.http.routers.sitelog-minio.service=sitelog-minio
       - traefik.http.services.sitelog-minio.loadbalancer.server.port=9000
@@ -91,6 +92,7 @@ services:
       - traefik.docker.network=${TRAEFIK_NETWORK}
       - traefik.http.routers.sitelog-api.rule=Host(`${API_HOST}`)
       - traefik.http.routers.sitelog-api.entrypoints=${TRAEFIK_ENTRYPOINT}
+      - traefik.http.routers.sitelog-api.tls=true
       - traefik.http.routers.sitelog-api.tls.certresolver=${TRAEFIK_CERT_RESOLVER}
       - traefik.http.routers.sitelog-api.service=sitelog-api
       - traefik.http.services.sitelog-api.loadbalancer.server.port=8080
@@ -121,6 +123,7 @@ services:
       - traefik.docker.network=${TRAEFIK_NETWORK}
       - traefik.http.routers.sitelog-web.rule=Host(`${APP_HOST}`)
       - traefik.http.routers.sitelog-web.entrypoints=${TRAEFIK_ENTRYPOINT}
+      - traefik.http.routers.sitelog-web.tls=true
       - traefik.http.routers.sitelog-web.tls.certresolver=${TRAEFIK_CERT_RESOLVER}
       - traefik.http.routers.sitelog-web.service=sitelog-web
       - traefik.http.services.sitelog-web.loadbalancer.server.port=3000
