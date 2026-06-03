@@ -127,7 +127,7 @@ No standalone **Billing** page for MVP. Subscription management lives under **Se
 
 | Route | Access | Purpose |
 | --- | --- | --- |
-| `/login` | Public | Sign in — email + password **or** magic link |
+| `/login` | Public | Sign in — **Google**, **Apple**, **email + password**, or **magic link** ([§11](#11-auth--sessions)) |
 | `/jobs` | All members | Workspace job list (filters in URL) |
 | `/jobs/:id` | All members | Job detail + timeline (edit gated by assignment) |
 | `/jobs/:id?item=:itemId` | All members | Item lightbox (overlay; preserves timeline scroll) |
@@ -537,10 +537,18 @@ Server schema aligns with Phase 1 mobile ([HLD §7](high-level-design.md#7-data-
 ```
 users
   id
-  email                  — unique
-  name?
-  password_hash?         — null until user sets a password (magic-link-only accounts allowed)
+  email                  — unique; from OAuth verified email, password sign-up, or magic-link sign-up
+  name?                  — from OAuth profile or optional on sign-up
+  password_hash?         — null until user sets a password (OAuth-only or magic-link-only accounts allowed)
   created_at
+
+user_oauth_identities    — linked Google / Apple accounts (§11)
+  id
+  user_id                → users.id
+  provider               — google | apple
+  provider_subject       — stable `sub` from the provider
+  created_at
+  unique (provider, provider_subject)
 
 auth_refresh_tokens      — one row per active session/device (§11)
   id                     — uuid
@@ -550,7 +558,7 @@ auth_refresh_tokens      — one row per active session/device (§11)
   created_at
   last_used_at
   expires_at             — created_at + 30 days, rolls forward on rotation
-  revoked_at?            — set on sign-out, password change, or reuse detection
+  revoked_at?            — set on sign-out, password change, OAuth identity unlink, or reuse detection
 
 workspaces
   id
@@ -823,30 +831,57 @@ Exact USD/EUR/ISK prices live in Paddle only. SKUs define **structure and seat l
 
 ## 11. Auth & sessions
 
-**Two sign-in methods** (same account, same session — user picks either):
+Product-level summary: [HLD §17.9](high-level-design.md#179-authentication-sign-in-methods). This section is the **endpoint and schema** detail.
+
+**Four sign-in methods** (same account, same session — user picks any one):
 
 | Method | Flow | Best for |
 | --- | --- | --- |
+| **Google** | Tap **Continue with Google** → OAuth 2.0 / OpenID Connect consent → API verifies ID token → session issued | Users already signed into Google on the device; fast signup on Android and web |
+| **Apple** | Tap **Sign in with Apple** → Apple ID consent → API verifies identity token → session issued | iOS users; **required by App Store** when other third-party sign-in (e.g. Google) is offered on iOS |
 | **Email + password** | Enter email and password on the sign-in screen → API verifies → session issued | Users who want a familiar login every time; office staff on a shared tablet |
-| **Magic link** | Enter email → receive link → tap link (app deep link or web) → session issued | Users who don’t want to remember a password |
+| **Email magic link** | Enter email → receive single-use link → tap link (app deep link or web) → session issued | Users who prefer passwordless email sign-in |
 
-Both methods are **MVP** on **mobile and web**. Invites can still use magic links in email; an existing user may accept via link **or** sign in with password.
+All four methods are **MVP** on **mobile and web**. Team invites and workspace-join emails may use magic links so invitees land signed in with one tap. An existing user may accept an invite via magic link **or** sign in with Google / Apple / email + password.
+
+**Explicitly not in MVP:** enterprise SSO (SAML/OIDC beyond Google/Apple consumer flows), SMS OTP.
+
+### Google OAuth
+
+- **Web:** standard OAuth redirect flow; BFF completes token exchange and calls the API.
+- **Mobile:** platform Google Sign-In SDK (or equivalent) obtains an ID token → `POST /auth/oauth/google` with `{ "id_token": "…" }`.
+- **Server:** verify ID token against Google's JWKS (`iss`, `aud`, `exp`, `email_verified`); upsert `users` + `user_oauth_identities` (provider `google`); issue session ([D22](#18-decisions--open-questions)).
+- **First sign-in:** create `users` row + auto-created workspace + session (same as other methods).
+
+### Sign in with Apple
+
+- **Web:** Apple JS / redirect flow.
+- **iOS:** `AuthenticationServices` native sheet.
+- **Android:** Apple's web flow or supported SDK where available.
+- **Server:** verify identity token against Apple's JWKS → `POST /auth/oauth/apple` with `{ "id_token": "…", "user?": { "name": … } }` (name only on first Apple authorization).
+- **Private relay emails:** treat `@privaterelay.appleid.com` addresses as first-class — do not require a "real" email to match another provider.
 
 ### Email + password
 
 - **Sign up:** email (unique) + password + optional name.
-- **Password rules** (D21): minimum **10 characters**; no upper/lower/digit/symbol mix requirements; reject passwords on a small breached-password list (top ~10k). No expiry, no rotation, no security questions.
+- **Password rules:** minimum **10 characters**; no upper/lower/digit/symbol mix requirements; reject passwords on a small breached-password list (top ~10k). No expiry, no rotation, no security questions.
 - **Sign in:** `POST /auth/login` with email + password.
-- **Forgot password:** email → single-use reset token (30 min TTL) → set new password. Required because password auth is in scope.
-- Store `password_hash` on `users` using **Argon2id** (memory ≥ 64 MiB, iterations ≥ 3, parallelism 1). Never store plaintext passwords.
+- **Forgot password:** email → single-use reset token (30 min TTL) → set new password.
+- Store `password_hash` on `users` using **Argon2id** (memory ≥ 64 MiB, iterations ≥ 3, parallelism 1). `password_hash` is null for magic-link-only or OAuth-only accounts until the user sets a password.
 
-### Magic link
+### Email magic link
 
 - **Sign in / sign up:** `POST /auth/magic-link` with email → send link → `GET /auth/magic-link/verify?token=…` (or POST with token) → session issued.
 - Tokens single-use, **15 min TTL**.
 - Mobile: deep-link handler opens app and completes verify.
 
-### Sessions (both methods) — D22
+### Account linking (D21)
+
+- One `users` row per person. When Google or Apple returns a **verified email** that already exists (e.g. from email + password or magic-link sign-up), **link** the OAuth identity to that user instead of creating a duplicate.
+- Linking is automatic on verified-email match; no separate "connect accounts" UI in MVP.
+- A user may have **multiple** sign-in paths on one account (Google + Apple + password + magic link) when emails match or when added sequentially with the same verified email.
+
+### Sessions (all methods) — D22
 
 - **JWT access token + opaque refresh token** (same shape for web and mobile).
   - **Access token:** signed JWT (HS256 with rotated server secret, or RS256 if multiple services), **15 min TTL**, contains `user_id`, `session_id`, `iat`, `exp`. Sent as `Authorization: Bearer …` from mobile; HTTP-only cookie on web.
@@ -856,12 +891,12 @@ Both methods are **MVP** on **mobile and web**. Invites can still use magic link
 - Same user identity on web and mobile; one user can have many concurrent sessions.
 - CSRF protection on mutating web routes (double-submit cookie or `SameSite=Strict` + custom header check).
 
-OAuth (Google) deferred unless signup friction demands it.
-
 ### Rate limits (auth)
 
 | Endpoint | Limit |
 | --- | --- |
+| `POST /auth/oauth/google` | 10 per IP per 15 min |
+| `POST /auth/oauth/apple` | 10 per IP per 15 min |
 | `POST /auth/login` | 5 per email per 15 min; 30 per IP per 15 min |
 | `POST /auth/magic-link` | 3 per email per 15 min; 10 per IP per 15 min |
 | `POST /auth/forgot-password` | 3 per email per hour |
@@ -881,7 +916,7 @@ Exceeding the limit returns `429` with `Retry-After`. Limits live in the Go API 
 - [ ] **Backend:** Lazy thumbnail endpoint with S3 caching
 - [ ] **Backend:** Sync API per [§15](#15-sync-api--protocol) (pull deltas, upsert PUTs, blob mint/complete, soft-delete tombstones)
 - [ ] **Backend:** Rate limits + 50 MB upload cap + MIME allowlist + server-side magic-byte check on `complete`
-- [ ] **Backend:** `auth_refresh_tokens` rotation + reuse detection; `paddle_events` idempotency table
+- [ ] **Backend:** `auth_refresh_tokens` rotation + reuse detection; `user_oauth_identities` for Google/Apple; `paddle_events` idempotency table
 - [ ] Workspace switcher (multi-workspace from day one)
 - [ ] Jobs list + URL-state filters + assignment display + inline status edit
 - [ ] Job detail timeline + lightbox + inline caption/tag edit + bulk select
@@ -893,7 +928,7 @@ Exceeding the limit returns `429` with `Retry-After`. Limits live in the Go API 
 - [ ] Plan / member limit display + SKU enforcement on invite
 - [ ] Paddle checkout + Customer Portal link + webhooks (inline in API)
 - [ ] **UX foundation:** autosave, optimistic updates, toasts, skeleton loaders, `/` + `Cmd+K`, responsive ≥ 768 px, reduced-motion respect
-- [ ] Auth UI on web + mobile spec: sign-in (password + magic link), sign-up, forgot password
+- [ ] Auth UI on web + mobile: **Continue with Google**, **Sign in with Apple**, **email + password**, and **Email me a link** (§11); forgot-password flow for the password path
 
 ### Do not build now
 
@@ -973,7 +1008,7 @@ Align with mobile Phase 1 and the light mockup aesthetic ([`dashboard-mockup-03-
 
 **`services/api/` (Go)** — the only public-facing service:
 
-- Auth (email + password, magic link, forgot-password, sessions)
+- Auth (Google OAuth, Sign in with Apple, email + password, email magic link, forgot-password, sessions — §11)
 - All CRUD: jobs, items, tags, assignments, members, invites
 - Mints **signed URLs** for blob upload (mobile → S3 direct) and download
 - Mobile sync endpoints (no separate `services/sync/` for MVP)
@@ -1177,7 +1212,7 @@ Order rule: ship the **collaboration stack** first (auth → read → write/sync
 
 | Slice | Backend (Go API + Rust PDF) | Frontend (`web/` Next.js) |
 | --- | --- | --- |
-| **W0** | Repo scaffolds: `services/api/` (Go), `services/pdf/` (Rust); Postgres + MinIO via docker-compose; auth (email+password, magic link, forgot password) with **JWT + refresh** (D22, `auth_refresh_tokens`); workspace CRUD; leave-workspace API | `web/` shell, login (both auth methods), workspace switcher, empty jobs list, **UX foundation** (toasts, skeletons, **command palette**, autosave plumbing) |
+| **W0** | Repo scaffolds: `services/api/` (Go), `services/pdf/` (Rust); Postgres + MinIO via docker-compose; auth (**Google**, **Apple**, **email + password**, **magic link**, forgot password) with **JWT + refresh** (D22, `auth_refresh_tokens`, `user_oauth_identities`); workspace CRUD; leave-workspace API | `web/` shell, login (all four auth methods), workspace switcher, empty jobs list, **UX foundation** (toasts, skeletons, **command palette**, autosave plumbing) |
 | **W1** | Per-job pull APIs ([§15.3](#15-sync-api--protocol)); signed-URL download; **lazy thumbnail endpoint** | Jobs list + job detail timeline (read-only) + lightbox |
 | **W2** | Upsert PUT APIs ([§15.4](#15-sync-api--protocol)); member edit gating; blob mint/complete ([§15.5](#15-sync-api--protocol)); soft-delete + tombstones; assignment endpoints | Job create/edit drawer, assignments, member edit gating, inline caption/tag edit, bulk select |
 | **W3** | Invite/membership APIs; member-limit enforcement; **Move local job to workspace** ([§15.6](#15-sync-api--protocol)) | Team invites + owner/member gates + member-limit UI |
@@ -1209,7 +1244,7 @@ Each milestone has a **demo script** (what you can actually do) and a **delibera
 
 - Open `https://app.jobsiterecords.com` (or local docker) → dashboard shell renders: left sidebar (**Jobs**, **Reports**, **Team**, **Settings**), top header, workspace switcher dropdown.
 - Each page shows its **real empty state** with the production visual design (light theme, amber accent, typography per [§13](#13-visual--motion-design)).
-- Sign-in screen renders with email + password fields and "Email me a link" toggle. Submitting shows a stub success — **does not** create a session.
+- Sign-in screen renders **Continue with Google**, **Sign in with Apple**, **email + password** fields, and **Email me a link**. Submitting shows a stub success — **does not** create a session.
 - Command palette opens with `Cmd/Ctrl+K` and lists placeholder commands.
 
 **Demo script**
@@ -1228,23 +1263,27 @@ Each milestone has a **demo script** (what you can actually do) and a **delibera
 
 **What works**
 
-- Sign up with email + password → row in `users` + auto-created workspace + auto sign-in.
-- Sign up / sign in via magic link (deep-link to email; click → signed in).
-- Forgot password works.
+- Sign up / sign in via **email + password** → row in `users` + auto-created workspace + session.
+- Sign up / sign in via **Google** → row in `users` + `user_oauth_identities` + auto-created workspace + session.
+- Sign up / sign in via **Apple** (same outcome; private relay email supported).
+- Sign up / sign in via **magic link** (deep-link to email; click → signed in).
+- **Forgot password** works for email + password accounts.
+- **Account linking:** magic-link or password account then Google with same verified email → single user, both identities linked.
 - Header shows "Signed in as …" with sign-out menu.
 - Session survives browser restart (JWT + rotating refresh token, [D22](#18-decisions--open-questions)).
-- Hitting the rate limit on `/auth/login` returns a clean `429` with `Retry-After`.
+- Hitting the rate limit on `POST /auth/login` or `POST /auth/magic-link` returns a clean `429` with `Retry-After`.
 
 **Demo script**
 
-1. Create an account both ways (password and magic link); sign out of each.
-2. Click "Forgot password", reset, sign in with the new password.
-3. Refresh the page after 20 minutes; you stay signed in (refresh-token rotation).
-4. Spam-click "Send magic link" five times — fifth attempt is rate-limited with a clear message.
+1. Create an account four ways (email + password, Google, Apple, magic link on fresh emails); sign out of each.
+2. Click **Forgot password**, reset, sign in with the new password.
+3. Sign in with magic link, then sign in with Google using the **same email** — confirm one account, not two.
+4. Refresh the page after 20 minutes; you stay signed in (refresh-token rotation).
+5. Spam-click "Send magic link" five times — fifth attempt is rate-limited with a clear message.
 
 **Deliberately missing:** no jobs yet. The Jobs page shows "no jobs in this workspace" — but for a real reason, not as a stub.
 
-**Backed by:** rest of slice **W0** (backend auth, `auth_refresh_tokens`, workspace CRUD, leave-workspace API).
+**Backed by:** rest of slice **W0** (backend auth, `auth_refresh_tokens`, `user_oauth_identities`, workspace CRUD, leave-workspace API).
 
 ---
 
@@ -1495,10 +1534,10 @@ Each milestone has a **demo script** (what you can actually do) and a **delibera
 | D15 | **Command palette (`Cmd/Ctrl+K`)** — **MVP**, not deferred. |
 | D16 | **Responsive minimum width 768 px** for MVP; layouts optimized for tablet and desktop; phone (< 768 px) out of scope. |
 | D17 | **Mobile “Local” context** — users can **always** work outside any company workspace. Display name **Local** (on-device only, no sync). Workspace switcher always includes Local + any team workspaces. |
-| D18 | **Sign-in methods** — **email + password** and **magic link** both in MVP on mobile and web. Forgot-password flow included for the password path. |
+| D18 | **Sign-in methods** — **Google OAuth**, **Sign in with Apple**, **email + password**, and **email magic link** all in MVP on mobile and web. Forgot-password flow included for the password path. See §11, [HLD §17.9](high-level-design.md#179-authentication-sign-in-methods). |
 | D19 | **Subscription lapse policy** — `past_due` opens a **14-day read-only grace period** (pull works, push and PDFs blocked); `canceled` stays read-only indefinitely until reactivated. No server-side data deletion (§10). |
 | D20 | **Downgrade-with-too-many-members** — guarded **in the dashboard** before opening the Paddle portal; user must remove members first. App-level rule, not Paddle-enforced (§10). |
-| D21 | **Password rules** — min **10 chars**, breached-password list rejection, **Argon2id** hashing. No complexity rules, no expiry (§11). |
+| D21 | **Account linking** — one `users` row per person. Google/Apple link to an existing account when verified email matches (password, magic-link, or prior OAuth). Apple's private relay emails are first-class. **Password rules:** min 10 chars, breached-password list rejection, **Argon2id** hashing (§11). |
 | D22 | **Sessions** — **JWT access token** (15 min) + **opaque refresh token** (30 d, rotating, stored hashed). Per-session row in DB for revocation. CSRF on web mutating routes (§11). |
 | D23 | **Sync topology — per-job.** Job is the unit of pull/push; small workspace-level deltas for assignments, tags, and members (§15.1). |
 | D24 | **Sync style — REST.** Resource endpoints (`/jobs/:id`, `/items/:id`); no `/sync/push` envelope (§15.1). |
@@ -1527,7 +1566,7 @@ The dashboard MVP is **mobile + sync + dashboard**. Phase 1 ships the local-only
 
 | # | Capability | Notes |
 | --- | --- | --- |
-| M1 | **Optional sign-in** | **Email + password** or **magic link** on one sign-in screen (tabs or toggle: “Password” / “Email me a link”). Users who never sign in keep **Local** forever. Deep-link handler for magic-link URLs. Forgot password → reset email. |
+| M1 | **Optional sign-in** | **Continue with Google**, **Sign in with Apple**, **email + password**, and **Email me a link** on one sign-in screen. Users who never sign in keep **Local** forever. Deep-link handler for magic-link URLs. Forgot password → reset email. |
 | M2 | **Account state** | Persist auth tokens; sign out; "Signed in as …" row in Settings. |
 | M3 | **Context switcher (Local + workspaces)** | Always show **Local** plus every team workspace the user belongs to — even if they have zero workspaces (switcher still has Local). Signed-out users effectively live in Local only. Signed-in users pick **Local** or a company workspace; selection drives which jobs list and capture target apply. |
 | M4 | **Sync engine** | Bidirectional per-job sync for **workspace jobs only** (`workspace_id` set), using the protocol in [§15](#15-sync-api--protocol). Last-writer-wins on `updated_at` ([§9](#9-backend-model)). Upload via signed URLs from the Go API; download via signed URLs. **No sync** while context is Local. |
@@ -1620,7 +1659,7 @@ _None — all Phase 2 mobile policy decisions are now locked (D31–D34, M9b). D
 - [x] Sync topology, write semantics, blob protocol, tombstones (D23–D27; see [§15](#15-sync-api--protocol))
 - [x] Read-only edges for unassignment / leave / removal / lapse (D28)
 - [x] Upload size + MIME allowlist + voice cap (D29; [§15.8](#15-sync-api--protocol))
-- [x] Auth/session/JWT decisions + password rules (D21, D22)
+- [x] Auth/session/JWT decisions + sign-in methods (Google, Apple, email + password, magic link) (D18, D21, D22)
 - [x] Lapse + downgrade behavior (D19, D20)
 - [x] Tombstone retention + 30-day purge
 
@@ -1633,4 +1672,4 @@ _None — all Phase 2 mobile policy decisions are now locked (D31–D34, M9b). D
 - [ ] Pick Rust HTML→PDF library (e.g. `chromiumoxide` headless Chromium vs alternative); prototype on one sample job
 - [ ] Define `reports` queue semantics in code (claim TTL, max attempts, failure handling) consistent with §14
 - [ ] Open a mobile-side UX design doc for Phase 2 sign-in / switcher / sync indicators (covers M1–M9b)
-- [ ] Sync HLD §17 with the locked spec (two roles, Paddle, Go/Rust, Local context, JWT+refresh, per-job sync, soft-delete)
+- [x] Sync HLD §17 with the locked spec (two roles, Paddle, Go/Rust, Local context, JWT+refresh, Google/Apple/magic-link auth, per-job sync, soft-delete)
