@@ -20,7 +20,7 @@ The repo matches the **Phase 1** architecture in broad strokes. Use this table w
 | --- | --- | --- |
 | Flutter app (`app/`) | **Mostly built + M4 sync (partial)** | Phase 1 capture/export complete. **M3–M4:** sign-in, workspace switcher, bidirectional sync for jobs, notes, and **photo/voice/file blobs** (direct-to-MinIO). Pull-to-refresh + Settings sync; Wi‑Fi-only blob gate. Gaps: stretch business tags ([§7](#7-data-model)). |
 | Landing (`landing/`) | **Active** | PHP + SQLite waitlist on jobsiterecords.com, plus SEO guides, use cases, trades, answers, and examples — not a single static page ([§14.4](#144-the-landing-site)). |
-| Backend (`services/api/`) | **Partial (M1–M4)** | Go API + Postgres + **MinIO** in Docker Compose: auth, workspaces, jobs/items sync, **media_files** mint/complete/download, lazy thumbnails. Reports/billing not started. |
+| Backend (`services/api/`) | **Partial (M1–M4)** | Go API + Postgres + **MinIO** in Docker Compose: **email + password auth** (signup, login, **password reset via email link**), workspaces, jobs/items sync, **media_files** mint/complete/download, lazy thumbnails. Outbound mail via **SMTP** ([§17.9](#179-authentication-sign-in-methods)). Google/Apple OAuth and magic link not started. Reports/billing not started. |
 | Web dashboard (`web/`) | **Partial (M0–M4)** | Next.js shell + auth BFF + jobs list/detail with **photo thumbnails, voice player, file download**, lightbox. Tags, soft-delete, full job edit still partial. Spec: [`web-dashboard-design.md`](web-dashboard-design.md). |
 | Production deploy | **Scaffolded** | `docker-compose.deploy.yml` — `web`, `api`, Postgres, MinIO behind host **Traefik** (`tls=true` + `letsencrypt` per router); `landing/` stays separate. DNS: **A** records for `api`/`media`/`app` to the VPS. See [`deploy/README.md`](../deploy/README.md). |
 | Tests | **Minimal** | `note_markdown_test.dart`, `photo_annotation_test.dart`; golden/integration tests not yet written ([§11.3](#113-testing)). |
@@ -81,7 +81,7 @@ Phase 2 is **out of scope for the Phase 1 milestone**; it is the next delivery p
 
 - **Scope discipline:** ship **sync, dashboard, teams, PDF, transcription** — not a general contractor platform. Default answer to new ideas is **no** unless they serve that core; defer rest to [§17.6](#176-explicitly-still-out-of-scope-for-phase-2-v1-examples) / later.
 - **Paid subscription** unlocks **cloud sync**, the **web dashboard**, and **team workspaces** (multiple users on one subscription share access to jobs, timeline items, and notes). The **mobile app stays free** for local-only use ([§17](#17-phase-2-dashboard-sync-subscription-and-teams) for full definition).
-- Optional sign-in (only when the user or org opts into Pro).
+- Optional sign-in (only when the user or org opts into Pro): **email + password** today; **Google**, **Apple**, and **magic link** when shipped ([§17.9](#179-authentication-sign-in-methods)).
 - Encrypted cloud backup + multi-device sync for subscribed workspaces.
 - **Web dashboard** with the same data as synced devices — this is where **PDF report generation** lives (branded, with logo / header / footer / templates).
 - Voice-note **transcription**: sound recordings are turned into **text notes** (auto-generated, editable) so timelines, item detail, and reports are **easy to read and search** without playing every clip; AI summaries per job / per day (server-side, queued).
@@ -785,7 +785,7 @@ The **Phase 1** app must not paint us into a corner for **Phase 2** ([§17](#17-
 - **Export format is documented and stable**, so the future web app can ingest old exports.
 
 What Phase 2 adds (out of scope for **Phase 1**, but mapped here and detailed in [§17](#17-phase-2-dashboard-sync-subscription-and-teams)):
-- Auth (email + password and magic link; JWT + rotating refresh token) + **team subscription** billing via **Paddle** (web checkout; App Store / Play in-app billing deferred). Detail in [`web-dashboard-design.md` §10, §11](web-dashboard-design.md#10-billing-paddle--plan-sku-naming).
+- Auth (**email + password** implemented; **Google**, **Apple**, **email magic link** planned; password reset via SMTP; JWT + rotating refresh token) + **team subscription** billing via **Paddle** (web checkout; App Store / Play in-app billing deferred). Detail: [§17.9](#179-authentication-sign-in-methods), [`web-dashboard-design.md` §10, §11](web-dashboard-design.md#10-billing-paddle--plan-sku-naming).
 - Sync engine (most likely Supabase or a small custom service over Postgres + object storage).
 - Web dashboard (same logical model as the app; PDFs and reporting live here).
 - Voice-note transcription on the **web dashboard** (server-side, batch; cloud storage only — see [§17.7](#177-voice-transcription-as-readable-notes-phase-2)).
@@ -961,12 +961,13 @@ Users who never create a workspace and never sign in **never pay** and **do not 
 - **Workspace** — the billable root. Has a name, billing owner, subscription status, and retention policies.
 - **Members** — human users identified by email. One user can belong to many workspaces; the mobile **context switcher** (`Local` + every workspace) is always available ([`web-dashboard-design.md` §20](web-dashboard-design.md#20-mobile-app-changes-required-phase-2)).
 - **Roles** — **Owner** and **Member** only in MVP. Owner manages billing, team, and workspace settings; member captures and edits on **assigned** jobs (decision D2 in the dashboard spec). Admin / Viewer / Client roles are explicitly out of MVP scope.
-- **Invites** — owner invites by email; invitee installs the free app (or uses web), signs in, and joins the workspace. Mobile sync for members is **per-assignment**; owners sync everything in the workspace.
+- **Invites** — owner invites by email; invitee installs the free app (or uses web), signs in (Google, Apple, email + password, or magic link), and joins the workspace. Invite emails may include a magic link for one-tap accept. Mobile sync for members is **per-assignment**; owners sync everything in the workspace.
 - **Personal vs. workspace jobs** — resolved: the phone always has a **Local** context (unsynced, on-device only) plus any team workspaces the user belongs to. **Move local job to workspace** is a one-way promotion endpoint ([`web-dashboard-design.md` §15.6](web-dashboard-design.md#15-sync-api--protocol)). Cross-workspace moves are post-MVP.
 
 ### 17.4 Technical sketch (high level)
 
-- **Auth** — **email + password** and **magic link** both in MVP; **JWT access token (15 min) + rotating opaque refresh token (30 d)**; per-session row in DB. Argon2id hashing for passwords. See [`web-dashboard-design.md` §11](web-dashboard-design.md#11-auth--sessions).
+- **Auth** — **email + password** is **implemented today** and stays supported; **Google OAuth**, **Sign in with Apple**, and **email magic link** are planned additions ([§17.9](#179-authentication-sign-in-methods)). **JWT access token (15 min) + rotating opaque refresh token (30 d)**; per-session row in DB. Session and API detail: [`web-dashboard-design.md` §11](web-dashboard-design.md#11-auth--sessions).
+- **Outbound email** — transactional SMTP from the Go API (password reset, magic links, invites). Config in repo root `.env` (local) and `.env.deploy` (production) — [§17.9](#179-authentication-sign-in-methods).
 - **Billing** — **Paddle** as Merchant of Record (Iceland-friendly, no Stripe dependency). Hosted Customer Portal; webhooks handled inline in the Go API; lapse triggers a 14-day read-only grace period. App Store / Play in-app billing is **deferred**; RevenueCat is **not** in MVP.
 - **API + sync** — single **Go** service (`services/api/`) hosts auth, CRUD, sync, signed URLs, webhooks, and outbound email. REST/JSON with OpenAPI for client generation. Sync is **per-job** with last-writer-wins on `updated_at`, soft delete + 30-day tombstones, and direct-to-S3 blob uploads via signed URLs. Read-only edges when assignment, membership, or subscription lapses. Full protocol: [`web-dashboard-design.md` §15](web-dashboard-design.md#15-sync-api--protocol).
 - **PDF rendering** — separate **Rust** worker (`services/pdf/`) polling a Postgres queue (`reports.status` + `SKIP LOCKED`); only async service in MVP.
@@ -993,3 +994,68 @@ To avoid scope creep in the **first** cloud release: real-time co-editing presen
 - **Goal:** on the **web dashboard**, turn **`Receipt`-tagged** timeline items into a **reviewable expense roll-up** for a job — vendor, date, totals — without retyping paper slips. Export **CSV / Excel** for bookkeeping handoff. **Not** invoicing, estimating, or a full accounting integration ([§17.6](#176-explicitly-still-out-of-scope-for-phase-2-v1-examples)).
 - **Phase 1 (*target*):** contractors tag receipts on the phone ([§6.6a](#66a-capture-file--pdf-upload), [§7](#7-data-model)); timeline filter + zip export carry those items to the office manually.
 - **Post-MVP (paid / cloud):** after sync, a server worker OCRs receipt photos/PDFs; structured fields stored server-side (e.g. `receipt_extractions` keyed by synced `item_id`) — **not** new columns in the Phase 1 mobile schema. Dashboard **Expenses** view on job detail; user may correct extracted values; export spreadsheet. Detail: [`web-dashboard-design.md` §8.2](web-dashboard-design.md#82-receipt-ocr--job-expenses).
+
+### 17.9 Authentication (sign-in methods)
+
+Phase 2 sign-in is **optional** — required only when the user enables cloud sync, the web dashboard, or a team workspace ([§17.1](#171-product-promise-by-phase)). The free local capture path never requires an account.
+
+**Implemented today:** **email + password** — sign-up, login, and password reset. This path **remains supported** as Google, Apple, and magic-link sign-in are added; users who already have a password account are not forced to switch.
+
+**Planned additions (same account, same session):** Google OAuth, Sign in with Apple, email magic link ([`web-dashboard-design.md` §11](web-dashboard-design.md#11-auth--sessions)).
+
+| Method | Status | Flow | Best for |
+| --- | --- | --- | --- |
+| **Email + password** | **Implemented** | Enter email and password → API verifies → session issued | Default today; familiar login; office staff on a shared tablet |
+| **Google** | Planned | Tap **Continue with Google** → OAuth 2.0 / OpenID Connect → session issued | Users already signed into Google on the device |
+| **Apple** | Planned | Tap **Sign in with Apple** → Apple ID consent → session issued | iOS users; **required by App Store** when other third-party sign-in is offered |
+| **Email magic link** | Planned | Enter email → receive single-use link → tap link → session issued | Passwordless email sign-in |
+
+All four methods are **MVP** on **mobile and web** once complete. Team invites and workspace-join emails may use magic links so invitees land signed in with one tap.
+
+**Account linking (when OAuth ships):** one `users` row per person. When Google or Apple returns a verified email that already exists (e.g. from email + password or magic-link sign-up), link the OAuth provider to that account instead of creating a duplicate. Apple's private relay addresses are treated as first-class emails for that user.
+
+#### Password reset (email + password — implemented)
+
+Users with a password account can recover access without support:
+
+1. **Forgot password** — user enters email on web or mobile → `POST /api/v1/auth/forgot-password`.
+2. **Email** — API sends a single-use link to that address (same response whether or not the email is registered — no account enumeration).
+3. **Reset** — link opens `{APP_URL}/reset-password?token=…` (web) or app deep link; user sets a new password → `POST /api/v1/auth/reset-password`.
+4. **TTL** — reset token expires in **30 minutes**; one use only. Stored hashed in `auth_one_time_tokens` (`kind = password_reset`).
+
+Magic-link sign-in and OAuth do not use this flow; password reset applies only to accounts with (or adding) a password.
+
+#### Outbound email (SMTP)
+
+The Go API sends transactional email inline (password reset today; magic links and team invites when those ship). **SMTP** is configured via environment variables in:
+
+- **Local dev:** repo root `.env` (read by `docker-compose.yml` for the `api` service)
+- **Production:** `.env.deploy` (read by `docker-compose.deploy.yml`)
+
+| Variable | Example / default | Purpose |
+| --- | --- | --- |
+| `SMTP_HOST` | `mail.1984.is` | SMTP server hostname |
+| `SMTP_PORT` | `587` | SMTP port (STARTTLS on 587) |
+| `SMTP_USERNAME` | *(set in env)* | SMTP auth username |
+| `SMTP_PASSWORD` | *(set in env)* | SMTP auth password |
+| `SMTP_FROM_EMAIL` | *(set in env)* | Envelope / From address (e.g. `noreply@jobsiterecords.com`) |
+| `SMTP_FROM_NAME` | `Job Site Records` | Display name on outbound mail |
+
+When SMTP is not configured (empty username/password), local dev may log the reset link to the API container stdout instead of sending mail — useful for testing without a mailbox. Production **must** set all SMTP variables in `.env.deploy`.
+
+**Sessions (all methods):**
+
+- **JWT access token (15 min)** + **opaque rotating refresh token (30 d)**; one row per device/session in `auth_refresh_tokens`.
+- Mobile sends `Authorization: Bearer …`; web uses HTTP-only cookies via the Next.js BFF.
+- Same session shape regardless of how the user signed in — sign out, refresh, and “active devices” behave identically.
+
+**Platform notes:**
+
+- **Email + password (today):** `POST /api/v1/auth/signup`, `POST /api/v1/auth/login`; Argon2id password hashing (min 10 chars; breached-password list rejection). See [`web-dashboard-design.md` §11](web-dashboard-design.md#11-auth--sessions).
+- **Google (planned):** `POST /auth/oauth/google` with ID token from platform SDK.
+- **Apple (planned):** `POST /auth/oauth/apple` with identity token; private relay emails supported.
+- **Magic link (planned):** `POST /auth/magic-link` + verify URL; 15 min TTL; mobile deep-link handler.
+
+**Explicitly not in MVP:** enterprise SSO (SAML/OIDC beyond Google/Apple consumer flows), SMS OTP.
+
+Endpoint-level detail, rate limits, and DB columns: [`web-dashboard-design.md` §11](web-dashboard-design.md#11-auth--sessions).
