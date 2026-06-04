@@ -1,3 +1,4 @@
+import { clearAuthCookies } from "@/lib/auth-cookies";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
@@ -61,13 +62,31 @@ export async function middleware(request: NextRequest) {
             maxAge: 30 * 24 * 60 * 60,
           });
         }
+      } else {
+        for (const c of clearAuthCookies()) {
+          response.cookies.set(c.name, c.value, {
+            httpOnly: c.httpOnly,
+            sameSite: c.sameSite,
+            path: c.path,
+            maxAge: c.maxAge,
+            secure: c.secure,
+          });
+        }
       }
     } catch {
-      // fall through to auth redirect
+      for (const c of clearAuthCookies()) {
+        response.cookies.set(c.name, c.value, {
+          httpOnly: c.httpOnly,
+          sameSite: c.sameSite,
+          path: c.path,
+          maxAge: c.maxAge,
+          secure: c.secure,
+        });
+      }
     }
   }
 
-  const authed = Boolean(access || refresh);
+  const authed = Boolean(access);
 
   if (!isPublic && !authed) {
     const login = new URL("/login", request.url);

@@ -1,11 +1,9 @@
 import { apiBaseUrl, type ApiError, type Session } from "./types";
 import {
-  ACCESS_COOKIE,
-  REFRESH_COOKIE,
   clearAuthCookies,
-  cookieOptions,
   getAccessToken,
   getRefreshToken,
+  setAuthCookies,
 } from "./auth-cookies";
 import { cookies } from "next/headers";
 
@@ -62,13 +60,11 @@ async function tryRefreshSession(): Promise<Session | null> {
 
   const data = await res.json();
   const jar = await cookies();
-  jar.set({
-    name: ACCESS_COOKIE,
-    value: data.access_token,
-    ...cookieOptions(15 * 60),
-  });
-  // Refresh token rotates — API returns it in Set-Cookie on direct calls;
-  // our BFF refresh route will set both cookies.
+  if (data.access_token && data.refresh_token) {
+    for (const c of setAuthCookies(data.access_token, data.refresh_token)) {
+      jar.set(c);
+    }
+  }
 
   const meRes = await fetch(`${apiBaseUrl()}/api/v1/auth/me`, {
     headers: { Authorization: `Bearer ${data.access_token}` },
