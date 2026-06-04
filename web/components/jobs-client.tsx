@@ -2,7 +2,6 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import Link from "next/link";
 import type { Job } from "@/lib/api-jobs";
 import { formatDateTime } from "@/lib/format";
 import { EmptyState, PageShell } from "@/components/page-shell";
@@ -58,21 +57,35 @@ export function JobsClient({ workspaceId, jobs }: Props) {
                 </tr>
               </thead>
               <tbody>
-                {jobs.map((job) => (
-                  <tr key={job.id}>
-                    <td>
-                      <Link href={`/jobs/${job.id}`} className={styles.jobLink}>
-                        {job.name}
-                      </Link>
-                      {job.address && <div className={styles.sub}>{job.address}</div>}
-                    </td>
-                    <td>{job.client_name || "—"}</td>
-                    <td>
-                      <span className={styles.pill}>{job.status.replace("_", " ")}</span>
-                    </td>
-                    <td>{formatDateTime(job.updated_at)}</td>
-                  </tr>
-                ))}
+                {jobs.map((job) => {
+                  const href = `/jobs/${job.id}`;
+                  return (
+                    <tr
+                      key={job.id}
+                      className={styles.row}
+                      tabIndex={0}
+                      role="link"
+                      aria-label={`Open job ${job.name}`}
+                      onClick={() => router.push(href)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          router.push(href);
+                        }
+                      }}
+                    >
+                      <td>
+                        <span className={styles.jobName}>{job.name}</span>
+                        {job.address && <div className={styles.sub}>{job.address}</div>}
+                      </td>
+                      <td>{job.client_name || "—"}</td>
+                      <td>
+                        <span className={styles.pill}>{job.status.replace("_", " ")}</span>
+                      </td>
+                      <td>{formatDateTime(job.updated_at)}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
