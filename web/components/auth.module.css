@@ -41,6 +41,42 @@
   font-size: 0.875rem;
 }
 
+.googleBtn {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 11px 14px;
+  background: #fff;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.googleBtn:hover {
+  background: #f9fafb;
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.divider::before,
+.divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.divider span {
+  flex-shrink: 0;
+}
+
 .tabs {
   display: grid;
   grid-template-columns: 1fr 1fr;

@@ -41,6 +41,7 @@ dependencies:
   flutter_google_places_sdk:
     path: packages/flutter_google_places_sdk
   flutter_dotenv: ^6.0.1
+  google_sign_in: ^6.2.2
   geolocator: ^14.0.2
   flutter_quill: ^11.4.2
   markdown: ^7.3.1

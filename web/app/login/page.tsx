@@ -9,6 +9,12 @@ export default async function LoginPage({
   const error =
     params.error === "invalid_link"
       ? "That sign-in link is invalid or expired."
-      : undefined;
+      : params.error === "oauth_failed"
+        ? "Google sign-in failed. Try again or use email."
+        : params.error === "oauth_state"
+          ? "Sign-in expired. Try again."
+          : params.error === "oauth_not_configured"
+            ? "Google sign-in is not configured on this server."
+            : undefined;
   return <AuthForm mode="login" error={error} />;
 }

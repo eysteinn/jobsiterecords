@@ -23,9 +23,12 @@ const (
 )
 
 var (
-	ErrWeakPassword    = errors.New("password must be at least 10 characters")
-	ErrCommonPassword  = errors.New("password is too common")
-	ErrInvalidPassword = errors.New("invalid email or password")
+	ErrWeakPassword       = errors.New("password must be at least 10 characters")
+	ErrCommonPassword     = errors.New("password is too common")
+	ErrInvalidPassword    = errors.New("invalid email or password")
+	ErrInvalidOAuthToken  = errors.New("invalid oauth token")
+	ErrEmailNotVerified   = errors.New("email not verified")
+	ErrOAuthNotConfigured = errors.New("oauth not configured")
 )
 
 var commonPasswords = map[string]struct{}{

@@ -27,7 +27,11 @@ type Server struct {
 }
 
 func New(cfg config.Config, pool *pgxpool.Pool) (*Server, error) {
-	authSvc := auth.NewService(pool, cfg.JWTSecret, cfg.AccessTokenTTL, cfg.RefreshTokenDays, cfg.MagicLinkMinutes, cfg.ResetTokenMinutes)
+	googleVerifier, err := auth.NewGoogleVerifier(context.Background(), cfg.GoogleClientIDs)
+	if err != nil {
+		return nil, fmt.Errorf("google oauth: %w", err)
+	}
+	authSvc := auth.NewService(pool, cfg.JWTSecret, cfg.AccessTokenTTL, cfg.RefreshTokenDays, cfg.MagicLinkMinutes, cfg.ResetTokenMinutes, googleVerifier)
 	wsSvc := workspace.NewService(pool)
 	mail := email.New(cfg.DevLogEmailLinks)
 	limiter := ratelimit.New()
@@ -79,6 +83,7 @@ func New(cfg config.Config, pool *pgxpool.Pool) (*Server, error) {
 			auth.Post("/magic-link/verify", authH.VerifyMagicLink)
 			auth.Post("/forgot-password", authH.ForgotPassword)
 			auth.Post("/reset-password", authH.ResetPassword)
+			auth.Post("/oauth/google", authH.OAuthGoogle)
 
 			auth.Group(func(protected chi.Router) {
 				protected.Use(authmw.RequireAuth(cfg.JWTSecret))

@@ -81,6 +81,20 @@ export function AuthForm({ mode: initialMode = "login", error }: Props) {
           </div>
         </div>
 
+        <button
+          type="button"
+          className={styles.googleBtn}
+          onClick={() => {
+            window.location.href = "/api/auth/google";
+          }}
+        >
+          Continue with Google
+        </button>
+
+        <p className={styles.divider}>
+          <span>or</span>
+        </p>
+
         <div className={styles.tabs} role="tablist">
           <button
             type="button"

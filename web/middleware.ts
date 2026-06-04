@@ -1,4 +1,5 @@
 import { clearAuthCookies } from "@/lib/auth-cookies";
+import { appRedirect } from "@/lib/google-oauth";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
@@ -89,13 +90,13 @@ export async function middleware(request: NextRequest) {
   const authed = Boolean(access);
 
   if (!isPublic && !authed) {
-    const login = new URL("/login", request.url);
+    const login = appRedirect("/login");
     login.searchParams.set("next", pathname);
     return NextResponse.redirect(login);
   }
 
   if (isPublic && authed && pathname !== "/auth/verify") {
-    return NextResponse.redirect(new URL("/jobs", request.url));
+    return NextResponse.redirect(appRedirect("/jobs"));
   }
 
   return response;
