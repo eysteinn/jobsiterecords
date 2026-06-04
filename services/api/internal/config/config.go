@@ -24,6 +24,7 @@ type Config struct {
 	S3Bucket          string
 	S3UseSSL          bool
 	S3PublicUseSSL    bool
+	GoogleClientIDs   []string
 }
 
 func Load() Config {
@@ -46,6 +47,7 @@ func Load() Config {
 		S3Bucket:          env("S3_BUCKET", "sitelog"),
 		S3UseSSL:          env("S3_USE_SSL", "false") == "true",
 		S3PublicUseSSL:    env("S3_PUBLIC_USE_SSL", env("S3_USE_SSL", "false")) == "true",
+		GoogleClientIDs:   splitCSV(env("GOOGLE_CLIENT_ID", "")),
 	}
 }
 

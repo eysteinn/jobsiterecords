@@ -35,6 +35,11 @@ class AuthSessionController extends StateNotifier<AsyncValue<AuthSession?>> {
     state = AsyncValue.data(await _auth.signup(email, password, name: name));
   }
 
+  Future<void> oauthGoogle(String idToken) async {
+    state = const AsyncValue.loading();
+    state = AsyncValue.data(await _auth.oauthGoogle(idToken));
+  }
+
   Future<void> logout() async {
     final current = state.valueOrNull;
     if (current != null) {

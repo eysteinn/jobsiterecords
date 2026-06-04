@@ -52,6 +52,14 @@ class AuthService {
     return _saveTokens(data);
   }
 
+  Future<AuthSession> oauthGoogle(String idToken) async {
+    final res = await _api.post('/api/v1/auth/oauth/google', body: {
+      'id_token': idToken,
+    });
+    final data = decodeJsonMap(res);
+    return _saveTokens(data);
+  }
+
   Future<AuthSession> signup(String email, String password, {String? name}) async {
     final res = await _api.post('/api/v1/auth/signup', body: {
       'email': email,

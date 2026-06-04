@@ -25,22 +25,24 @@ type SessionPair struct {
 }
 
 type Service struct {
-	pool   *pgxpool.Pool
-	secret string
-	accessTTL time.Duration
-	refreshDays int
+	pool         *pgxpool.Pool
+	secret       string
+	accessTTL    time.Duration
+	refreshDays  int
 	magicMinutes int
 	resetMinutes int
+	google       *GoogleVerifier
 }
 
-func NewService(pool *pgxpool.Pool, secret string, accessMinutes, refreshDays, magicMinutes, resetMinutes int) *Service {
+func NewService(pool *pgxpool.Pool, secret string, accessMinutes, refreshDays, magicMinutes, resetMinutes int, google *GoogleVerifier) *Service {
 	return &Service{
-		pool: pool,
-		secret: secret,
-		accessTTL: time.Duration(accessMinutes) * time.Minute,
-		refreshDays: refreshDays,
+		pool:         pool,
+		secret:       secret,
+		accessTTL:    time.Duration(accessMinutes) * time.Minute,
+		refreshDays:  refreshDays,
 		magicMinutes: magicMinutes,
 		resetMinutes: resetMinutes,
+		google:       google,
 	}
 }
 
@@ -243,28 +245,8 @@ func (s *Service) VerifyMagicLink(ctx context.Context, plain string, deviceLabel
 		return User{}, SessionPair{}, err
 	}
 
-	// Magic-link-only users get a workspace on first verify if they have none
-	hasWS, err := s.userHasActiveWorkspace(ctx, tx, userID)
-	if err != nil {
+	if err := s.ensureDefaultWorkspaceTx(ctx, tx, userID, nil, email); err != nil {
 		return User{}, SessionPair{}, err
-	}
-	if !hasWS {
-		wsName := defaultWorkspaceName(nil, email)
-		var workspaceID string
-		err = tx.QueryRow(ctx, `
-			INSERT INTO workspaces (name, owner_user_id, plan_sku, member_limit)
-			VALUES ($1, $2, 'solo_1', 1) RETURNING id
-		`, wsName, userID).Scan(&workspaceID)
-		if err != nil {
-			return User{}, SessionPair{}, err
-		}
-		_, err = tx.Exec(ctx, `
-			INSERT INTO workspace_memberships (workspace_id, user_id, role, status)
-			VALUES ($1, $2, 'owner', 'active')
-		`, workspaceID, userID)
-		if err != nil {
-			return User{}, SessionPair{}, err
-		}
 	}
 
 	session, err := s.createSessionTx(ctx, tx, userID, deviceLabel)

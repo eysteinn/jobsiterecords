@@ -35,6 +35,7 @@ Flutter uses the same `.env` via `app/.env` → `../.env`; set `API_BASE_URL` to
 | GET/POST | `/api/v1/auth/magic-link/verify` | Verify magic link |
 | POST | `/api/v1/auth/forgot-password` | Send reset email |
 | POST | `/api/v1/auth/reset-password` | Set new password |
+| POST | `/api/v1/auth/oauth/google` | Sign in with Google ID token (`{"id_token":"…"}`) |
 | GET | `/api/v1/workspaces` | List workspaces |
 | POST | `/api/v1/workspaces/{id}/leave` | Member leave workspace |
 
@@ -70,3 +71,15 @@ DATABASE_URL=postgres://sitelog:sitelog@localhost:5432/sitelog?sslmode=disable g
 ```
 
 Uses the same `schema_migrations` tracking as the API — already-applied files are skipped.
+
+## Google OAuth
+
+Set `GOOGLE_CLIENT_ID` to a comma-separated list of OAuth client IDs allowed in ID token `aud` (typically Web + Android + iOS clients from Google Cloud Console). When unset, `POST /api/v1/auth/oauth/google` returns `503 oauth_not_configured`.
+
+```bash
+curl -sS -X POST http://localhost:8080/api/v1/auth/oauth/google \
+  -H 'Content-Type: application/json' \
+  -d '{"id_token":"YOUR_ID_TOKEN"}'
+```
+
+The web dashboard completes the authorization-code flow in Next.js and forwards the `id_token` to this endpoint. Flutter sends the ID token from `google_sign_in` directly.

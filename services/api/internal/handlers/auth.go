@@ -46,6 +46,10 @@ type resetRequest struct {
 	Password string `json:"password"`
 }
 
+type oauthGoogleRequest struct {
+	IDToken string `json:"id_token"`
+}
+
 func (h *AuthHandler) SignUp(w http.ResponseWriter, r *http.Request) {
 	var req signupRequest
 	if err := httpx.DecodeJSON(r, &req); err != nil {
@@ -238,6 +242,36 @@ func (h *AuthHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, resp)
 }
 
+func (h *AuthHandler) OAuthGoogle(w http.ResponseWriter, r *http.Request) {
+	if len(h.cfg.GoogleClientIDs) == 0 {
+		httpx.Error(w, http.StatusServiceUnavailable, "oauth_not_configured", "Google sign-in is not configured", nil)
+		return
+	}
+
+	ip := httpx.ClientIP(r)
+	if ok, retry := h.limiter.Allow("oauth:google:ip:"+ip, 10, 15*time.Minute); !ok {
+		ratelimit.Write429(w, retry)
+		return
+	}
+
+	var req oauthGoogleRequest
+	if err := httpx.DecodeJSON(r, &req); err != nil {
+		httpx.Error(w, http.StatusBadRequest, "invalid_request", "Invalid JSON body", nil)
+		return
+	}
+	if req.IDToken == "" {
+		httpx.Error(w, http.StatusBadRequest, "invalid_request", "Missing id_token", nil)
+		return
+	}
+
+	user, session, err := h.auth.LoginWithGoogle(r.Context(), req.IDToken, deviceLabel(r))
+	if err != nil {
+		writeAuthError(w, err)
+		return
+	}
+	h.writeSession(w, user, session)
+}
+
 func (h *AuthHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 	var req resetRequest
 	if err := httpx.DecodeJSON(r, &req); err != nil {
@@ -268,6 +302,12 @@ func writeAuthError(w http.ResponseWriter, err error) {
 		httpx.Error(w, http.StatusBadRequest, "weak_password", "Choose a less common password", nil)
 	case auth.ErrInvalidPassword:
 		httpx.Error(w, http.StatusUnauthorized, "invalid_credentials", "Invalid email or password", nil)
+	case auth.ErrInvalidOAuthToken:
+		httpx.Error(w, http.StatusUnauthorized, "invalid_token", "Invalid or expired sign-in token", nil)
+	case auth.ErrEmailNotVerified:
+		httpx.Error(w, http.StatusBadRequest, "email_not_verified", "Google account email is not verified", nil)
+	case auth.ErrOAuthNotConfigured:
+		httpx.Error(w, http.StatusServiceUnavailable, "oauth_not_configured", "Google sign-in is not configured", nil)
 	default:
 		if err.Error() == "email already registered" {
 			httpx.Error(w, http.StatusConflict, "email_taken", "An account with this email already exists", nil)

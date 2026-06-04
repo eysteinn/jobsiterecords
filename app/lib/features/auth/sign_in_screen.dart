@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/theme.dart';
 import '../../sync/sync_providers.dart';
+import 'google_sign_in_button.dart';
 
 class SignInScreen extends ConsumerStatefulWidget {
   const SignInScreen({super.key});
@@ -66,6 +67,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
             style: TextStyle(color: AppColors.subtle),
           ),
           const SizedBox(height: 20),
+          const GoogleSignInButton(),
+          if (GoogleSignInButton.isAvailable) const SizedBox(height: 16),
           Form(
             key: _form,
             child: Column(
