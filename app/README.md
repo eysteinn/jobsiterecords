@@ -54,6 +54,28 @@ In Google Cloud Console:
 
 Billing must be enabled on the project. Without **Places API (New)**, autocomplete returns error 9011 (“requests are blocked”) and you can still type an address manually.
 
+### Google Sign-In (Android sync)
+
+In **`app/.env`** (or repo root `.env` via symlink), set:
+
+- `GOOGLE_WEB_CLIENT_ID` — **Web application** OAuth client ID (same as dashboard web sign-in).
+- `API_BASE_URL` — LAN IP the phone can reach, e.g. `http://192.168.1.113:8080` (not `localhost`).
+
+In **Google Cloud Console → Credentials**:
+
+1. **Web client** — used as `serverClientId` in the app (via `GOOGLE_WEB_CLIENT_ID`).
+2. **Android client** — package `com.jobsiterecords.app` + **SHA-1** fingerprint for the keystore you build with.
+
+Debug SHA-1 (default Flutter debug keystore):
+
+```bash
+keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android | grep SHA1
+```
+
+Add that SHA-1 to the **Android** OAuth client. Without it, Google opens the account picker then fails silently or with `ApiException: 10`.
+
+The API’s `GOOGLE_CLIENT_ID` env can list multiple client IDs (comma-separated); the app must **not** pass that whole string — only the Web client ID.
+
 ### Run
 
 From `app/`:
