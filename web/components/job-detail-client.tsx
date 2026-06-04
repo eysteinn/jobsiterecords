@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Item, Job, MediaFile } from "@/lib/api-jobs";
 import { formatDate, formatDayKey, formatTime } from "@/lib/format";
 import { PageShell } from "@/components/page-shell";
@@ -15,7 +15,11 @@ type Props = {
   workspaceId: string;
 };
 
-export function JobDetailClient({ job, items: initialItems, mediaFiles, workspaceId }: Props) {
+type TimelineSegment =
+  | { type: "photos"; items: Item[] }
+  | { type: "row"; item: Item };
+
+export function JobDetailClient({ job, items: initialItems, mediaFiles }: Props) {
   const router = useRouter();
   const [items, setItems] = useState(initialItems ?? []);
   const [noteBody, setNoteBody] = useState("");
@@ -34,6 +38,14 @@ export function JobDetailClient({ job, items: initialItems, mediaFiles, workspac
     }
     return map;
   }, [mediaFiles]);
+
+  const photoItems = useMemo(() => photoItemsInJob(items), [items]);
+
+  const grouped = useMemo(() => groupByDate(items), [items]);
+  const sortedDays = useMemo(
+    () => Object.entries(grouped).sort(([a], [b]) => b.localeCompare(a)),
+    [grouped],
+  );
 
   async function addNote() {
     if (!noteBody.trim()) return;
@@ -88,7 +100,9 @@ export function JobDetailClient({ job, items: initialItems, mediaFiles, workspac
     router.refresh();
   }
 
-  const grouped = groupByDate(items);
+  const openPhoto = useCallback((itemId: string, mediaId?: string) => {
+    setLightbox({ itemId, mediaId });
+  }, []);
 
   return (
     <PageShell
@@ -124,75 +138,145 @@ export function JobDetailClient({ job, items: initialItems, mediaFiles, workspac
       {items.length === 0 ? (
         <p className={styles.empty}>No timeline items yet.</p>
       ) : (
-        Object.entries(grouped).map(([dayKey, dayItems]) => (
+        sortedDays.map(([dayKey, dayItems]) => (
           <section key={dayKey} className={styles.dayGroup}>
             <h3>{formatDate(`${dayKey}T12:00:00.000Z`)}</h3>
-            <ul className={styles.timeline}>
-              {dayItems.map((item) => (
-                <li key={item.id} className={styles.item}>
-                  <div className={styles.itemMeta}>
-                    <span className={styles.kind}>{item.kind}</span>
-                    <time>{formatTime(item.captured_at)}</time>
-                  </div>
-                  <InlineCaption item={item} onSave={saveCaption} />
-                  <ItemMedia
-                    item={item}
-                    media={mediaByItem.get(item.id) ?? []}
-                    onOpenPhoto={(mediaId) => setLightbox({ itemId: item.id, mediaId })}
+            <div className={styles.dayContent}>
+              {segmentDayItems(dayItems).map((seg, i) =>
+                seg.type === "photos" ? (
+                  <PhotoGrid
+                    key={`g-${dayKey}-${i}`}
+                    items={seg.items}
+                    mediaByItem={mediaByItem}
+                    onOpen={openPhoto}
                   />
-                  {item.body && <p className={styles.body}>{item.body}</p>}
-                </li>
-              ))}
-            </ul>
+                ) : (
+                  <ul key={`r-${seg.item.id}`} className={styles.timelineRows}>
+                    <li>
+                      <TimelineRow item={seg.item} media={mediaByItem.get(seg.item.id) ?? []} />
+                    </li>
+                  </ul>
+                ),
+              )}
+            </div>
           </section>
         ))
       )}
 
       {lightbox && (
-        <div className={styles.lightbox} onClick={() => setLightbox(null)}>
-          <div className={styles.lightboxInner} onClick={(e) => e.stopPropagation()}>
-            <button type="button" className={styles.lightboxClose} onClick={() => setLightbox(null)} aria-label="Close">
-              ×
-            </button>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={
-                lightbox.mediaId
-                  ? `/api/media/${lightbox.mediaId}/download?inline=1`
-                  : `/api/items/${lightbox.itemId}/thumb?w=1200`
-              }
-              alt=""
-              className={styles.lightboxImg}
-            />
-          </div>
-        </div>
+        <PhotoLightbox
+          items={items}
+          photoItems={photoItems}
+          mediaByItem={mediaByItem}
+          lightbox={lightbox}
+          onClose={() => setLightbox(null)}
+          onNavigate={(itemId, mediaId) => setLightbox({ itemId, mediaId })}
+          onSaveCaption={saveCaption}
+        />
       )}
     </PageShell>
   );
 }
 
-function ItemMedia({
+function PhotoGrid({
+  items,
+  mediaByItem,
+  onOpen,
+}: {
+  items: Item[];
+  mediaByItem: Map<string, MediaFile[]>;
+  onOpen: (itemId: string, mediaId?: string) => void;
+}) {
+  return (
+    <div className={styles.photoGrid} role="group" aria-label="Photos">
+      {items.map((item) => (
+        <PhotoCell
+          key={item.id}
+          item={item}
+          media={mediaByItem.get(item.id) ?? []}
+          onOpen={onOpen}
+        />
+      ))}
+    </div>
+  );
+}
+
+function PhotoCell({
   item,
   media,
-  onOpenPhoto,
+  onOpen,
 }: {
   item: Item;
   media: MediaFile[];
-  onOpenPhoto: (mediaId: string) => void;
+  onOpen: (itemId: string, mediaId?: string) => void;
 }) {
-  if (item.kind === "photo") {
-    const photo = media.find((m) => m.role === "primary_photo") ?? media[0];
-    if (!photo) {
-      return <p className={styles.mediaPending}>Photo pending upload…</p>;
-    }
+  const photo = media.find((m) => m.role === "primary_photo") ?? media[0];
+  const time = formatTime(item.captured_at);
+  const label = `Photo, ${time}, ${item.caption || "no caption"}`;
+
+  if (!photo) {
     return (
-      <button type="button" className={styles.thumbBtn} onClick={() => onOpenPhoto(photo.id)}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={`/api/items/${item.id}/thumb?w=512`} alt={item.caption || "Job photo"} className={styles.thumb} />
-      </button>
+      <div className={styles.photoCellPending} aria-label={`${label}, uploading`}>
+        Uploading…
+      </div>
     );
   }
 
+  return (
+    <button
+      type="button"
+      className={styles.photoCell}
+      onClick={() => onOpen(item.id, photo.id)}
+      aria-label={label}
+    >
+      <span className={styles.photoThumbWrap}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={`/api/items/${item.id}/thumb?w=384`}
+          alt=""
+          className={styles.photoThumb}
+          loading="lazy"
+        />
+        <span className={styles.photoTime}>{time}</span>
+      </span>
+      <p className={item.caption ? styles.photoCaption : `${styles.photoCaption} ${styles.photoCaptionEmpty}`}>
+        {item.caption || "No caption"}
+      </p>
+    </button>
+  );
+}
+
+function TimelineRow({ item, media }: { item: Item; media: MediaFile[] }) {
+  const preview =
+    item.kind === "note"
+      ? item.body
+      : item.kind === "voice"
+        ? item.caption
+        : null;
+
+  return (
+    <article className={styles.timelineRow}>
+      <div className={styles.timelineRowMain}>
+        <div className={styles.timelineRowIcon} aria-hidden>
+          {item.kind === "voice" && <VoiceIcon />}
+          {item.kind === "note" && <NoteIcon />}
+          {item.kind === "file" && <FileIcon />}
+        </div>
+        <div className={styles.timelineRowBody}>
+          <div className={styles.timelineRowMeta}>
+            <time dateTime={item.captured_at}>{formatTime(item.captured_at)}</time>
+            <span className={styles.kind}>{item.kind}</span>
+          </div>
+          {item.kind === "note" && item.body && <p className={styles.body}>{item.body}</p>}
+          {preview && item.kind === "voice" && <p className={styles.rowPreview}>{preview}</p>}
+          <RowMedia item={item} media={media} />
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function RowMedia({ item, media }: { item: Item; media: MediaFile[] }) {
   if (item.kind === "voice") {
     const voice = media.find((m) => m.role === "voice_note") ?? media[0];
     if (!voice) {
@@ -221,6 +305,111 @@ function ItemMedia({
   return null;
 }
 
+function PhotoLightbox({
+  items,
+  photoItems,
+  mediaByItem,
+  lightbox,
+  onClose,
+  onNavigate,
+  onSaveCaption,
+}: {
+  items: Item[];
+  photoItems: Item[];
+  mediaByItem: Map<string, MediaFile[]>;
+  lightbox: { itemId: string; mediaId?: string };
+  onClose: () => void;
+  onNavigate: (itemId: string, mediaId?: string) => void;
+  onSaveCaption: (item: Item, caption: string) => Promise<void>;
+}) {
+  const index = photoItems.findIndex((p) => p.id === lightbox.itemId);
+  const item = items.find((i) => i.id === lightbox.itemId);
+  const hasPrev = index > 0;
+  const hasNext = index >= 0 && index < photoItems.length - 1;
+
+  const goPrev = useCallback(() => {
+    if (!hasPrev) return;
+    const prev = photoItems[index - 1];
+    const media = mediaByItem.get(prev.id) ?? [];
+    const photo = media.find((m) => m.role === "primary_photo") ?? media[0];
+    onNavigate(prev.id, photo?.id);
+  }, [hasPrev, index, photoItems, mediaByItem, onNavigate]);
+
+  const goNext = useCallback(() => {
+    if (!hasNext) return;
+    const next = photoItems[index + 1];
+    const media = mediaByItem.get(next.id) ?? [];
+    const photo = media.find((m) => m.role === "primary_photo") ?? media[0];
+    onNavigate(next.id, photo?.id);
+  }, [hasNext, index, photoItems, mediaByItem, onNavigate]);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        goPrev();
+      }
+      if (e.key === "ArrowRight") {
+        e.preventDefault();
+        goNext();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose, goPrev, goNext]);
+
+  if (!item) return null;
+
+  const imgSrc = lightbox.mediaId
+    ? `/api/media/${lightbox.mediaId}/download?inline=1`
+    : `/api/items/${lightbox.itemId}/thumb?w=1200`;
+
+  return (
+    <div className={styles.lightbox} role="dialog" aria-modal="true" aria-label="Photo preview" onClick={onClose}>
+      <div className={styles.lightboxInner} onClick={(e) => e.stopPropagation()}>
+        <div className={styles.lightboxMedia}>
+          <button type="button" className={styles.lightboxClose} onClick={onClose} aria-label="Close">
+            ×
+          </button>
+          <button
+            type="button"
+            className={`${styles.lightboxNav} ${styles.lightboxNavPrev}`}
+            onClick={goPrev}
+            disabled={!hasPrev}
+            aria-label="Previous photo"
+          >
+            ‹
+          </button>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={imgSrc} alt={item.caption || "Job photo"} className={styles.lightboxImg} />
+          <button
+            type="button"
+            className={`${styles.lightboxNav} ${styles.lightboxNavNext}`}
+            onClick={goNext}
+            disabled={!hasNext}
+            aria-label="Next photo"
+          >
+            ›
+          </button>
+        </div>
+        <div className={styles.lightboxFooter}>
+          <p className={styles.lightboxMeta}>
+            {formatDate(item.captured_at)} · {formatTime(item.captured_at)}
+            {photoItems.length > 1 && index >= 0 && (
+              <> · Photo {index + 1} of {photoItems.length}</>
+            )}
+          </p>
+          <InlineCaption item={item} onSave={onSaveCaption} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function InlineCaption({
   item,
   onSave,
@@ -231,6 +420,10 @@ function InlineCaption({
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(item.caption || "");
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!editing) setValue(item.caption || "");
+  }, [item.caption, editing]);
 
   async function commit() {
     try {
@@ -245,7 +438,7 @@ function InlineCaption({
   if (editing) {
     return (
       <div className={styles.inlineEdit}>
-        <input value={value} onChange={(e) => setValue(e.target.value)} autoFocus />
+        <input value={value} onChange={(e) => setValue(e.target.value)} autoFocus aria-label="Caption" />
         <button type="button" onClick={commit}>
           Save
         </button>
@@ -262,6 +455,60 @@ function InlineCaption({
       {item.caption || "Add caption…"}
     </button>
   );
+}
+
+function VoiceIcon() {
+  return (
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3z" />
+      <path d="M19 11v1a7 7 0 0 1-14 0v-1M12 18v3" />
+    </svg>
+  );
+}
+
+function NoteIcon() {
+  return (
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <path d="M14 2v6h6M8 13h8M8 17h5" />
+    </svg>
+  );
+}
+
+function FileIcon() {
+  return (
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <path d="M14 2v6h6" />
+    </svg>
+  );
+}
+
+function segmentDayItems(dayItems: Item[]): TimelineSegment[] {
+  const segments: TimelineSegment[] = [];
+  let photoBatch: Item[] = [];
+
+  const flush = () => {
+    if (photoBatch.length > 0) {
+      segments.push({ type: "photos", items: photoBatch });
+      photoBatch = [];
+    }
+  };
+
+  for (const item of dayItems) {
+    if (item.kind === "photo") {
+      photoBatch.push(item);
+    } else {
+      flush();
+      segments.push({ type: "row", item });
+    }
+  }
+  flush();
+  return segments;
+}
+
+function photoItemsInJob(items: Item[]): Item[] {
+  return items.filter((i) => i.kind === "photo");
 }
 
 function groupByDate(items: Item[]) {
