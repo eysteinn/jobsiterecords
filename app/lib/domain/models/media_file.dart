@@ -21,12 +21,12 @@ enum MediaRole {
 
   /// Server-side role for blob upload.
   String get serverRole => switch (this) {
-        MediaRole.annotatedRender => 'primary_photo',
+        MediaRole.annotatedRender => 'annotated_render',
+        MediaRole.annotationOverlay => 'annotation_overlay',
         MediaRole.primaryPhoto => 'primary_photo',
         MediaRole.voiceNote => 'voice_note',
         MediaRole.file => 'file',
         MediaRole.attachment => 'attachment',
-        _ => 'file',
       };
 
   static MediaRole fromDb(String v) => switch (v) {
@@ -76,8 +76,7 @@ class MediaFile {
     DateTime? updatedAt,
   }) : updatedAt = updatedAt ?? createdAt;
 
-  bool get needsBlobUpload =>
-      syncState.needsPush && role != MediaRole.annotationOverlay;
+  bool get needsBlobUpload => syncState.needsPush;
 
   String get displayName {
     final original = originalFilename?.trim();

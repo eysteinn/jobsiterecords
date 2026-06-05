@@ -62,7 +62,7 @@ func (s *Service) listMediaFiles(ctx context.Context, jobID string, since *time.
 		       m.status, m.etag, m.created_at, m.updated_at, m.deleted_at
 		FROM media_files m
 		JOIN items i ON i.id = m.item_id
-		WHERE i.job_id = $1
+		WHERE i.job_id = $1 AND m.deleted_at IS NULL
 	`
 	args := []any{jobID}
 	if since != nil {
@@ -239,7 +239,47 @@ func (s *Service) CompleteMediaUpload(ctx context.Context, userID, mediaID strin
 	if err != nil {
 		return MediaFile{}, err
 	}
+	// Bump item updated_at so sync clients pick up new/changed media.
+	_, _ = s.pool.Exec(ctx, `
+		UPDATE items SET updated_at = $2
+		WHERE id = $1
+	`, mf.ItemID, now)
+
 	return s.fetchMediaFile(ctx, mediaID)
+}
+
+func (s *Service) DeleteMedia(ctx context.Context, userID, mediaID string) error {
+	mf, err := s.fetchMediaFile(ctx, mediaID)
+	if err != nil {
+		return err
+	}
+	if mf.DeletedAt != nil {
+		return nil
+	}
+	item, err := s.fetchItem(ctx, mf.ItemID)
+	if err != nil {
+		return err
+	}
+	_, readOnly, err := s.getJobAccess(ctx, userID, item.JobID)
+	if err != nil {
+		return err
+	}
+	if readOnly {
+		return errors.New("read_only")
+	}
+	if err := s.requireWrite(ctx, userID, item.WorkspaceID, item.JobID); err != nil {
+		return err
+	}
+	now := time.Now().UTC()
+	_, err = s.pool.Exec(ctx, `
+		UPDATE media_files SET deleted_at = $2, updated_at = $2
+		WHERE id = $1 AND deleted_at IS NULL
+	`, mediaID, now)
+	if err != nil {
+		return err
+	}
+	_, _ = s.pool.Exec(ctx, `UPDATE items SET updated_at = $2 WHERE id = $1`, mf.ItemID, now)
+	return nil
 }
 
 func (s *Service) GetMediaForDownload(ctx context.Context, userID, mediaID string) (MediaFile, error) {
@@ -274,8 +314,13 @@ func (s *Service) GetItemPrimaryMedia(ctx context.Context, userID, itemID string
 		       status, etag, created_at, updated_at, deleted_at
 		FROM media_files
 		WHERE item_id = $1 AND deleted_at IS NULL AND status = 'uploaded'
-		  AND role IN ('primary_photo', 'file')
-		ORDER BY CASE role WHEN 'primary_photo' THEN 0 ELSE 1 END, updated_at DESC
+		  AND role IN ('annotated_render', 'primary_photo', 'file')
+		ORDER BY CASE role
+		           WHEN 'annotated_render' THEN 0
+		           WHEN 'primary_photo' THEN 1
+		           ELSE 2
+		         END,
+		         updated_at DESC
 		LIMIT 1
 	`, itemID)
 	return scanMediaFile(row)

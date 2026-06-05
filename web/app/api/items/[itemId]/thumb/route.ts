@@ -4,12 +4,17 @@ import { apiBaseUrl } from "@/lib/types";
 import { ACCESS_COOKIE } from "@/lib/auth-cookies";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ itemId: string }> },
 ) {
   const { itemId } = await context.params;
   const token = (await cookies()).get(ACCESS_COOKIE)?.value;
-  const url = `${apiBaseUrl()}/api/v1/items/${itemId}/thumb?w=512`;
+  const w = new URL(request.url).searchParams.get("w") ?? "512";
+  // v= is a cache-buster from the client (display media updated_at); forward for consistency.
+  const v = new URL(request.url).searchParams.get("v");
+  const qs = new URLSearchParams({ w });
+  if (v) qs.set("v", v);
+  const url = `${apiBaseUrl()}/api/v1/items/${itemId}/thumb?${qs.toString()}`;
   const res = await fetch(url, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     redirect: "manual",
@@ -33,7 +38,7 @@ export async function GET(
     status: 200,
     headers: {
       "Content-Type": res.headers.get("content-type") ?? "image/jpeg",
-      "Cache-Control": "public, max-age=300",
+      "Cache-Control": "private, max-age=60",
     },
   });
 }

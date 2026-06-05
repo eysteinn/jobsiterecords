@@ -20,7 +20,13 @@ export type MediaFile = {
   id: string;
   workspace_id: string;
   item_id: string;
-  role: "primary_photo" | "voice_note" | "attachment" | "file";
+  role:
+    | "primary_photo"
+    | "annotated_render"
+    | "annotation_overlay"
+    | "voice_note"
+    | "attachment"
+    | "file";
   mime_type: string;
   width?: number | null;
   height?: number | null;

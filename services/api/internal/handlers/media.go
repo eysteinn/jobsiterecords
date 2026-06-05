@@ -103,6 +103,16 @@ func (h *MediaHandler) CompleteMedia(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, map[string]any{"media_file": mf})
 }
 
+func (h *MediaHandler) DeleteMedia(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.UserID(r.Context())
+	mediaID := r.PathValue("mediaID")
+	if err := h.jobs.DeleteMedia(r.Context(), userID, mediaID); err != nil {
+		writeMediaError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *MediaHandler) DownloadMedia(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.UserID(r.Context())
 	mediaID := r.PathValue("mediaID")
