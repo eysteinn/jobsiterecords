@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/providers.dart';
 import '../../app/theme.dart';
+import '../../sync/sync_providers.dart';
 import '../../sync/sync_runner.dart';
 import '../../core/format.dart';
 import '../../domain/models/item.dart';
@@ -309,7 +310,11 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
             onToggle: _toggleSelected,
             onLongPress: (id) => _enterSelection(initialItemId: id),
             onRefresh: () async {
-              await runForegroundSync(ref);
+              final ctx = ref.read(captureContextProvider);
+              if (ctx.isWorkspace) {
+                final status = await runForegroundSync(ref);
+                if (context.mounted) showSyncSnackBar(context, status);
+              }
               ref.invalidate(jobProvider(jobId));
               ref.invalidate(jobTimelineProvider((jobId: jobId, query: _query)));
               ref.invalidate(jobSummariesProvider);

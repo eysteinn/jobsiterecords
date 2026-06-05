@@ -112,30 +112,32 @@ class SyncStatus {
     this.lastSyncedAt,
     this.pending = 0,
     this.error,
-    this.pushedJobs = 0,
-    this.pushedItems = 0,
+    this.changesSynced = 0,
+    this.isSyncing = false,
   });
   const SyncStatus.never() : this();
 
   final DateTime? lastSyncedAt;
   final int pending;
   final String? error;
-  final int pushedJobs;
-  final int pushedItems;
+  final int changesSynced;
+  final bool isSyncing;
 
   SyncStatus copyWith({
     DateTime? lastSyncedAt,
     int? pending,
-    String? error,
-    int? pushedJobs,
-    int? pushedItems,
+    Object? error = _unset,
+    int? changesSynced,
+    bool? isSyncing,
   }) {
     return SyncStatus(
       lastSyncedAt: lastSyncedAt ?? this.lastSyncedAt,
       pending: pending ?? this.pending,
-      error: error,
-      pushedJobs: pushedJobs ?? this.pushedJobs,
-      pushedItems: pushedItems ?? this.pushedItems,
+      error: identical(error, _unset) ? this.error : error as String?,
+      changesSynced: changesSynced ?? this.changesSynced,
+      isSyncing: isSyncing ?? this.isSyncing,
     );
   }
 }
+
+const _unset = Object();
