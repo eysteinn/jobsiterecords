@@ -2,7 +2,8 @@ enum SyncState {
   localOnly('local_only'),
   synced('synced'),
   pending('pending'),
-  failed('failed');
+  failed('failed'),
+  quarantined('quarantined');
 
   const SyncState(this.dbValue);
   final String dbValue;

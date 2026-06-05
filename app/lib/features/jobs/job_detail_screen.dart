@@ -10,6 +10,7 @@ import '../../app/providers.dart';
 import '../../app/theme.dart';
 import '../../sync/sync_providers.dart';
 import '../../sync/sync_runner.dart';
+import '../../sync/sync_scheduler.dart';
 import '../../core/format.dart';
 import '../../domain/models/item.dart';
 import '../../domain/models/job.dart';
@@ -41,7 +42,18 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
   String get jobId => widget.jobId;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (ref.read(captureContextProvider).isWorkspace) {
+        ref.read(syncSchedulerProvider).beginWatchingJob();
+      }
+    });
+  }
+
+  @override
   void dispose() {
+    ref.read(syncSchedulerProvider).endWatchingJob();
     _searchDebounce?.cancel();
     _searchCtrl.dispose();
     _searchFocusNode.dispose();
@@ -312,7 +324,7 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
             onRefresh: () async {
               final ctx = ref.read(captureContextProvider);
               if (ctx.isWorkspace) {
-                final status = await runForegroundSync(ref);
+                final status = await runManualSync(ref);
                 if (context.mounted) showSyncSnackBar(context, status);
               }
               ref.invalidate(jobProvider(jobId));

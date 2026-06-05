@@ -1,9 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import type { Job } from "@/lib/api-jobs";
+import { useSyncPoll } from "@/hooks/use-sync-poll";
 import { formatDateTime } from "@/lib/format";
+import { pollWorkspaceCursor } from "@/lib/sync-cursor";
+import { SYNC_POLL } from "@/lib/sync-poll-config";
 import { EmptyState, PageShell } from "@/components/page-shell";
 import { NewJobDrawer } from "@/components/new-job-drawer";
 import styles from "./jobs-client.module.css";
@@ -17,6 +20,15 @@ export function JobsClient({ workspaceId, jobs }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const onWorkspaceChanged = useCallback(async () => {
+    router.refresh();
+  }, [router]);
+
+  useSyncPoll({
+    baseIntervalMs: SYNC_POLL.jobsListMs,
+    poll: (etag) => pollWorkspaceCursor(workspaceId, etag),
+    onChanged: onWorkspaceChanged,
+  });
 
   async function refresh() {
     setRefreshing(true);
@@ -82,7 +94,7 @@ export function JobsClient({ workspaceId, jobs }: Props) {
                       <td>
                         <span className={styles.pill}>{job.status.replace("_", " ")}</span>
                       </td>
-                      <td>{formatDateTime(job.updated_at)}</td>
+                      <td>{formatDateTime(job.last_activity_at ?? job.updated_at)}</td>
                     </tr>
                   );
                 })}

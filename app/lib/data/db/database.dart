@@ -6,7 +6,7 @@ import 'package:sqflite/sqflite.dart';
 
 import '../../core/ids.dart';
 
-const _dbVersion = 4;
+const _dbVersion = 5;
 
 class AppDatabase {
   AppDatabase._(this.db);
@@ -49,6 +49,12 @@ class AppDatabase {
           await d.execute('ALTER TABLE media_files ADD COLUMN updated_at TEXT');
           await d.execute('UPDATE media_files SET updated_at = created_at WHERE updated_at IS NULL');
         }
+        if (oldVersion < 5) {
+          for (final table in ['jobs', 'items', 'media_files']) {
+            await d.execute('ALTER TABLE $table ADD COLUMN sync_attempts INTEGER NOT NULL DEFAULT 0');
+            await d.execute('ALTER TABLE $table ADD COLUMN last_sync_error TEXT');
+          }
+        }
       },
     );
     return AppDatabase._(db);
@@ -73,6 +79,8 @@ Future<void> _createSchema(Database d) async {
       workspace_id  TEXT,
       sync_state    TEXT NOT NULL DEFAULT 'local_only',
       last_synced_at TEXT,
+      sync_attempts INTEGER NOT NULL DEFAULT 0,
+      last_sync_error TEXT,
       created_at    TEXT NOT NULL,
       updated_at    TEXT NOT NULL
     )
@@ -87,6 +95,8 @@ Future<void> _createSchema(Database d) async {
       body        TEXT,
       sync_state  TEXT NOT NULL DEFAULT 'local_only',
       last_synced_at TEXT,
+      sync_attempts INTEGER NOT NULL DEFAULT 0,
+      last_sync_error TEXT,
       captured_at TEXT NOT NULL,
       created_at  TEXT NOT NULL,
       updated_at  TEXT NOT NULL
@@ -108,6 +118,8 @@ Future<void> _createSchema(Database d) async {
       original_filename TEXT,
       sync_state        TEXT NOT NULL DEFAULT 'local_only',
       remote_storage_key TEXT,
+      sync_attempts     INTEGER NOT NULL DEFAULT 0,
+      last_sync_error   TEXT,
       created_at        TEXT NOT NULL,
       updated_at        TEXT NOT NULL
     )

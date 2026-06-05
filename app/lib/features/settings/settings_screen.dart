@@ -9,6 +9,19 @@ import '../../core/format.dart';
 import '../../sync/sync_providers.dart';
 import '../../sync/sync_runner.dart';
 import '../capture/widgets/tag_chips.dart';
+import '../sync/quarantined_sync_sheet.dart';
+
+String _syncSubtitle(SyncStatus syncStatus) {
+  if (syncStatus.isSyncing) return 'Syncing…';
+  if (syncStatus.isOffline && syncStatus.pending > 0) return 'Offline · will sync when online';
+  if (syncStatus.error != null) return syncStatus.error!;
+  if (syncStatus.quarantined > 0) {
+    return '${syncStatus.quarantined} couldn\'t sync · tap below to retry';
+  }
+  if (syncStatus.pending > 0) return '${syncStatus.pending} pending changes';
+  if (syncStatus.lastSyncedAt == null) return 'Not synced yet';
+  return 'Last synced ${formatRelative(syncStatus.lastSyncedAt!)}';
+}
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -86,24 +99,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           )
                         : const Icon(Icons.sync),
                     title: const Text('Sync now'),
-                    subtitle: Text(
-                      syncStatus.isSyncing
-                          ? 'Syncing…'
-                          : syncStatus.error ??
-                              (syncStatus.pending > 0
-                                  ? '${syncStatus.pending} pending changes'
-                                  : syncStatus.lastSyncedAt == null
-                                      ? 'Not synced yet'
-                                      : 'Last synced ${formatRelative(syncStatus.lastSyncedAt!)}'),
-                    ),
+                    subtitle: Text(_syncSubtitle(syncStatus)),
                     enabled: ctx.isWorkspace && !syncStatus.isSyncing,
                     onTap: ctx.isWorkspace
                         ? () async {
-                            final status = await runForegroundSync(ref);
+                            final status = await runManualSync(ref);
                             if (context.mounted) showSyncSnackBar(context, status);
                           }
                         : null,
                   ),
+                  if (syncStatus.quarantined > 0)
+                    ListTile(
+                      leading: const Icon(Icons.warning_amber_outlined, color: Colors.orange),
+                      title: Text(
+                        syncStatus.quarantined == 1
+                            ? '1 item couldn\'t sync'
+                            : '${syncStatus.quarantined} items couldn\'t sync',
+                      ),
+                      subtitle: const Text('Tap to retry or review'),
+                      onTap: () => showQuarantinedRetrySheet(context, ref),
+                    ),
                   ListTile(
                     leading: const Icon(Icons.logout),
                     title: const Text('Sign out'),

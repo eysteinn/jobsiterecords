@@ -1,3 +1,4 @@
+import { DashboardSyncSettings } from "@/components/dashboard-sync-settings";
 import { PageShell } from "@/components/page-shell";
 import { requireSession } from "@/lib/server-session";
 import styles from "./settings.module.css";
@@ -43,6 +44,7 @@ export default async function SettingsPage() {
             </dl>
           </section>
         )}
+        <DashboardSyncSettings />
       </div>
     </PageShell>
   );

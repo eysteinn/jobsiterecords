@@ -7,9 +7,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'app/back_handler.dart';
 import 'app/providers.dart';
 import 'app/router.dart';
+import 'app/storage_providers.dart';
 import 'app/theme.dart';
 import 'data/db/database.dart';
 import 'data/storage/media_storage.dart';
+import 'sync/sync_scheduler_host.dart';
 
 final _appBackHandler = AppBackHandler(appRouter);
 
@@ -26,7 +28,7 @@ Future<void> main() async {
         databaseProvider.overrideWithValue(db),
         mediaStorageProvider.overrideWithValue(storage),
       ],
-      child: const JobSiteRecordsApp(),
+      child: const SyncSchedulerHost(child: JobSiteRecordsApp()),
     ),
   );
 }

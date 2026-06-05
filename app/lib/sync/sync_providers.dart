@@ -1,8 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../app/storage_providers.dart';
 import 'api_client.dart';
 import 'auth_service.dart';
+import 'sync_engine.dart';
 
 final apiClientProvider = Provider<ApiClient>((_) => ApiClient());
 final authServiceProvider = Provider<AuthService>(
@@ -123,3 +125,57 @@ class SyncWifiOnlyController extends StateNotifier<bool> {
     await prefs.setBool(_key, value);
   }
 }
+
+final syncEngineProvider = Provider<SyncEngine>((ref) {
+  return SyncEngine(
+    db: ref.watch(databaseProvider),
+    api: ref.watch(apiClientProvider),
+    auth: ref.watch(authServiceProvider),
+    storage: ref.watch(mediaStorageProvider),
+  );
+});
+
+final syncStatusProvider = StateProvider<SyncStatus>((_) => const SyncStatus.never());
+
+class SyncStatus {
+  const SyncStatus({
+    this.lastSyncedAt,
+    this.pending = 0,
+    this.quarantined = 0,
+    this.error,
+    this.changesSynced = 0,
+    this.isSyncing = false,
+    this.isOffline = false,
+  });
+  const SyncStatus.never() : this();
+
+  final DateTime? lastSyncedAt;
+  final int pending;
+  final int quarantined;
+  final String? error;
+  final int changesSynced;
+  final bool isSyncing;
+  final bool isOffline;
+
+  SyncStatus copyWith({
+    DateTime? lastSyncedAt,
+    int? pending,
+    int? quarantined,
+    Object? error = _unset,
+    int? changesSynced,
+    bool? isSyncing,
+    bool? isOffline,
+  }) {
+    return SyncStatus(
+      lastSyncedAt: lastSyncedAt ?? this.lastSyncedAt,
+      pending: pending ?? this.pending,
+      quarantined: quarantined ?? this.quarantined,
+      error: identical(error, _unset) ? this.error : error as String?,
+      changesSynced: changesSynced ?? this.changesSynced,
+      isSyncing: isSyncing ?? this.isSyncing,
+      isOffline: isOffline ?? this.isOffline,
+    );
+  }
+}
+
+const _unset = Object();

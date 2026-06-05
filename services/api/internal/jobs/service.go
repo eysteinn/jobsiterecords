@@ -25,8 +25,15 @@ type Job struct {
 	CreatedByUserID string     `json:"created_by_user_id"`
 	CreatedAt       time.Time  `json:"created_at"`
 	UpdatedAt       time.Time  `json:"updated_at"`
+	LastActivityAt  time.Time  `json:"last_activity_at"`
 	DeletedAt       *time.Time `json:"deleted_at,omitempty"`
 }
+
+const jobSelectCols = `
+	id, workspace_id, name, client_name, address, job_number, status,
+	start_date::text, end_date::text, notes, cover_item_id::text,
+	created_by_user_id, created_at, updated_at, last_activity_at, deleted_at
+`
 
 type Item struct {
 	ID              string     `json:"id"`
@@ -62,12 +69,10 @@ func (s *Service) ListWorkspaceJobs(ctx context.Context, userID, workspaceID str
 		return nil, err
 	}
 	rows, err := s.pool.Query(ctx, `
-		SELECT id, workspace_id, name, client_name, address, job_number, status,
-		       start_date::text, end_date::text, notes, cover_item_id::text,
-		       created_by_user_id, created_at, updated_at, deleted_at
+		SELECT `+jobSelectCols+`
 		FROM jobs
 		WHERE workspace_id = $1 AND deleted_at IS NULL
-		ORDER BY updated_at DESC
+		ORDER BY last_activity_at DESC
 	`, workspaceID)
 	if err != nil {
 		return nil, err
@@ -119,13 +124,13 @@ func (s *Service) UpsertJob(ctx context.Context, userID string, in Job) (Job, er
 			INSERT INTO jobs (
 				id, workspace_id, name, client_name, address, job_number, status,
 				start_date, end_date, notes, cover_item_id, created_by_user_id,
-				created_at, updated_at, deleted_at
+				created_at, updated_at, last_activity_at, deleted_at
 			) VALUES (
-				$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15
+				$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16
 			)
 		`, in.ID, in.WorkspaceID, in.Name, in.ClientName, in.Address, in.JobNumber, in.Status,
 			in.StartDate, in.EndDate, in.Notes, in.CoverItemID, userID,
-			in.CreatedAt, resolved, in.DeletedAt)
+			in.CreatedAt, resolved, resolved, in.DeletedAt)
 		if err != nil {
 			return Job{}, err
 		}
@@ -204,7 +209,38 @@ func (s *Service) UpsertItem(ctx context.Context, userID, jobID string, in Item)
 	if err != nil {
 		return Item{}, err
 	}
+	if err := s.bumpJobActivity(ctx, jobID, resolved); err != nil {
+		return Item{}, err
+	}
 	return s.fetchItem(ctx, in.ID)
+}
+
+func (s *Service) bumpJobActivity(ctx context.Context, jobID string, at time.Time) error {
+	_, err := s.pool.Exec(ctx, `
+		UPDATE jobs SET last_activity_at = $2 WHERE id = $1
+	`, jobID, at)
+	return err
+}
+
+func (s *Service) GetJobCursor(ctx context.Context, userID, jobID string) (time.Time, error) {
+	job, _, err := s.getJobAccess(ctx, userID, jobID)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return job.LastActivityAt, nil
+}
+
+func (s *Service) GetWorkspaceCursor(ctx context.Context, userID, workspaceID string) (time.Time, error) {
+	if err := s.requireMember(ctx, userID, workspaceID); err != nil {
+		return time.Time{}, err
+	}
+	var cursor time.Time
+	err := s.pool.QueryRow(ctx, `
+		SELECT COALESCE(MAX(last_activity_at), TIMESTAMPTZ '1970-01-01')
+		FROM jobs
+		WHERE workspace_id = $1 AND deleted_at IS NULL
+	`, workspaceID).Scan(&cursor)
+	return cursor, err
 }
 
 func (s *Service) ListAssignedJobIDs(ctx context.Context, userID, workspaceID string) ([]string, error) {
@@ -323,12 +359,7 @@ func (s *Service) getJobAccess(ctx context.Context, userID, jobID string) (Job, 
 }
 
 func (s *Service) fetchJob(ctx context.Context, id string) (Job, error) {
-	row := s.pool.QueryRow(ctx, `
-		SELECT id, workspace_id, name, client_name, address, job_number, status,
-		       start_date::text, end_date::text, notes, cover_item_id::text,
-		       created_by_user_id, created_at, updated_at, deleted_at
-		FROM jobs WHERE id = $1
-	`, id)
+	row := s.pool.QueryRow(ctx, `SELECT `+jobSelectCols+` FROM jobs WHERE id = $1`, id)
 	return scanJob(row)
 }
 
@@ -382,7 +413,7 @@ func scanJob(row scannable) (Job, error) {
 	err := row.Scan(
 		&j.ID, &j.WorkspaceID, &j.Name, &j.ClientName, &j.Address, &j.JobNumber, &j.Status,
 		&j.StartDate, &j.EndDate, &j.Notes, &cover, &j.CreatedByUserID,
-		&j.CreatedAt, &j.UpdatedAt, &j.DeletedAt,
+		&j.CreatedAt, &j.UpdatedAt, &j.LastActivityAt, &j.DeletedAt,
 	)
 	j.CoverItemID = cover
 	return j, err

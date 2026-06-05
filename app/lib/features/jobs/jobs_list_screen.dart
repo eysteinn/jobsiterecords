@@ -79,7 +79,7 @@ class _JobsListScreenState extends ConsumerState<JobsListScreen> {
                 return RefreshIndicator(
                   onRefresh: () async {
                     if (ctx.isWorkspace) {
-                      final status = await runForegroundSync(ref);
+                      final status = await runManualSync(ref);
                       if (context.mounted) showSyncSnackBar(context, status);
                     }
                     ref.invalidate(jobsListProvider);
