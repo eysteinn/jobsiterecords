@@ -60,19 +60,29 @@ export function JobDetailClient({ job, items: initialItems, mediaFiles: initialM
       const since = cursorRef.current;
       const nextCursor = result.cursor ?? since;
       const delta = await fetchJobDelta(job.id, since);
+      const hasDelta =
+        (delta.items?.length ?? 0) > 0 || (delta.media_files?.length ?? 0) > 0;
+
+      // Cursor moved but delta missed rows (timestamp boundary / clock skew) — full reload.
+      if (!hasDelta && nextCursor !== since) {
+        cursorRef.current = nextCursor;
+        router.refresh();
+        return;
+      }
+
       const merged = mergeJobBundle(itemsRef.current, mediaRef.current, delta);
       if (merged.added > 0) {
         setItems(merged.items);
         setMediaFiles(merged.mediaFiles);
         setFieldUpdateBanner(true);
         window.setTimeout(() => setFieldUpdateBanner(false), SYNC_POLL.updatedBannerMs);
-      } else if (delta.items.length > 0 || delta.media_files.length > 0) {
+      } else if (hasDelta) {
         setItems(merged.items);
         setMediaFiles(merged.mediaFiles);
       }
       cursorRef.current = nextCursor;
     },
-    [job.id],
+    [job.id, router],
   );
 
   useSyncPoll({

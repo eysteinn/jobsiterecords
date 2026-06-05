@@ -380,7 +380,7 @@ func (s *Service) listItems(ctx context.Context, jobID string, since *time.Time)
 	`
 	args := []any{jobID}
 	if since != nil {
-		q += ` AND updated_at > $2`
+		q += ` AND updated_at >= $2`
 		args = append(args, *since)
 	}
 	q += ` ORDER BY captured_at DESC`

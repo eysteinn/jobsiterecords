@@ -14,7 +14,7 @@
 | Side | Current behavior | Gap |
 | --- | --- | --- |
 | **Mobile** | **S1 implemented:** `SyncScheduler` auto-syncs in workspace mode (debounced on Save, launch, foreground, connectivity, 15 min periodic); manual pull-to-refresh + Settings kept. Per-row `sync_attempts` + quarantine after 5 permanent failures. See `app/lib/sync/sync_scheduler.dart`. | Web still fetch-on-navigation only (S3). API change cursor (S2) not started. |
-| **Web** | **S3 implemented:** visibility-gated cursor polling (20 s job detail / 60 s list) via BFF; delta-merge on job detail; manual Refresh on list + detail. Settings → Live updates (S4). | Job-level sync dots deferred (per-job status indicator planned later). |
+| **Web** | **S3 implemented:** visibility-gated cursor polling (10 s job detail / 60 s list) via BFF; delta-merge on job detail (`since` inclusive); manual Refresh on list + detail. Settings → Live updates (S4). | Job-level sync dots deferred (per-job status indicator planned later). |
 | **API** | Has the right primitives already: `GET /jobs/{id}?since=<RFC3339Nano>` returns item/media deltas; `updated_at` last-writer-wins on upserts; media-complete bumps the parent item's `updated_at`. | `jobs.updated_at` is **not** bumped when an item/media changes, so there is no cheap "did this job change?" signal for the jobs list or a poll. |
 
 So the engine and protocol are solid; what's missing is **automatic triggering** (mobile) and **automatic freshness** (web), plus one cheap server-side change signal.
@@ -147,7 +147,7 @@ The web can't be event-driven without websockets/SSE (out of scope for v1 — ex
 1. **Cheap change-detection first.** Poll a tiny endpoint that returns a per-job (and per-workspace) **change cursor** — the max `updated_at` across the job + its items + media. No bodies, just a timestamp/version.
 2. **Delta-fetch only on change.** When the cursor advances, fetch `GET /jobs/{id}?since=<lastCursor>` (already supported) to pull just the new/changed items + media, and merge into client state. Falls back to a full `getJob` if `since` is missing/first load.
 3. **Visibility & focus gated.** Poll only while the tab is **visible** (Page Visibility API). Pause when hidden; **immediately** check on `focus`/`visibilitychange → visible`. This is the biggest server saver — background tabs cost nothing.
-4. **Gentle cadence with backoff.** Job detail (active attention): poll every **~20 s**. Jobs list: every **~60 s** (or only refresh on focus). When nothing has changed for a while, back off (20 s → 40 s → 60 s cap); reset to fast on any change or user interaction.
+4. **Gentle cadence with backoff.** Job detail (active attention): poll every **~10 s**. Jobs list: every **~60 s** (or only refresh on focus). When nothing has changed for a while, back off (10 s → 20 s → 60 s cap); reset to fast on any change or user interaction.
 
 ### 3.2 Where polling lives
 
@@ -165,7 +165,7 @@ A small client hook (`useJobPoll`) handles interval, visibility, focus, backoff,
 
 ### 3.4 Web UX summary
 
-- Manager watching today's job → crew uploads a photo → within ~20 s a subtle "Updated" marker + the new thumb appears. No manual action.
+- Manager watching today's job → crew uploads a photo → within ~10 s a subtle "Updated" marker + the new thumb appears. No manual action.
 - Switches to another app and back → instant freshness check on focus.
 - Wants control → Refresh button anytime.
 
@@ -180,7 +180,7 @@ The protocol mostly exists. Two cheap additions spare the server and make pollin
 2. **Cheap change-cursor endpoint(s)** for polling — return cursors without bodies:
    - `GET /api/v1/jobs/{id}/cursor` → `{ "cursor": "<RFC3339Nano job.last_activity_at>" }`
    - `GET /api/v1/workspaces/{id}/cursor` → `{ "cursor": "<MAX(last_activity_at) across workspace jobs>" }`
-   Add HTTP **ETag / `If-None-Match`** so unchanged polls return **`304 Not Modified`** (tiny response). This is what makes 20 s polling cheap at scale.
+   Add HTTP **ETag / `If-None-Match`** so unchanged polls return **`304 Not Modified`** (tiny response). Delta fetch uses **`updated_at >= since`** so rows at the cursor timestamp are never skipped.
 
 > Websockets/SSE/push are deliberately **not** in this plan. Polling a 304-able cursor, visibility-gated, is far simpler operationally and good enough for "team sees field captures within ~20 s". Upgrade later only if real-time collaboration becomes a requirement.
 
@@ -191,7 +191,7 @@ The protocol mostly exists. Two cheap additions spare the server and make pollin
 | Lever | Mobile | Web |
 | --- | --- | --- |
 | Debounce bursts | 8 s write debounce → batch = 1 sync | n/a (web rarely bulk-writes) |
-| Min interval / cadence | 30 s min between auto syncs | 20 s detail / 60 s list poll |
+| Min interval / cadence | 30 s min between auto syncs | 10 s detail / 60 s list poll |
 | Don't poll when away | Periodic only while foregrounded; cancelled on background | Poll only while tab visible; pause when hidden |
 | Skip no-op work | Skip if local-only / signed out / offline / nothing pending & pulled recently | `304 Not Modified` on unchanged cursor; delta-fetch only on change |
 | Backoff on idle/failure | Exp. backoff on failure (30 s → 15 m cap), **reset on connectivity-regained** | Exp. backoff when no changes |
@@ -221,7 +221,7 @@ These resolve the design choices for v1. All defaults are **constants in one pla
 | --- | --- | --- | --- |
 | 1 | **Debounce window** | **8 s**, anchored to the **DB write (Save)** — not shutter taps. Hard cap forces a sync after 60 s of continuous pending. | Batch-first capture writes rows on **Save**, so the timer starts then; sitting on the review screen costs nothing. 8 s coalesces a save-then-edit-caption flurry into one sync. |
 | 2 | **Periodic pull cadence** | **15 min** while foregrounded. **No Settings toggle in v1.** | Resume + connectivity triggers already cover the common cases; periodic is just a safety net. Zero-config keeps the "never think about sync" promise. A frequency toggle is S4 polish only if asked for. |
-| 3 | **Web poll interval** | **20 s** job detail, **60 s** jobs list, both visibility-gated with backoff to a 60 s cap. | Fast enough that a manager sees field captures within ~20 s; ETag/`304` keeps it cheap. Revisit only if API load data says otherwise. |
+| 3 | **Web poll interval** | **10 s** job detail, **60 s** jobs list, both visibility-gated with backoff to a 60 s cap. | Fast enough that a manager sees field captures within ~10 s; ETag/`304` keeps it cheap. Revisit only if API load data says otherwise. |
 | 4 | **Job activity timestamp** | Add a **separate `last_activity_at`** column on `jobs`; bump it on item/media change. Do **not** overload `jobs.updated_at`. | Keeps job-content LWW clean (a new photo isn't a job edit) while giving the list "Updated X ago" and the change cursor a correct signal. See §4.1. |
 | 5 | **Background (OS-level) sync** | **Not in v1.** Foreground/launch/connectivity triggers only. | Avoids battery/permission/store-review cost for marginal gain. Eventual consistency still holds, bounded by "next app open" — fine for field→truck→office patterns. Revisit on real complaints. |
 | 6 | **Poison-item quarantine** | After **5** failed attempts on a **permanent** error. **Permanent** = `400, 409, 413, 422`. **Transient (retry forever)** = network/offline/timeout, `408, 425, 429, 5xx`. `401` → token refresh path, not a strike. | 5 covers transient blips misclassified as permanent without burning battery/server on a truly bad row. The 4xx split maps cleanly to "client must change the payload" vs "try again later" (`429` honors `Retry-After`). |
@@ -239,7 +239,7 @@ These resolve the design choices for v1. All defaults are **constants in one pla
 | Periodic pull (foreground) | 15 min |
 | Job detail watch poll | 30 s |
 | Resume re-sync threshold | 2 min since last success |
-| Web poll — job detail | 20 s (backoff → 60 s cap) |
+| Web poll — job detail | 10 s (backoff → 60 s cap) |
 | Web poll — jobs list | 60 s |
 | Poison quarantine threshold | 5 attempts (permanent errors only) |
 

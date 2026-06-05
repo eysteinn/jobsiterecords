@@ -46,7 +46,7 @@ export function DashboardSyncSettings() {
             checked={prefs.speed === "normal"}
             onChange={() => update({ speed: "normal" })}
           />
-          <span>Normal (~20 s on a job, ~60 s on the list)</span>
+          <span>Normal (~10 s on a job, ~60 s on the list)</span>
         </label>
         <label className={styles.row}>
           <input

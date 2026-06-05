@@ -1,6 +1,6 @@
 /** Dashboard sync polling defaults (see docs/sync-strategy-plan.md §7.1). */
 export const SYNC_POLL = {
-  jobDetailMs: 20_000,
+  jobDetailMs: 10_000,
   jobsListMs: 60_000,
   maxBackoffMs: 60_000,
   updatedBannerMs: 5_000,

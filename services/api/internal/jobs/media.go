@@ -66,7 +66,7 @@ func (s *Service) listMediaFiles(ctx context.Context, jobID string, since *time.
 	`
 	args := []any{jobID}
 	if since != nil {
-		q += ` AND m.updated_at > $2`
+		q += ` AND m.updated_at >= $2`
 		args = append(args, *since)
 	}
 	q += ` ORDER BY m.updated_at DESC`
