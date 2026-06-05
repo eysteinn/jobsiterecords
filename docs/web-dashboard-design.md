@@ -16,7 +16,7 @@ Build a simple web dashboard that lets a contractor:
 2. **Invite workers** by email so each can log in and sync job data for that workspace
 3. **Generate PDF reports** from field-captured photos, notes, voice, and attachments
 
-The dashboard supports a **paid workspace model**: an owner creates a company workspace (e.g. “Smith Plumbing”), invites workers, and each worker syncs job data into that workspace. Field capture stays on the **mobile app**; the dashboard is for **review, organization, team admin, and professional handoff**.
+The dashboard supports a **paid workspace model**: an owner creates a company workspace (e.g. “Smith Plumbing”), invites workers, and each worker syncs job data into that workspace. **Field capture** (camera, mic, rapid multi-shot) stays on the **mobile app**; the dashboard is for **review, organization, team admin, and professional handoff**. The dashboard may **upload** existing files (photos, PDFs) from disk in a later milestone — that is not “capture” (no live camera/mic workflow).
 
 ### Product principle
 
@@ -266,12 +266,12 @@ Timeline-style view of all records for one job. Purpose: let an office user **re
 
 **Edit gating:** if the current user is a member **not** assigned to this job, the page is **read-only** (no edit job, no caption/tag changes). Show a clear banner: *“You’re viewing this job. Ask the owner for assignment to edit.”*
 
-**Web MVP UI:** view timeline; edit captions/tags and job metadata when permitted. **No in-browser photo/voice capture** in dashboard v1 — members add records via the **mobile app** and sync.
+**Web MVP UI:** view timeline; edit captions/tags and job metadata when permitted. **No in-browser photo/voice capture** in dashboard v1 (no live camera or mic — field crews use the mobile app for that). **Uploading** existing images or files from the browser is **planned post-MVP** and is a separate feature from capture. Photo **mark-up** (annotate synced photos) is in scope per [`web-photo-annotation-plan.md`](web-photo-annotation-plan.md).
 
 **UX details specific to this page**
 - **Two-column desktop:** timeline on the left, **sticky job header** (name, status pill, assignees, action menu) at top of the right column with summary counts (photos / notes / voice / files / issues).
 - **Photos (*implemented*):** under each date heading, a **responsive thumbnail grid** (square crops, time overlay, read-only caption line). Consecutive photos share one grid; **voice, note, and file** items stay **compact rows** (icon + time + kind + preview/player) in **chronological order** between photo batches — one unified job story, not a separate Photos tab.
-- **Lightbox (*implemented*):** click a photo → full image; **← / →** (buttons + keyboard) move between all photos in the job; **caption edit** in the lightbox footer; `Esc` closes.
+- **Lightbox (*implemented*):** click a photo → full image; **← / →** (buttons + keyboard) move between all photos in the job; **caption edit** in the lightbox footer; **Annotate** opens full mark-up editor (parity with mobile §6.4a); hold to peek original; `Esc` closes.
 - **Caption & tags edit inline** — captions on photos edited in lightbox; tags on web timeline still deferred.
 - **Tag picker** appears as a popover with type-ahead, recent tags, and create-new in one input.
 - **Bulk select** in timeline: click row checkbox or shift-click range; bottom bar shows `N selected · Tag · Delete · Add to report`.
@@ -280,6 +280,7 @@ Timeline-style view of all records for one job. Purpose: let an office user **re
 
 **Deferred (post-MVP)**
 
+- **Web upload** — add photos and files to a job from disk (file picker + caption/tags); reuses the same blob upload path as mobile sync (§15.5). Not live capture.
 - **Expenses panel** — OCR roll-up of **`Receipt`**-tagged items, editable extracted fields, job cost subtotals, CSV/Excel export (§8.2)
 
 ---
@@ -945,7 +946,7 @@ Exceeding the limit returns `429` with `Retry-After`. Limits live in the Go API 
 - Approval workflows
 - Advanced analytics
 - Scheduling, chat, accounting integrations
-- In-browser capture (camera/mic upload)
+- In-browser **capture** (live camera / mic — use the mobile app; **file upload** from disk is planned separately)
 - Real-time presence, comment threads
 - Enterprise SSO
 - Email/share report from dashboard (download only for v1)

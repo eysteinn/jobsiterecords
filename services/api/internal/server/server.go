@@ -104,6 +104,7 @@ func New(cfg config.Config, pool *pgxpool.Pool) (*Server, error) {
 			protected.Post("/items/{itemID}/media-files", mediaH.CreateMedia)
 			protected.Get("/items/{itemID}/thumb", mediaH.ItemThumb)
 			protected.Post("/media-files/{mediaID}/complete", mediaH.CompleteMedia)
+			protected.Delete("/media-files/{mediaID}", mediaH.DeleteMedia)
 			protected.Get("/media-files/{mediaID}/download", mediaH.DownloadMedia)
 		})
 	})

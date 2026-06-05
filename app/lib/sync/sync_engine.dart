@@ -178,7 +178,7 @@ class SyncEngine {
         JOIN jobs j ON j.id = i.job_id
         WHERE j.workspace_id = ?
           AND m.sync_state IN ('pending', 'failed')
-          AND m.role IN ('primary_photo', 'annotated_render', 'voice_note', 'file')
+          AND m.role IN ('primary_photo', 'annotated_render', 'annotation_overlay', 'voice_note', 'file')
       ''', [workspaceId]);
 
       for (final row in pendingMedia) {
@@ -420,6 +420,8 @@ class SyncEngine {
       MediaRole.primaryPhoto => MediaRole.primaryPhoto,
       MediaRole.voiceNote => MediaRole.voiceNote,
       MediaRole.file => MediaRole.file,
+      MediaRole.annotationOverlay => MediaRole.annotationOverlay,
+      MediaRole.annotatedRender => MediaRole.annotatedRender,
       _ => MediaRole.attachment,
     };
   }
@@ -428,6 +430,8 @@ class SyncEngine {
     return switch (role) {
       MediaRole.primaryPhoto => _storage.relativeFor(jobId, itemId, 'photo.jpg'),
       MediaRole.voiceNote => _storage.relativeFor(jobId, itemId, 'voice.m4a'),
+      MediaRole.annotationOverlay => _storage.relativeFor(jobId, itemId, 'photo.annotations.json'),
+      MediaRole.annotatedRender => _storage.relativeFor(jobId, itemId, 'photo.annotated.jpg'),
       MediaRole.file => _storage.relativeFor(jobId, itemId, originalFilename ?? 'file.bin'),
       _ => _storage.relativeFor(jobId, itemId, originalFilename ?? 'attachment.bin'),
     };
@@ -612,7 +616,7 @@ class SyncEngine {
       JOIN jobs j ON j.id = i.job_id
       WHERE j.workspace_id = ?
         AND m.sync_state IN ('pending', 'failed')
-        AND m.role IN ('primary_photo', 'annotated_render', 'voice_note', 'file')
+        AND m.role IN ('primary_photo', 'annotated_render', 'annotation_overlay', 'voice_note', 'file')
     ''', [workspaceId])) ?? 0;
     return jobs + items + media;
   }

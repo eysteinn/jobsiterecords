@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Item, Job, MediaFile } from "@/lib/api-jobs";
 import { formatDate, formatDayKey, formatTime } from "@/lib/format";
+import { getPhotoMedia, mediaDownloadUrl } from "@/lib/photo-media";
+import { PhotoAnnotationEditor } from "@/components/photo-annotation/photo-annotation-editor";
 import { PageShell } from "@/components/page-shell";
 import styles from "./job-detail.module.css";
 
@@ -13,20 +15,31 @@ type Props = {
   items: Item[];
   mediaFiles: MediaFile[];
   workspaceId: string;
+  readOnly?: boolean;
 };
 
 type TimelineSegment =
   | { type: "photos"; items: Item[] }
   | { type: "row"; item: Item };
 
-export function JobDetailClient({ job, items: initialItems, mediaFiles }: Props) {
+export function JobDetailClient({ job, items: initialItems, mediaFiles: initialMediaFiles, readOnly = false }: Props) {
   const router = useRouter();
   const [items, setItems] = useState(initialItems ?? []);
+  const [mediaFiles, setMediaFiles] = useState(initialMediaFiles ?? []);
   const [noteBody, setNoteBody] = useState("");
   const [noteCaption, setNoteCaption] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<{ itemId: string; mediaId?: string } | null>(null);
+  const [annotatingItemId, setAnnotatingItemId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setItems(initialItems ?? []);
+  }, [initialItems]);
+
+  useEffect(() => {
+    setMediaFiles(initialMediaFiles ?? []);
+  }, [initialMediaFiles]);
 
   const mediaByItem = useMemo(() => {
     const map = new Map<string, MediaFile[]>();
@@ -104,6 +117,16 @@ export function JobDetailClient({ job, items: initialItems, mediaFiles }: Props)
     setLightbox({ itemId, mediaId });
   }, []);
 
+  function handleAnnotationSaved(itemId: string, updatedMedia: MediaFile[]) {
+    setMediaFiles((prev) => {
+      const rest = prev.filter((m) => m.item_id !== itemId);
+      return [...rest, ...updatedMedia];
+    });
+    router.refresh();
+  }
+
+  const annotatingItem = annotatingItemId ? items.find((i) => i.id === annotatingItemId) : null;
+
   return (
     <PageShell
       title={job.name}
@@ -114,6 +137,13 @@ export function JobDetailClient({ job, items: initialItems, mediaFiles }: Props)
         </Link>
       }
     >
+      {readOnly && (
+        <p className={styles.readOnlyBanner}>
+          You&apos;re viewing this job. Ask the owner for assignment to edit.
+        </p>
+      )}
+
+      {!readOnly && (
       <section className={styles.compose}>
         <h2>Add text note</h2>
         <input
@@ -134,6 +164,7 @@ export function JobDetailClient({ job, items: initialItems, mediaFiles }: Props)
           {message && <span className={styles.saved}>{message}</span>}
         </div>
       </section>
+      )}
 
       {items.length === 0 ? (
         <p className={styles.empty}>No timeline items yet.</p>
@@ -169,9 +200,24 @@ export function JobDetailClient({ job, items: initialItems, mediaFiles }: Props)
           photoItems={photoItems}
           mediaByItem={mediaByItem}
           lightbox={lightbox}
+          readOnly={readOnly}
           onClose={() => setLightbox(null)}
           onNavigate={(itemId, mediaId) => setLightbox({ itemId, mediaId })}
           onSaveCaption={saveCaption}
+          onAnnotate={(itemId) => {
+            setLightbox(null);
+            setAnnotatingItemId(itemId);
+          }}
+        />
+      )}
+
+      {annotatingItem && (
+        <PhotoAnnotationEditor
+          jobId={job.id}
+          item={annotatingItem}
+          media={mediaByItem.get(annotatingItem.id) ?? []}
+          onClose={() => setAnnotatingItemId(null)}
+          onSaved={(updated) => handleAnnotationSaved(annotatingItem.id, updated)}
         />
       )}
     </PageShell>
@@ -210,11 +256,11 @@ function PhotoCell({
   media: MediaFile[];
   onOpen: (itemId: string, mediaId?: string) => void;
 }) {
-  const photo = media.find((m) => m.role === "primary_photo") ?? media[0];
+  const { display, hasAnnotations } = getPhotoMedia(media);
   const time = formatTime(item.captured_at);
-  const label = `Photo, ${time}, ${item.caption || "no caption"}`;
+  const label = `Photo, ${time}, ${item.caption || "no caption"}${hasAnnotations ? ", annotated" : ""}`;
 
-  if (!photo) {
+  if (!display) {
     return (
       <div className={styles.photoCellPending} aria-label={`${label}, uploading`}>
         Uploading…
@@ -226,7 +272,7 @@ function PhotoCell({
     <button
       type="button"
       className={styles.photoCell}
-      onClick={() => onOpen(item.id, photo.id)}
+      onClick={() => onOpen(item.id, display.id)}
       aria-label={label}
     >
       <span className={styles.photoThumbWrap}>
@@ -237,6 +283,11 @@ function PhotoCell({
           className={styles.photoThumb}
           loading="lazy"
         />
+        {hasAnnotations && (
+          <span className={styles.photoAnnotatedBadge} aria-hidden>
+            ✎
+          </span>
+        )}
         <span className={styles.photoTime}>{time}</span>
       </span>
       <p className={item.caption ? styles.photoCaption : `${styles.photoCaption} ${styles.photoCaptionEmpty}`}>
@@ -310,17 +361,21 @@ function PhotoLightbox({
   photoItems,
   mediaByItem,
   lightbox,
+  readOnly,
   onClose,
   onNavigate,
   onSaveCaption,
+  onAnnotate,
 }: {
   items: Item[];
   photoItems: Item[];
   mediaByItem: Map<string, MediaFile[]>;
   lightbox: { itemId: string; mediaId?: string };
+  readOnly: boolean;
   onClose: () => void;
   onNavigate: (itemId: string, mediaId?: string) => void;
   onSaveCaption: (item: Item, caption: string) => Promise<void>;
+  onAnnotate: (itemId: string) => void;
 }) {
   const index = photoItems.findIndex((p) => p.id === lightbox.itemId);
   const item = items.find((i) => i.id === lightbox.itemId);
@@ -330,17 +385,15 @@ function PhotoLightbox({
   const goPrev = useCallback(() => {
     if (!hasPrev) return;
     const prev = photoItems[index - 1];
-    const media = mediaByItem.get(prev.id) ?? [];
-    const photo = media.find((m) => m.role === "primary_photo") ?? media[0];
-    onNavigate(prev.id, photo?.id);
+    const { display } = getPhotoMedia(mediaByItem.get(prev.id) ?? []);
+    onNavigate(prev.id, display?.id);
   }, [hasPrev, index, photoItems, mediaByItem, onNavigate]);
 
   const goNext = useCallback(() => {
     if (!hasNext) return;
     const next = photoItems[index + 1];
-    const media = mediaByItem.get(next.id) ?? [];
-    const photo = media.find((m) => m.role === "primary_photo") ?? media[0];
-    onNavigate(next.id, photo?.id);
+    const { display } = getPhotoMedia(mediaByItem.get(next.id) ?? []);
+    onNavigate(next.id, display?.id);
   }, [hasNext, index, photoItems, mediaByItem, onNavigate]);
 
   useEffect(() => {
@@ -364,9 +417,10 @@ function PhotoLightbox({
 
   if (!item) return null;
 
-  const imgSrc = lightbox.mediaId
-    ? `/api/media/${lightbox.mediaId}/download?inline=1`
-    : `/api/items/${lightbox.itemId}/thumb?w=1200`;
+  const itemMedia = mediaByItem.get(item.id) ?? [];
+  const { display, original, hasAnnotations, primary } = getPhotoMedia(itemMedia);
+  const displayId = lightbox.mediaId ?? display?.id;
+  const canAnnotate = !readOnly && primary != null;
 
   return (
     <div className={styles.lightbox} role="dialog" aria-modal="true" aria-label="Photo preview" onClick={onClose}>
@@ -384,8 +438,12 @@ function PhotoLightbox({
           >
             ‹
           </button>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={imgSrc} alt={item.caption || "Job photo"} className={styles.lightboxImg} />
+          <AnnotatedPhotoView
+            key={`${item.id}-${displayId ?? "pending"}`}
+            displayMediaId={displayId}
+            originalMediaId={original?.id}
+            alt={item.caption || "Job photo"}
+          />
           <button
             type="button"
             className={`${styles.lightboxNav} ${styles.lightboxNavNext}`}
@@ -402,10 +460,55 @@ function PhotoLightbox({
             {photoItems.length > 1 && index >= 0 && (
               <> · Photo {index + 1} of {photoItems.length}</>
             )}
+            {hasAnnotations && <> · Annotated</>}
           </p>
-          <InlineCaption item={item} onSave={onSaveCaption} />
+          <InlineCaption item={item} onSave={onSaveCaption} readOnly={readOnly} />
+          {canAnnotate && (
+            <button type="button" className={styles.annotateBtn} onClick={() => onAnnotate(item.id)}>
+              Annotate
+            </button>
+          )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function AnnotatedPhotoView({
+  displayMediaId,
+  originalMediaId,
+  alt,
+}: {
+  displayMediaId?: string;
+  originalMediaId?: string;
+  alt: string;
+}) {
+  const [showOriginal, setShowOriginal] = useState(false);
+  const canPeek = originalMediaId != null;
+  const peeking = showOriginal && canPeek;
+  const mediaId = peeking ? originalMediaId : displayMediaId;
+
+  if (!mediaId) {
+    return <p className={styles.mediaPending}>Photo pending upload…</p>;
+  }
+
+  return (
+    <div className={styles.annotatedPhotoWrap}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={mediaDownloadUrl(mediaId)}
+        alt={alt}
+        className={styles.lightboxImg}
+        onPointerDown={canPeek ? () => setShowOriginal(true) : undefined}
+        onPointerUp={canPeek ? () => setShowOriginal(false) : undefined}
+        onPointerLeave={canPeek ? () => setShowOriginal(false) : undefined}
+        onPointerCancel={canPeek ? () => setShowOriginal(false) : undefined}
+      />
+      {canPeek && (
+        <p className={styles.annotatedPhotoHint}>
+          {peeking ? "Showing original — release to return" : "Hold photo to see original"}
+        </p>
+      )}
     </div>
   );
 }
@@ -413,9 +516,11 @@ function PhotoLightbox({
 function InlineCaption({
   item,
   onSave,
+  readOnly = false,
 }: {
   item: Item;
   onSave: (item: Item, caption: string) => Promise<void>;
+  readOnly?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(item.caption || "");
@@ -433,6 +538,10 @@ function InlineCaption({
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save");
     }
+  }
+
+  if (readOnly) {
+    return item.caption ? <p className={styles.captionReadOnly}>{item.caption}</p> : null;
   }
 
   if (editing) {

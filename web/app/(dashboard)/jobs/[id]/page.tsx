@@ -21,6 +21,7 @@ export default async function JobDetailPage({
         items={bundle.items ?? []}
         mediaFiles={bundle.media_files ?? []}
         workspaceId={workspace.id}
+        readOnly={bundle.read_only ?? false}
       />
     );
   } catch {

@@ -4,12 +4,13 @@ import { apiBaseUrl } from "@/lib/types";
 import { ACCESS_COOKIE } from "@/lib/auth-cookies";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ itemId: string }> },
 ) {
   const { itemId } = await context.params;
   const token = (await cookies()).get(ACCESS_COOKIE)?.value;
-  const url = `${apiBaseUrl()}/api/v1/items/${itemId}/thumb?w=512`;
+  const w = new URL(request.url).searchParams.get("w") ?? "512";
+  const url = `${apiBaseUrl()}/api/v1/items/${itemId}/thumb?w=${encodeURIComponent(w)}`;
   const res = await fetch(url, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     redirect: "manual",

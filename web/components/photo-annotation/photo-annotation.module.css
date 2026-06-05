@@ -1,0 +1,220 @@
+.annotationEditor {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: #000;
+  display: flex;
+  flex-direction: column;
+}
+
+.annotationHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: #fff;
+  border-bottom: 1px solid var(--border);
+}
+
+.annotationTitle {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.annotationHeaderActions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.annotationClose {
+  border: none;
+  background: none;
+  font-size: 1.25rem;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+.annotationSave {
+  border: none;
+  border-radius: 8px;
+  padding: 8px 14px;
+  background: var(--accent);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.annotationSave:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.annotationCanvasWrap {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  background: #000;
+}
+
+.annotationCanvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+}
+
+.annotationNotice {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.75);
+  color: #fff;
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  max-width: 90%;
+  text-align: center;
+  pointer-events: none;
+}
+
+.annotationToolbar {
+  background: #fff;
+  border-top: 1px solid var(--border);
+  padding: 8px;
+}
+
+.annotationTools {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+.annotationTool {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: none;
+  cursor: pointer;
+  font-size: 10px;
+  color: var(--muted);
+  min-width: 52px;
+}
+
+.annotationToolSelected {
+  background: #fef3c7;
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.annotationToolIcon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.annotationColors {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.annotationColorsLabel {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.annotationSwatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 2px solid var(--border);
+  cursor: pointer;
+  padding: 0;
+}
+
+.annotationSwatchSelected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.annotationIconBtn {
+  border: none;
+  background: none;
+  font-size: 1.25rem;
+  cursor: pointer;
+  padding: 6px;
+  color: var(--text);
+}
+
+.annotationIconBtn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.annotationLoading {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  color: #fff;
+}
+
+.textDialogBackdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: grid;
+  place-items: center;
+  z-index: 70;
+}
+
+.textDialog {
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px;
+  width: min(360px, 90vw);
+  display: grid;
+  gap: 12px;
+}
+
+.textDialog h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.textDialog input {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font: inherit;
+}
+
+.textDialogActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.textDialogActions button {
+  border-radius: 8px;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  background: #fff;
+  cursor: pointer;
+}
+
+.textDialogPrimary {
+  background: var(--accent) !important;
+  border-color: var(--accent) !important;
+  font-weight: 600;
+}
+
+.error {
+  color: #dc2626;
+  font-size: 0.8125rem;
+}

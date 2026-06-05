@@ -26,9 +26,10 @@ var allowedVoiceMimes = map[string]bool{
 }
 
 var allowedFileMimes = map[string]bool{
-	"application/pdf": true,
-	"text/plain":      true,
-	"text/csv":        true,
+	"application/pdf":  true,
+	"application/json": true,
+	"text/plain":       true,
+	"text/csv":         true,
 }
 
 func mimeAllowed(mime string) bool {
@@ -59,6 +60,11 @@ func validateMagicBytes(mime string, head []byte) error {
 			return nil
 		}
 		if mime == "audio/wav" && len(head) >= 12 && string(head[:4]) == "RIFF" && string(head[8:12]) == "WAVE" {
+			return nil
+		}
+	case mime == "application/json":
+		trimmed := bytes.TrimSpace(head)
+		if len(trimmed) == 0 || trimmed[0] == '{' || trimmed[0] == '[' {
 			return nil
 		}
 	case mime == "text/plain" || mime == "text/csv":
