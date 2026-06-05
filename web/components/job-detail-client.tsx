@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Item, Job, MediaFile } from "@/lib/api-jobs";
 import { formatDate, formatDayKey, formatTime } from "@/lib/format";
-import { getPhotoMedia, mediaDownloadUrl } from "@/lib/photo-media";
+import { getPhotoMedia, itemThumbUrl, mediaDownloadUrl } from "@/lib/photo-media";
 import { PhotoAnnotationEditor } from "@/components/photo-annotation/photo-annotation-editor";
 import { PageShell } from "@/components/page-shell";
 import styles from "./job-detail.module.css";
@@ -278,7 +278,8 @@ function PhotoCell({
       <span className={styles.photoThumbWrap}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={`/api/items/${item.id}/thumb?w=384`}
+          key={display.updated_at}
+          src={itemThumbUrl(item.id, display, 384)}
           alt=""
           className={styles.photoThumb}
           loading="lazy"

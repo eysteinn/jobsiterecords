@@ -30,3 +30,14 @@ export function getPhotoMedia(media: MediaFile[]): PhotoMediaSet {
 export function mediaDownloadUrl(mediaId: string, inline = true) {
   return `/api/media/${mediaId}/download${inline ? "?inline=1" : ""}`;
 }
+
+/** Item thumb URL — bust cache when display media changes (e.g. after annotation save). */
+export function itemThumbUrl(itemId: string, display?: MediaFile, width = 384) {
+  const params = new URLSearchParams({ w: String(width) });
+  if (display?.updated_at) {
+    params.set("v", display.updated_at);
+  } else if (display?.id) {
+    params.set("v", display.id);
+  }
+  return `/api/items/${itemId}/thumb?${params.toString()}`;
+}
