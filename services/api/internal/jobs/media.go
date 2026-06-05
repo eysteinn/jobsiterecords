@@ -66,7 +66,7 @@ func (s *Service) listMediaFiles(ctx context.Context, jobID string, since *time.
 	`
 	args := []any{jobID}
 	if since != nil {
-		q += ` AND m.updated_at > $2`
+		q += ` AND m.updated_at >= $2`
 		args = append(args, *since)
 	}
 	q += ` ORDER BY m.updated_at DESC`
@@ -244,6 +244,9 @@ func (s *Service) CompleteMediaUpload(ctx context.Context, userID, mediaID strin
 		UPDATE items SET updated_at = $2
 		WHERE id = $1
 	`, mf.ItemID, now)
+	_, _ = s.pool.Exec(ctx, `
+		UPDATE jobs SET last_activity_at = $2 WHERE id = $1
+	`, item.JobID, now)
 
 	return s.fetchMediaFile(ctx, mediaID)
 }
@@ -279,6 +282,7 @@ func (s *Service) DeleteMedia(ctx context.Context, userID, mediaID string) error
 		return err
 	}
 	_, _ = s.pool.Exec(ctx, `UPDATE items SET updated_at = $2 WHERE id = $1`, mf.ItemID, now)
+	_, _ = s.pool.Exec(ctx, `UPDATE jobs SET last_activity_at = $2 WHERE id = $1`, item.JobID, now)
 	return nil
 }
 

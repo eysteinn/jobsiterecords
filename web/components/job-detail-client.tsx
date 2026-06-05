@@ -2,9 +2,12 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Item, Job, MediaFile } from "@/lib/api-jobs";
+import { useSyncPoll } from "@/hooks/use-sync-poll";
 import { formatDate, formatDayKey, formatTime } from "@/lib/format";
+import { fetchJobDelta, mergeJobBundle, pollJobCursor } from "@/lib/sync-cursor";
+import { SYNC_POLL } from "@/lib/sync-poll-config";
 import { getPhotoMedia, itemThumbUrl, mediaDownloadUrl } from "@/lib/photo-media";
 import { PhotoAnnotationEditor } from "@/components/photo-annotation/photo-annotation-editor";
 import { PageShell } from "@/components/page-shell";
@@ -29,9 +32,16 @@ export function JobDetailClient({ job, items: initialItems, mediaFiles: initialM
   const [noteBody, setNoteBody] = useState("");
   const [noteCaption, setNoteCaption] = useState("");
   const [saving, setSaving] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [fieldUpdateBanner, setFieldUpdateBanner] = useState(false);
   const [lightbox, setLightbox] = useState<{ itemId: string; mediaId?: string } | null>(null);
   const [annotatingItemId, setAnnotatingItemId] = useState<string | null>(null);
+  const cursorRef = useRef(job.last_activity_at ?? job.updated_at);
+  const itemsRef = useRef(items);
+  const mediaRef = useRef(mediaFiles);
+  itemsRef.current = items;
+  mediaRef.current = mediaFiles;
 
   useEffect(() => {
     setItems(initialItems ?? []);
@@ -40,6 +50,55 @@ export function JobDetailClient({ job, items: initialItems, mediaFiles: initialM
   useEffect(() => {
     setMediaFiles(initialMediaFiles ?? []);
   }, [initialMediaFiles]);
+
+  useEffect(() => {
+    cursorRef.current = job.last_activity_at ?? job.updated_at;
+  }, [job.last_activity_at, job.updated_at]);
+
+  const onJobChanged = useCallback(
+    async (result: { cursor: string | null }) => {
+      const since = cursorRef.current;
+      const nextCursor = result.cursor ?? since;
+      const delta = await fetchJobDelta(job.id, since);
+      const hasDelta =
+        (delta.items?.length ?? 0) > 0 || (delta.media_files?.length ?? 0) > 0;
+
+      // Cursor moved but delta missed rows (timestamp boundary / clock skew) — full reload.
+      if (!hasDelta && nextCursor !== since) {
+        cursorRef.current = nextCursor;
+        router.refresh();
+        return;
+      }
+
+      const merged = mergeJobBundle(itemsRef.current, mediaRef.current, delta);
+      if (merged.added > 0) {
+        setItems(merged.items);
+        setMediaFiles(merged.mediaFiles);
+        setFieldUpdateBanner(true);
+        window.setTimeout(() => setFieldUpdateBanner(false), SYNC_POLL.updatedBannerMs);
+      } else if (hasDelta) {
+        setItems(merged.items);
+        setMediaFiles(merged.mediaFiles);
+      }
+      cursorRef.current = nextCursor;
+    },
+    [job.id, router],
+  );
+
+  useSyncPoll({
+    baseIntervalMs: SYNC_POLL.jobDetailMs,
+    poll: (etag) => pollJobCursor(job.id, etag),
+    onChanged: onJobChanged,
+  });
+
+  async function refresh() {
+    setRefreshing(true);
+    try {
+      router.refresh();
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   const mediaByItem = useMemo(() => {
     const map = new Map<string, MediaFile[]>();
@@ -132,11 +191,21 @@ export function JobDetailClient({ job, items: initialItems, mediaFiles: initialM
       title={job.name}
       subtitle={[job.client_name, job.address].filter(Boolean).join(" · ") || "Job timeline"}
       action={
-        <Link href="/jobs" className={styles.backLink}>
-          ← All jobs
-        </Link>
+        <div className={styles.headerActions}>
+          <button type="button" className={styles.refreshBtn} onClick={refresh} disabled={refreshing}>
+            {refreshing ? "Refreshing…" : "Refresh"}
+          </button>
+          <Link href="/jobs" className={styles.backLink}>
+            ← All jobs
+          </Link>
+        </div>
       }
     >
+      {fieldUpdateBanner && (
+        <p className={styles.updateBanner} role="status">
+          Updated — new items from the field
+        </p>
+      )}
       {readOnly && (
         <p className={styles.readOnlyBanner}>
           You&apos;re viewing this job. Ask the owner for assignment to edit.

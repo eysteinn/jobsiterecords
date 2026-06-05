@@ -1,25 +1,25 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../data/db/database.dart';
 import '../data/repositories/items_repository.dart';
 import '../data/repositories/jobs_repository.dart';
 import '../data/repositories/tags_repository.dart';
-import '../data/storage/media_storage.dart';
 import '../domain/models/job.dart';
 import '../domain/models/tag.dart';
 import '../domain/models/timeline_item.dart';
 import '../domain/models/timeline_query.dart';
 import '../domain/services/export_service.dart';
-import '../sync/sync_engine.dart';
+import '../sync/sync_nudge_reason.dart';
 import '../sync/sync_providers.dart';
+import '../sync/sync_runner.dart';
+import '../sync/sync_scheduler.dart';
+import 'data_revision.dart';
+import 'storage_providers.dart';
 
-final databaseProvider = Provider<AppDatabase>(
-  (ref) => throw UnimplementedError('Database not initialized'),
-);
-
-final mediaStorageProvider = Provider<MediaStorage>(
-  (ref) => throw UnimplementedError('MediaStorage not initialized'),
-);
+export 'data_revision.dart';
+export 'storage_providers.dart';
+export '../sync/sync_providers.dart' show SyncStatus, syncStatusProvider;
 
 final jobsRepositoryProvider = Provider<JobsRepository>(
   (ref) => JobsRepository(ref.watch(databaseProvider), ref.watch(mediaStorageProvider)),
@@ -41,11 +41,13 @@ final exportServiceProvider = Provider<ExportService>(
   ),
 );
 
-/// Bumped whenever any data write happens; consumers use this to re-fetch.
-final dataRevisionProvider = StateProvider<int>((_) => 0);
-
 void bumpDataRevision(WidgetRef ref) {
   ref.read(dataRevisionProvider.notifier).state++;
+  final ctx = ref.read(captureContextProvider);
+  if (ctx.isWorkspace) {
+    ref.read(syncSchedulerProvider).nudge(SyncNudgeReason.write);
+    unawaited(ref.read(syncExecutorProvider).refreshCounts());
+  }
 }
 
 class JobsListQuery {
@@ -96,48 +98,3 @@ final tagsProvider = FutureProvider<List<Tag>>((ref) {
   return ref.watch(tagsRepositoryProvider).all();
 });
 
-final syncEngineProvider = Provider<SyncEngine>((ref) {
-  return SyncEngine(
-    db: ref.watch(databaseProvider),
-    api: ref.watch(apiClientProvider),
-    auth: ref.watch(authServiceProvider),
-    storage: ref.watch(mediaStorageProvider),
-  );
-});
-
-final syncStatusProvider = StateProvider<SyncStatus>((_) => const SyncStatus.never());
-
-class SyncStatus {
-  const SyncStatus({
-    this.lastSyncedAt,
-    this.pending = 0,
-    this.error,
-    this.changesSynced = 0,
-    this.isSyncing = false,
-  });
-  const SyncStatus.never() : this();
-
-  final DateTime? lastSyncedAt;
-  final int pending;
-  final String? error;
-  final int changesSynced;
-  final bool isSyncing;
-
-  SyncStatus copyWith({
-    DateTime? lastSyncedAt,
-    int? pending,
-    Object? error = _unset,
-    int? changesSynced,
-    bool? isSyncing,
-  }) {
-    return SyncStatus(
-      lastSyncedAt: lastSyncedAt ?? this.lastSyncedAt,
-      pending: pending ?? this.pending,
-      error: identical(error, _unset) ? this.error : error as String?,
-      changesSynced: changesSynced ?? this.changesSynced,
-      isSyncing: isSyncing ?? this.isSyncing,
-    );
-  }
-}
-
-const _unset = Object();

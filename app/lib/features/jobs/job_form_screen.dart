@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import '../../app/providers.dart';
 import '../../app/theme.dart';
 import '../../sync/sync_providers.dart';
-import '../../sync/sync_runner.dart';
 import '../../core/format.dart';
 import '../../domain/models/job.dart';
 import 'widgets/address_autocomplete_field.dart';
@@ -88,9 +87,6 @@ class _JobFormScreenState extends ConsumerState<JobFormScreen> {
         ));
       }
       bumpDataRevision(ref);
-      if (ctx.isWorkspace) {
-        await runForegroundSync(ref);
-      }
       if (mounted) context.pop();
     } finally {
       if (mounted) setState(() => _saving = false);

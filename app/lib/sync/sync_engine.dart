@@ -11,6 +11,7 @@ import '../domain/models/media_file.dart';
 import 'api_client.dart';
 import 'auth_service.dart';
 import 'network_gate.dart';
+import 'sync_config.dart';
 import 'sync_errors.dart';
 import 'sync_state.dart';
 
@@ -144,12 +145,7 @@ class SyncEngine {
         jobsPushed++;
       } catch (e) {
         lastError ??= userFacingSyncError(e);
-        await _db.db.update(
-          'jobs',
-          {'sync_state': SyncState.failed.dbValue},
-          where: 'id = ?',
-          whereArgs: [job.id],
-        );
+        await _recordPushFailure('jobs', job.id, e);
       }
     }
 
@@ -174,12 +170,7 @@ class SyncEngine {
         itemsPushed++;
       } catch (e) {
         lastError ??= userFacingSyncError(e);
-        await _db.db.update(
-          'items',
-          {'sync_state': SyncState.failed.dbValue},
-          where: 'id = ?',
-          whereArgs: [item.id],
-        );
+        await _recordPushFailure('items', item.id, e);
       }
     }
 
@@ -201,12 +192,7 @@ class SyncEngine {
           mediaPushed++;
         } catch (e) {
           lastError ??= userFacingSyncError(e);
-          await _db.db.update(
-            'media_files',
-            {'sync_state': SyncState.failed.dbValue},
-            where: 'id = ?',
-            whereArgs: [media.id],
-          );
+          await _recordPushFailure('media_files', media.id, e);
         }
       }
     }
@@ -301,9 +287,38 @@ class SyncEngine {
         'sync_state': SyncState.synced.dbValue,
         'remote_storage_key': remote['storage_key'],
         'updated_at': DateTime.now().toUtc().toIso8601String(),
+        'sync_attempts': 0,
+        'last_sync_error': null,
       },
       where: 'id = ?',
       whereArgs: [media.id],
+    );
+  }
+
+  Future<void> _recordPushFailure(String table, String id, Object error) async {
+    final kind = classifySyncError(error);
+    final rows = await _db.db.query(
+      table,
+      columns: ['sync_attempts'],
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    final attempts = (rows.first['sync_attempts'] as int? ?? 0) + 1;
+    final nextState = kind == SyncErrorKind.permanent &&
+            attempts >= SyncConfig.poisonQuarantineThreshold
+        ? SyncState.quarantined
+        : SyncState.failed;
+
+    await _db.db.update(
+      table,
+      {
+        'sync_state': nextState.dbValue,
+        'sync_attempts': attempts,
+        'last_sync_error': userFacingSyncError(error),
+      },
+      where: 'id = ?',
+      whereArgs: [id],
     );
   }
 
@@ -523,6 +538,10 @@ class SyncEngine {
     final row = job.toDb()
       ..['sync_state'] = markSynced ? SyncState.synced.dbValue : SyncState.pending.dbValue
       ..['last_synced_at'] = DateTime.now().toUtc().toIso8601String();
+    if (markSynced) {
+      row['sync_attempts'] = 0;
+      row['last_sync_error'] = null;
+    }
     await _upsertRow('jobs', row, id: job.id);
   }
 
@@ -531,6 +550,10 @@ class SyncEngine {
     final row = item.toDb()
       ..['sync_state'] = markSynced ? SyncState.synced.dbValue : SyncState.pending.dbValue
       ..['last_synced_at'] = DateTime.now().toUtc().toIso8601String();
+    if (markSynced) {
+      row['sync_attempts'] = 0;
+      row['last_sync_error'] = null;
+    }
     await _upsertRow('items', row, id: item.id);
   }
 
@@ -627,6 +650,62 @@ class SyncEngine {
       consider(map['updated_at']);
     }
     return max;
+  }
+
+  Future<int> countQuarantined(String workspaceId) async {
+    final jobs = Sqflite.firstIntValue(await _db.db.rawQuery('''
+      SELECT COUNT(*) FROM jobs
+      WHERE workspace_id = ? AND sync_state = 'quarantined'
+    ''', [workspaceId])) ?? 0;
+    final items = Sqflite.firstIntValue(await _db.db.rawQuery('''
+      SELECT COUNT(*) FROM items i
+      JOIN jobs j ON j.id = i.job_id
+      WHERE j.workspace_id = ?
+        AND i.sync_state = 'quarantined'
+    ''', [workspaceId])) ?? 0;
+    final media = Sqflite.firstIntValue(await _db.db.rawQuery('''
+      SELECT COUNT(*) FROM media_files m
+      JOIN items i ON i.id = m.item_id
+      JOIN jobs j ON j.id = i.job_id
+      WHERE j.workspace_id = ?
+        AND m.sync_state = 'quarantined'
+    ''', [workspaceId])) ?? 0;
+    return jobs + items + media;
+  }
+
+  Future<int> retryQuarantined(String workspaceId) async {
+    var retried = 0;
+    for (final table in ['jobs', 'items', 'media_files']) {
+      if (table == 'jobs') {
+        retried += await _db.db.rawUpdate('''
+          UPDATE jobs
+          SET sync_state = 'pending', sync_attempts = 0, last_sync_error = NULL
+          WHERE workspace_id = ? AND sync_state = 'quarantined'
+        ''', [workspaceId]);
+      } else if (table == 'items') {
+        retried += await _db.db.rawUpdate('''
+          UPDATE items
+          SET sync_state = 'pending', sync_attempts = 0, last_sync_error = NULL
+          WHERE id IN (
+            SELECT i.id FROM items i
+            JOIN jobs j ON j.id = i.job_id
+            WHERE j.workspace_id = ? AND i.sync_state = 'quarantined'
+          )
+        ''', [workspaceId]);
+      } else {
+        retried += await _db.db.rawUpdate('''
+          UPDATE media_files
+          SET sync_state = 'pending', sync_attempts = 0, last_sync_error = NULL
+          WHERE id IN (
+            SELECT m.id FROM media_files m
+            JOIN items i ON i.id = m.item_id
+            JOIN jobs j ON j.id = i.job_id
+            WHERE j.workspace_id = ? AND m.sync_state = 'quarantined'
+          )
+        ''', [workspaceId]);
+      }
+    }
+    return retried;
   }
 
   Future<int> countPending(String workspaceId) async {

@@ -90,6 +90,39 @@ func (h *JobsHandler) UpsertItem(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, out)
 }
 
+func (h *JobsHandler) GetJobCursor(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.UserID(r.Context())
+	jobID := r.PathValue("jobID")
+	cursor, err := h.jobs.GetJobCursor(r.Context(), userID, jobID)
+	if err != nil {
+		writeJobsError(w, err)
+		return
+	}
+	writeCursorResponse(w, r, cursor)
+}
+
+func (h *JobsHandler) GetWorkspaceCursor(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.UserID(r.Context())
+	workspaceID := r.PathValue("workspaceID")
+	cursor, err := h.jobs.GetWorkspaceCursor(r.Context(), userID, workspaceID)
+	if err != nil {
+		writeJobsError(w, err)
+		return
+	}
+	writeCursorResponse(w, r, cursor)
+}
+
+func writeCursorResponse(w http.ResponseWriter, r *http.Request, cursor time.Time) {
+	tag := cursor.UTC().Format(time.RFC3339Nano)
+	etag := `"` + tag + `"`
+	if match := r.Header.Get("If-None-Match"); match == etag || match == tag {
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
+	w.Header().Set("ETag", etag)
+	httpx.JSON(w, http.StatusOK, map[string]string{"cursor": tag})
+}
+
 func (h *JobsHandler) AssignedJobIDs(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.UserID(r.Context())
 	workspaceID := r.PathValue("workspaceID")

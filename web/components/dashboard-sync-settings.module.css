@@ -1,0 +1,36 @@
+.card {
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+}
+
+.lead {
+  color: var(--muted, #6b7280);
+  font-size: 0.9rem;
+  margin: 0 0 1rem;
+}
+
+.row {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  margin: 0.5rem 0;
+  font-size: 0.95rem;
+}
+
+.fieldset {
+  border: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+}
+
+.fieldset legend {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+}
+
+.fieldset:disabled {
+  opacity: 0.55;
+}

@@ -1,3 +1,33 @@
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.refreshBtn {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: var(--surface);
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.refreshBtn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.updateBanner {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 8px;
+  color: #065f46;
+  font-size: 0.875rem;
+  margin: 0 0 16px;
+  padding: 10px 12px;
+}
+
 .backLink {
   color: #2563eb;
   font-size: 0.875rem;

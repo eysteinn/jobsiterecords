@@ -14,6 +14,7 @@ export type Job = {
   notes?: string | null;
   created_at: string;
   updated_at: string;
+  last_activity_at: string;
 };
 
 export type MediaFile = {
