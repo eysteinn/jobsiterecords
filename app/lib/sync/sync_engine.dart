@@ -11,6 +11,7 @@ import '../domain/models/media_file.dart';
 import 'api_client.dart';
 import 'auth_service.dart';
 import 'network_gate.dart';
+import 'sync_errors.dart';
 import 'sync_state.dart';
 
 class SyncResult {
@@ -108,12 +109,12 @@ class SyncEngine {
             pushError: pushed.$3,
           );
         } catch (inner) {
-          return SyncResult(error: inner.toString());
+          return SyncResult(error: userFacingSyncError(inner));
         }
       }
-      return SyncResult(error: e.message);
+      return SyncResult(error: userFacingSyncError(e));
     } catch (e) {
-      return SyncResult(error: e.toString());
+      return SyncResult(error: userFacingSyncError(e));
     }
   }
 
@@ -142,7 +143,7 @@ class SyncEngine {
         await _applyJobFromServer(data, markSynced: true);
         jobsPushed++;
       } catch (e) {
-        lastError ??= e.toString();
+        lastError ??= userFacingSyncError(e);
         await _db.db.update(
           'jobs',
           {'sync_state': SyncState.failed.dbValue},
@@ -172,7 +173,7 @@ class SyncEngine {
         await _applyItemFromServer(data, markSynced: true);
         itemsPushed++;
       } catch (e) {
-        lastError ??= e.toString();
+        lastError ??= userFacingSyncError(e);
         await _db.db.update(
           'items',
           {'sync_state': SyncState.failed.dbValue},
@@ -199,7 +200,7 @@ class SyncEngine {
           await _uploadMediaFile(media, accessToken);
           mediaPushed++;
         } catch (e) {
-          lastError ??= e.toString();
+          lastError ??= userFacingSyncError(e);
           await _db.db.update(
             'media_files',
             {'sync_state': SyncState.failed.dbValue},
