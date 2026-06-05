@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Item, MediaFile } from "@/lib/api-jobs";
 import {
   ANNOTATION_PALETTE,
@@ -33,6 +33,7 @@ export function PhotoAnnotationEditor({ jobId, item, media, onClose, onSaved }: 
   const imageRef = useRef<HTMLImageElement | null>(null);
 
   const [loading, setLoading] = useState(true);
+  const [imageReady, setImageReady] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [legacyNotice, setLegacyNotice] = useState(false);
@@ -50,6 +51,8 @@ export function PhotoAnnotationEditor({ jobId, item, media, onClose, onSaved }: 
 
   useEffect(() => {
     let cancelled = false;
+    setImageReady(false);
+    setLoading(true);
     async function load() {
       if (!primary) {
         setError("Original photo not available");
@@ -60,6 +63,7 @@ export function PhotoAnnotationEditor({ jobId, item, media, onClose, onSaved }: 
         const img = await loadImageFromUrl(mediaDownloadUrl(primary.id));
         if (cancelled) return;
         imageRef.current = img;
+        setImageReady(true);
 
         if (overlay) {
           const doc = await fetchAnnotationDocument(overlay.id);
@@ -106,12 +110,20 @@ export function PhotoAnnotationEditor({ jobId, item, media, onClose, onSaved }: 
     paintShapes(ctx, shapes, layout, preview ?? undefined);
   }, [shapes, preview]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    if (!imageReady) return;
     redraw();
+    // Flex layout may not have settled on the first paint.
+    const id = requestAnimationFrame(() => redraw());
+    return () => cancelAnimationFrame(id);
+  }, [imageReady, redraw]);
+
+  useEffect(() => {
+    if (!imageReady) return;
     const ro = new ResizeObserver(redraw);
     if (wrapRef.current) ro.observe(wrapRef.current);
     return () => ro.disconnect();
-  }, [redraw]);
+  }, [imageReady, redraw]);
 
   function pushUndo() {
     setUndoStack((s) => [...s.slice(-MAX_UNDO + 1), cloneShapes(shapes)]);
@@ -310,14 +322,6 @@ export function PhotoAnnotationEditor({ jobId, item, media, onClose, onSaved }: 
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  if (loading) {
-    return (
-      <div className={styles.annotationEditor}>
-        <div className={styles.annotationLoading}>Loading photo…</div>
-      </div>
-    );
-  }
-
   if (error && !primary) {
     return (
       <div className={styles.annotationEditor}>
@@ -341,13 +345,14 @@ export function PhotoAnnotationEditor({ jobId, item, media, onClose, onSaved }: 
         <h2 className={styles.annotationTitle}>Annotate</h2>
         <div className={styles.annotationHeaderActions}>
           {error && <span className={styles.error}>{error}</span>}
-          <button type="button" className={styles.annotationSave} disabled={saving} onClick={handleSave}>
+          <button type="button" className={styles.annotationSave} disabled={saving || loading} onClick={handleSave}>
             {saving ? "Saving…" : "Save"}
           </button>
         </div>
       </header>
 
       <div ref={wrapRef} className={styles.annotationCanvasWrap}>
+        {loading && <div className={styles.annotationLoadingOverlay}>Loading photo…</div>}
         {legacyNotice && (
           <p className={styles.annotationNotice}>
             Mark-up was flattened on sync; redraw or save to replace.
