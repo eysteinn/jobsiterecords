@@ -11,6 +11,7 @@ import '../../domain/models/job.dart';
 import '../../domain/models/timeline_item.dart';
 import '../../sync/sync_providers.dart';
 import '../../sync/sync_runner.dart';
+import '../sync/sync_status_footer.dart';
 import '../sync/workspace_switcher.dart';
 
 class JobsListScreen extends ConsumerStatefulWidget {
@@ -22,6 +23,13 @@ class JobsListScreen extends ConsumerStatefulWidget {
 
 class _JobsListScreenState extends ConsumerState<JobsListScreen> {
   String _query = '';
+  String? _lastWorkspaceId;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => restoreSyncStatus(ref));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,6 +39,11 @@ class _JobsListScreenState extends ConsumerState<JobsListScreen> {
 
     final ctx = ref.watch(captureContextProvider);
     final syncStatus = ref.watch(syncStatusProvider);
+
+    if (ctx.workspaceId != _lastWorkspaceId) {
+      _lastWorkspaceId = ctx.workspaceId;
+      WidgetsBinding.instance.addPostFrameCallback((_) => restoreSyncStatus(ref));
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -66,7 +79,8 @@ class _JobsListScreenState extends ConsumerState<JobsListScreen> {
                 return RefreshIndicator(
                   onRefresh: () async {
                     if (ctx.isWorkspace) {
-                      await runForegroundSync(ref);
+                      final status = await runForegroundSync(ref);
+                      if (context.mounted) showSyncSnackBar(context, status);
                     }
                     ref.invalidate(jobsListProvider);
                     ref.invalidate(jobSummariesProvider);
@@ -95,7 +109,7 @@ class _JobsListScreenState extends ConsumerState<JobsListScreen> {
               error: (e, _) => Center(child: Text('Error: $e')),
             ),
           ),
-          _ContextFooter(captureContext: ctx, syncStatus: syncStatus),
+          SyncStatusFooter(captureContext: ctx, syncStatus: syncStatus),
         ],
       ),
     );
@@ -250,68 +264,3 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-class _ContextFooter extends StatelessWidget {
-  const _ContextFooter({required this.captureContext, required this.syncStatus});
-  final CaptureContext captureContext;
-  final SyncStatus syncStatus;
-
-  @override
-  Widget build(BuildContext context) {
-    if (captureContext.isLocal) {
-      return SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: const [
-              Icon(Icons.check_circle, color: Color(0xFF10B981), size: 14),
-              SizedBox(width: 6),
-              Text(
-                'Local — data stays on this device.',
-                style: TextStyle(fontSize: 11, color: AppColors.subtle),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    final pending = syncStatus.pending;
-    final err = syncStatus.error;
-    final label = err != null
-        ? 'Sync error: $err'
-        : pending > 0
-            ? '$pending pending · pull to sync'
-            : syncStatus.lastSyncedAt == null
-                ? 'Workspace · pull to sync'
-                : syncStatus.pushedJobs > 0 || syncStatus.pushedItems > 0
-                    ? 'Synced ${syncStatus.pushedJobs} job(s), ${syncStatus.pushedItems} note(s)'
-                    : 'Synced · pull to refresh';
-
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              err != null ? Icons.error_outline : Icons.cloud_done_outlined,
-              color: err != null ? Colors.red : const Color(0xFF10B981),
-              size: 14,
-            ),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                '${captureContext.workspaceName} · $label',
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 11, color: AppColors.subtle),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

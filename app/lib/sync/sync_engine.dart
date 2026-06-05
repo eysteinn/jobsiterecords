@@ -19,6 +19,8 @@ class SyncResult {
     this.pushedItems = 0,
     this.pushedMedia = 0,
     this.pulledJobs = 0,
+    this.pulledItems = 0,
+    this.pulledMedia = 0,
     this.error,
     this.pushError,
   });
@@ -27,10 +29,15 @@ class SyncResult {
   final int pushedItems;
   final int pushedMedia;
   final int pulledJobs;
+  final int pulledItems;
+  final int pulledMedia;
   final String? error;
   final String? pushError;
 
   bool get ok => error == null && pushError == null;
+
+  int get totalChanges =>
+      pushedJobs + pushedItems + pushedMedia + pulledJobs + pulledItems + pulledMedia;
 }
 
 class SyncEngine {
@@ -73,7 +80,9 @@ class SyncEngine {
         pushedJobs: pushed.$1,
         pushedItems: pushed.$2,
         pushedMedia: pushed.$4,
-        pulledJobs: pulled,
+        pulledJobs: pulled.$1,
+        pulledItems: pulled.$2,
+        pulledMedia: pulled.$3,
         pushError: pushed.$3,
       );
     } on ApiException catch (e) {
@@ -93,7 +102,9 @@ class SyncEngine {
             pushedJobs: pushed.$1,
             pushedItems: pushed.$2,
             pushedMedia: pushed.$4,
-            pulledJobs: pulled,
+            pulledJobs: pulled.$1,
+            pulledItems: pulled.$2,
+            pulledMedia: pulled.$3,
             pushError: pushed.$3,
           );
         } catch (inner) {
@@ -295,14 +306,16 @@ class SyncEngine {
     );
   }
 
-  Future<int> _pullRemote({
+  Future<(int, int, int)> _pullRemote({
     required String accessToken,
     required String refreshToken,
     required String workspaceId,
     required void Function(String access, String refresh) onTokenRefreshed,
   }) async {
     var access = accessToken;
-    var pulled = 0;
+    var pulledJobs = 0;
+    var pulledItems = 0;
+    var pulledMedia = 0;
 
     http.Response assignmentsRes;
     try {
@@ -334,40 +347,39 @@ class SyncEngine {
         await _deleteLocalJob(jobId);
         continue;
       }
-      await _mergeJobFromServer(jobJson);
+      if (await _mergeJobFromServer(jobJson)) pulledJobs++;
       final items = (bundle['items'] as List? ?? []);
       for (final raw in items) {
         final itemJson = Map<String, dynamic>.from(raw as Map);
         if (itemJson['deleted_at'] != null) {
-          await _deleteLocalItem(itemJson['id'] as String, jobId);
+          if (await _deleteLocalItem(itemJson['id'] as String, jobId)) pulledItems++;
           continue;
         }
-        await _mergeItemFromServer(itemJson);
+        if (await _mergeItemFromServer(itemJson)) pulledItems++;
       }
       final mediaFiles = (bundle['media_files'] as List? ?? []);
       for (final raw in mediaFiles) {
         final mediaJson = Map<String, dynamic>.from(raw as Map);
-        await _mergeMediaFromServer(mediaJson, jobId, access);
+        if (await _mergeMediaFromServer(mediaJson, jobId, access)) pulledMedia++;
       }
       final cursor = _syncCursorFromBundle(jobJson, items, mediaFiles);
       if (cursor != null) {
         await _setLastSyncedAt(jobId, cursor);
       }
-      pulled++;
     }
 
-    return pulled;
+    return (pulledJobs, pulledItems, pulledMedia);
   }
 
-  Future<void> _mergeMediaFromServer(
+  Future<bool> _mergeMediaFromServer(
     Map<String, dynamic> json,
     String jobId,
     String accessToken,
   ) async {
     final id = json['id'] as String;
     if (json['deleted_at'] != null) {
-      await _db.db.delete('media_files', where: 'id = ?', whereArgs: [id]);
-      return;
+      final deleted = await _db.db.delete('media_files', where: 'id = ?', whereArgs: [id]);
+      return deleted > 0;
     }
     final status = json['status'] as String? ?? 'pending';
     final itemId = json['item_id'] as String;
@@ -375,16 +387,21 @@ class SyncEngine {
     final remoteUpdated = DateTime.parse(json['updated_at'] as String).toLocal();
 
     final existing = await _db.db.query('media_files', where: 'id = ?', whereArgs: [id], limit: 1);
-    if (existing.isNotEmpty) {
-      final local = MediaFile.fromDb(existing.first);
-      if (local.syncState.needsPush && local.updatedAt.isAfter(remoteUpdated)) {
-        return;
-      }
-    }
-
     final relativePath = existing.isNotEmpty
         ? existing.first['relative_path']! as String
         : _defaultRelativePath(jobId, itemId, role, json['original_filename'] as String?);
+    final missingBlob = status == 'uploaded' &&
+        !await File(_storage.absolutePath(relativePath)).exists();
+
+    if (existing.isNotEmpty) {
+      final local = MediaFile.fromDb(existing.first);
+      if (local.syncState.needsPush && local.updatedAt.isAfter(remoteUpdated)) {
+        return false;
+      }
+      if (!remoteUpdated.isAfter(local.updatedAt) && !missingBlob) {
+        return false;
+      }
+    }
 
     if (status == 'uploaded') {
       final absPath = _storage.absolutePath(relativePath);
@@ -413,6 +430,7 @@ class SyncEngine {
       'updated_at': json['updated_at'],
     };
     await _upsertRow('media_files', row, id: id);
+    return true;
   }
 
   MediaRole _localRole(MediaRole serverRole) {
@@ -463,32 +481,40 @@ class SyncEngine {
         'updated_at': item.updatedAt.toUtc().toIso8601String(),
       };
 
-  Future<void> _mergeJobFromServer(Map<String, dynamic> json) async {
+  Future<bool> _mergeJobFromServer(Map<String, dynamic> json) async {
     final remote = _jobFromApi(json);
     final existing = await _db.db.query('jobs', where: 'id = ?', whereArgs: [remote.id], limit: 1);
     if (existing.isEmpty) {
       await _applyJobFromServer(json, markSynced: true);
-      return;
+      return true;
     }
     final local = Job.fromDb(existing.first);
     if (local.syncState.needsPush && local.updatedAt.isAfter(remote.updatedAt)) {
-      return;
+      return false;
+    }
+    if (!remote.updatedAt.isAfter(local.updatedAt)) {
+      return false;
     }
     await _applyJobFromServer(json, markSynced: true);
+    return true;
   }
 
-  Future<void> _mergeItemFromServer(Map<String, dynamic> json) async {
+  Future<bool> _mergeItemFromServer(Map<String, dynamic> json) async {
     final remote = _itemFromApi(json);
     final existing = await _db.db.query('items', where: 'id = ?', whereArgs: [remote.id], limit: 1);
     if (existing.isEmpty) {
       await _applyItemFromServer(json, markSynced: true);
-      return;
+      return true;
     }
     final local = Item.fromDb(existing.first);
     if (local.syncState.needsPush && local.updatedAt.isAfter(remote.updatedAt)) {
-      return;
+      return false;
+    }
+    if (!remote.updatedAt.isAfter(local.updatedAt)) {
+      return false;
     }
     await _applyItemFromServer(json, markSynced: true);
+    return true;
   }
 
   Future<void> _applyJobFromServer(Map<String, dynamic> json, {required bool markSynced}) async {
@@ -559,9 +585,12 @@ class SyncEngine {
     });
   }
 
-  Future<void> _deleteLocalItem(String itemId, String jobId) async {
+  Future<bool> _deleteLocalItem(String itemId, String jobId) async {
+    final existing = await _db.db.query('items', where: 'id = ?', whereArgs: [itemId], limit: 1);
+    if (existing.isEmpty) return false;
     await _storage.deleteForItem(jobId, itemId);
     await _db.db.delete('items', where: 'id = ?', whereArgs: [itemId]);
+    return true;
   }
 
   Future<void> _setLastSyncedAt(String jobId, DateTime at) async {

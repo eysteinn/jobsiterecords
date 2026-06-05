@@ -25,6 +25,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   void initState() {
     super.initState();
     _loadSize();
+    WidgetsBinding.instance.addPostFrameCallback((_) => restoreSyncStatus(ref));
   }
 
   Future<void> _loadSize() async {
@@ -77,24 +78,29 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     onChanged: (v) => ref.read(syncWifiOnlyProvider.notifier).setEnabled(v),
                   ),
                   ListTile(
-                    leading: const Icon(Icons.sync),
+                    leading: syncStatus.isSyncing
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.sync),
                     title: const Text('Sync now'),
                     subtitle: Text(
-                      syncStatus.error ??
-                          (syncStatus.pending > 0
-                              ? '${syncStatus.pending} pending changes'
-                              : syncStatus.lastSyncedAt == null
-                                  ? 'Not synced yet'
-                                  : 'Last synced ${formatRelative(syncStatus.lastSyncedAt!)}'),
+                      syncStatus.isSyncing
+                          ? 'Syncing…'
+                          : syncStatus.error ??
+                              (syncStatus.pending > 0
+                                  ? '${syncStatus.pending} pending changes'
+                                  : syncStatus.lastSyncedAt == null
+                                      ? 'Not synced yet'
+                                      : 'Last synced ${formatRelative(syncStatus.lastSyncedAt!)}'),
                     ),
+                    enabled: ctx.isWorkspace && !syncStatus.isSyncing,
                     onTap: ctx.isWorkspace
                         ? () async {
-                            await runForegroundSync(ref);
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text(ref.read(syncStatusProvider).error ?? 'Sync complete')),
-                              );
-                            }
+                            final status = await runForegroundSync(ref);
+                            if (context.mounted) showSyncSnackBar(context, status);
                           }
                         : null,
                   ),
