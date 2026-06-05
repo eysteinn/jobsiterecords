@@ -270,8 +270,9 @@ Timeline-style view of all records for one job. Purpose: let an office user **re
 
 **UX details specific to this page**
 - **Two-column desktop:** timeline on the left, **sticky job header** (name, status pill, assignees, action menu) at top of the right column with summary counts (photos / notes / voice / files / issues).
-- **Photo rows** show thumbnail at meaningful size (not 32 px); click opens lightbox.
-- **Caption & tags edit inline** under each item — no modal. Autosave.
+- **Photos (*implemented*):** under each date heading, a **responsive thumbnail grid** (square crops, time overlay, read-only caption line). Consecutive photos share one grid; **voice, note, and file** items stay **compact rows** (icon + time + kind + preview/player) in **chronological order** between photo batches — one unified job story, not a separate Photos tab.
+- **Lightbox (*implemented*):** click a photo → full image; **← / →** (buttons + keyboard) move between all photos in the job; **caption edit** in the lightbox footer; `Esc` closes.
+- **Caption & tags edit inline** — captions on photos edited in lightbox; tags on web timeline still deferred.
 - **Tag picker** appears as a popover with type-ahead, recent tags, and create-new in one input.
 - **Bulk select** in timeline: click row checkbox or shift-click range; bottom bar shows `N selected · Tag · Delete · Add to report`.
 - **“New activity” pill** at the top of the timeline when sync adds items while you’re viewing — never auto-scroll the user.
