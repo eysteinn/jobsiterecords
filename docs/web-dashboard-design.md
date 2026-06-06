@@ -892,6 +892,7 @@ All four methods are **MVP** on **mobile and web**. Team invites and workspace-j
 - **Per-session record** in DB lets the user see "Active devices" later and lets the server revoke a single device without invalidating other sessions.
 - Same user identity on web and mobile; one user can have many concurrent sessions.
 - CSRF protection on mutating web routes (double-submit cookie or `SameSite=Strict` + custom header check).
+- **BFF media proxies** (`/api/media/…/download`, `/api/items/…/thumb`) refresh the session when the access cookie has expired (same as page middleware) so `<img>` loads keep working after idle tabs without a full page reload.
 
 ### Rate limits (auth)
 

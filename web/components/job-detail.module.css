@@ -339,6 +339,36 @@
   display: block;
 }
 
+.lightboxLoadError {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-width: min(320px, 80vw);
+  min-height: min(240px, 40vh);
+  padding: 24px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--text);
+  text-align: center;
+}
+
+.lightboxLoadError p {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+.lightboxLoadError button {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 14px;
+  background: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 .lightboxClose {
   position: absolute;
   top: -12px;

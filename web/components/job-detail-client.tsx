@@ -489,7 +489,9 @@ function PhotoLightbox({
 
   const itemMedia = mediaByItem.get(item.id) ?? [];
   const { display, original, hasAnnotations, primary } = getPhotoMedia(itemMedia);
-  const displayId = lightbox.mediaId ?? display?.id;
+  const storedMediaId =
+    lightbox.mediaId && itemMedia.some((m) => m.id === lightbox.mediaId) ? lightbox.mediaId : undefined;
+  const displayId = storedMediaId ?? display?.id;
   const canAnnotate = !readOnly && primary != null;
 
   return (
@@ -560,27 +562,45 @@ function AnnotatedPhotoView({
   alt: string;
 }) {
   const [showOriginal, setShowOriginal] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
   const canPeek = originalMediaId != null;
   const peeking = showOriginal && canPeek;
   const mediaId = peeking ? originalMediaId : displayMediaId;
+
+  useEffect(() => {
+    setLoadFailed(false);
+  }, [mediaId, retryKey]);
 
   if (!mediaId) {
     return <p className={styles.mediaPending}>Photo pending upload…</p>;
   }
 
+  const src = `${mediaDownloadUrl(mediaId)}${retryKey ? `&r=${retryKey}` : ""}`;
+
   return (
     <div className={styles.annotatedPhotoWrap}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={mediaDownloadUrl(mediaId)}
-        alt={alt}
-        className={styles.lightboxImg}
-        onPointerDown={canPeek ? () => setShowOriginal(true) : undefined}
-        onPointerUp={canPeek ? () => setShowOriginal(false) : undefined}
-        onPointerLeave={canPeek ? () => setShowOriginal(false) : undefined}
-        onPointerCancel={canPeek ? () => setShowOriginal(false) : undefined}
-      />
-      {canPeek && peeking && (
+      {loadFailed ? (
+        <div className={styles.lightboxLoadError}>
+          <p>Couldn&apos;t load this photo.</p>
+          <button type="button" onClick={() => setRetryKey((k) => k + 1)}>
+            Retry
+          </button>
+        </div>
+      ) : (
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img
+          src={src}
+          alt={alt}
+          className={styles.lightboxImg}
+          onError={() => setLoadFailed(true)}
+          onPointerDown={canPeek ? () => setShowOriginal(true) : undefined}
+          onPointerUp={canPeek ? () => setShowOriginal(false) : undefined}
+          onPointerLeave={canPeek ? () => setShowOriginal(false) : undefined}
+          onPointerCancel={canPeek ? () => setShowOriginal(false) : undefined}
+        />
+      )}
+      {canPeek && peeking && !loadFailed && (
         <p className={styles.annotatedPhotoHint}>Showing original — release to return</p>
       )}
     </div>
