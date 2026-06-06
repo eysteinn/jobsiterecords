@@ -271,7 +271,7 @@ Timeline-style view of all records for one job. Purpose: let an office user **re
 **UX details specific to this page**
 - **Two-column desktop:** timeline on the left, **sticky job header** (name, status pill, assignees, action menu) at top of the right column with summary counts (photos / notes / voice / files / issues).
 - **Photos (*implemented*):** under each date heading, a **responsive thumbnail grid** (square crops, time overlay, read-only caption line). Consecutive photos share one grid; **voice, note, and file** items stay **compact rows** (icon + time + kind + preview/player) in **chronological order** between photo batches — one unified job story, not a separate Photos tab.
-- **Lightbox (*implemented*):** click a photo → full image; **← / →** (buttons + keyboard) move between all photos in the job; **caption edit** in the lightbox footer; **Annotate** opens full mark-up editor (parity with mobile §6.4a); hold to peek original; `Esc` closes.
+- **Lightbox (*implemented*):** click a photo → full image; footer and nav controls **shrink-wrap to image width** (no full-viewport bar on portrait shots). **Caption** is the primary footer block (tap-to-edit textarea); **metadata** (`date · time · N of M`) and **actions** (`Annotate` / `Edit annotations`, hold-to-peek hint) sit on a second row, actions right-aligned. **← / →** (buttons + keyboard) move between all photos in the job; disabled nav hidden; mark-up editor parity with mobile §6.4a; hold to peek original; `Esc` closes.
 - **Caption & tags edit inline** — captions on photos edited in lightbox; tags on web timeline still deferred.
 - **Tag picker** appears as a popover with type-ahead, recent tags, and create-new in one input.
 - **Bulk select** in timeline: click row checkbox or shift-click range; bottom bar shows `N selected · Tag · Delete · Add to report`.
@@ -892,6 +892,7 @@ All four methods are **MVP** on **mobile and web**. Team invites and workspace-j
 - **Per-session record** in DB lets the user see "Active devices" later and lets the server revoke a single device without invalidating other sessions.
 - Same user identity on web and mobile; one user can have many concurrent sessions.
 - CSRF protection on mutating web routes (double-submit cookie or `SameSite=Strict` + custom header check).
+- **BFF media proxies** (`/api/media/…/download`, `/api/items/…/thumb`) refresh the session when the access cookie has expired (same as page middleware) so `<img>` loads keep working after idle tabs without a full page reload.
 
 ### Rate limits (auth)
 

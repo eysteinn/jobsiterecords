@@ -489,7 +489,9 @@ function PhotoLightbox({
 
   const itemMedia = mediaByItem.get(item.id) ?? [];
   const { display, original, hasAnnotations, primary } = getPhotoMedia(itemMedia);
-  const displayId = lightbox.mediaId ?? display?.id;
+  const storedMediaId =
+    lightbox.mediaId && itemMedia.some((m) => m.id === lightbox.mediaId) ? lightbox.mediaId : undefined;
+  const displayId = storedMediaId ?? display?.id;
   const canAnnotate = !readOnly && primary != null;
 
   return (
@@ -525,19 +527,25 @@ function PhotoLightbox({
           </button>
         </div>
         <div className={styles.lightboxFooter}>
-          <p className={styles.lightboxMeta}>
-            {formatDate(item.captured_at)} · {formatTime(item.captured_at)}
-            {photoItems.length > 1 && index >= 0 && (
-              <> · Photo {index + 1} of {photoItems.length}</>
-            )}
-            {hasAnnotations && <> · Annotated</>}
-          </p>
-          <InlineCaption item={item} onSave={onSaveCaption} readOnly={readOnly} />
-          {canAnnotate && (
-            <button type="button" className={styles.annotateBtn} onClick={() => onAnnotate(item.id)}>
-              Annotate
-            </button>
-          )}
+          <LightboxCaption item={item} onSave={onSaveCaption} readOnly={readOnly} />
+          <div className={styles.lightboxFooterBar}>
+            <p className={styles.lightboxMeta}>
+              {formatDate(item.captured_at)} · {formatTime(item.captured_at)}
+              {photoItems.length > 1 && index >= 0 && (
+                <> · {index + 1} of {photoItems.length}</>
+              )}
+            </p>
+            <div className={styles.lightboxActions}>
+              {original != null && (
+                <span className={styles.lightboxPeekHint}>Hold photo to see original</span>
+              )}
+              {canAnnotate && (
+                <button type="button" className={styles.annotateBtn} onClick={() => onAnnotate(item.id)}>
+                  {hasAnnotations ? "Edit annotations" : "Annotate"}
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -554,36 +562,52 @@ function AnnotatedPhotoView({
   alt: string;
 }) {
   const [showOriginal, setShowOriginal] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
   const canPeek = originalMediaId != null;
   const peeking = showOriginal && canPeek;
   const mediaId = peeking ? originalMediaId : displayMediaId;
+
+  useEffect(() => {
+    setLoadFailed(false);
+  }, [mediaId, retryKey]);
 
   if (!mediaId) {
     return <p className={styles.mediaPending}>Photo pending upload…</p>;
   }
 
+  const src = `${mediaDownloadUrl(mediaId)}${retryKey ? `&r=${retryKey}` : ""}`;
+
   return (
     <div className={styles.annotatedPhotoWrap}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={mediaDownloadUrl(mediaId)}
-        alt={alt}
-        className={styles.lightboxImg}
-        onPointerDown={canPeek ? () => setShowOriginal(true) : undefined}
-        onPointerUp={canPeek ? () => setShowOriginal(false) : undefined}
-        onPointerLeave={canPeek ? () => setShowOriginal(false) : undefined}
-        onPointerCancel={canPeek ? () => setShowOriginal(false) : undefined}
-      />
-      {canPeek && (
-        <p className={styles.annotatedPhotoHint}>
-          {peeking ? "Showing original — release to return" : "Hold photo to see original"}
-        </p>
+      {loadFailed ? (
+        <div className={styles.lightboxLoadError}>
+          <p>Couldn&apos;t load this photo.</p>
+          <button type="button" onClick={() => setRetryKey((k) => k + 1)}>
+            Retry
+          </button>
+        </div>
+      ) : (
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img
+          src={src}
+          alt={alt}
+          className={styles.lightboxImg}
+          onError={() => setLoadFailed(true)}
+          onPointerDown={canPeek ? () => setShowOriginal(true) : undefined}
+          onPointerUp={canPeek ? () => setShowOriginal(false) : undefined}
+          onPointerLeave={canPeek ? () => setShowOriginal(false) : undefined}
+          onPointerCancel={canPeek ? () => setShowOriginal(false) : undefined}
+        />
+      )}
+      {canPeek && peeking && !loadFailed && (
+        <p className={styles.annotatedPhotoHint}>Showing original — release to return</p>
       )}
     </div>
   );
 }
 
-function InlineCaption({
+function LightboxCaption({
   item,
   onSave,
   readOnly = false,
@@ -611,27 +635,40 @@ function InlineCaption({
   }
 
   if (readOnly) {
-    return item.caption ? <p className={styles.captionReadOnly}>{item.caption}</p> : null;
+    return item.caption ? <p className={styles.lightboxCaptionReadOnly}>{item.caption}</p> : null;
   }
 
   if (editing) {
     return (
-      <div className={styles.inlineEdit}>
-        <input value={value} onChange={(e) => setValue(e.target.value)} autoFocus aria-label="Caption" />
-        <button type="button" onClick={commit}>
-          Save
-        </button>
-        <button type="button" onClick={() => setEditing(false)}>
-          Cancel
-        </button>
+      <div className={styles.lightboxCaptionEdit}>
+        <textarea
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          maxLength={160}
+          rows={2}
+          autoFocus
+          aria-label="Caption"
+        />
+        <div className={styles.lightboxCaptionEditActions}>
+          <button type="button" onClick={() => setEditing(false)}>
+            Cancel
+          </button>
+          <button type="button" onClick={commit}>
+            Save
+          </button>
+        </div>
         {error && <span className={styles.error}>{error}</span>}
       </div>
     );
   }
 
   return (
-    <button type="button" className={styles.captionBtn} onClick={() => setEditing(true)}>
-      {item.caption || "Add caption…"}
+    <button
+      type="button"
+      className={`${styles.lightboxCaptionField} ${item.caption ? "" : styles.lightboxCaptionFieldEmpty}`}
+      onClick={() => setEditing(true)}
+    >
+      {item.caption || "Add a caption…"}
     </button>
   );
 }

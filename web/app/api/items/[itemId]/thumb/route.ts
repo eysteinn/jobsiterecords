@@ -1,25 +1,19 @@
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { authenticatedProxy } from "@/lib/authenticated-proxy";
 import { apiBaseUrl } from "@/lib/types";
-import { ACCESS_COOKIE } from "@/lib/auth-cookies";
 
 export async function GET(
   request: Request,
   context: { params: Promise<{ itemId: string }> },
 ) {
   const { itemId } = await context.params;
-  const token = (await cookies()).get(ACCESS_COOKIE)?.value;
   const w = new URL(request.url).searchParams.get("w") ?? "512";
   // v= is a cache-buster from the client (display media updated_at); forward for consistency.
   const v = new URL(request.url).searchParams.get("v");
   const qs = new URLSearchParams({ w });
   if (v) qs.set("v", v);
   const url = `${apiBaseUrl()}/api/v1/items/${itemId}/thumb?${qs.toString()}`;
-  const res = await fetch(url, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-    redirect: "manual",
-    cache: "no-store",
-  });
+  const res = await authenticatedProxy(url);
 
   if (res.status >= 300 && res.status < 400) {
     const location = res.headers.get("location");
