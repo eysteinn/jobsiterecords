@@ -39,6 +39,8 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
   Timer? _searchDebounce;
   bool _filtersExpanded = false;
   final _searchFocusNode = FocusNode();
+  bool _watchingJob = false;
+  SyncScheduler? _syncScheduler;
 
   String get jobId => widget.jobId;
 
@@ -46,15 +48,18 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       if (ref.read(captureContextProvider).isWorkspace) {
-        ref.read(syncSchedulerProvider).beginWatchingJob();
+        _syncScheduler = ref.read(syncSchedulerProvider);
+        _syncScheduler!.beginWatchingJob();
+        _watchingJob = true;
       }
     });
   }
 
   @override
   void dispose() {
-    ref.read(syncSchedulerProvider).endWatchingJob();
+    if (_watchingJob) _syncScheduler?.endWatchingJob();
     _searchDebounce?.cancel();
     _searchCtrl.dispose();
     _searchFocusNode.dispose();
