@@ -18,6 +18,7 @@ import '../../domain/models/tag.dart';
 import '../../domain/models/timeline_item.dart';
 import '../../domain/models/timeline_query.dart';
 import 'bulk_tag_sheet.dart';
+import 'timeline_day_content.dart';
 import 'timeline_tag_filter_sheet.dart';
 
 class JobDetailScreen extends ConsumerStatefulWidget {
@@ -38,6 +39,8 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
   Timer? _searchDebounce;
   bool _filtersExpanded = false;
   final _searchFocusNode = FocusNode();
+  bool _watchingJob = false;
+  SyncScheduler? _syncScheduler;
 
   String get jobId => widget.jobId;
 
@@ -45,15 +48,18 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       if (ref.read(captureContextProvider).isWorkspace) {
-        ref.read(syncSchedulerProvider).beginWatchingJob();
+        _syncScheduler = ref.read(syncSchedulerProvider);
+        _syncScheduler!.beginWatchingJob();
+        _watchingJob = true;
       }
     });
   }
 
   @override
   void dispose() {
-    ref.read(syncSchedulerProvider).endWatchingJob();
+    if (_watchingJob) _syncScheduler?.endWatchingJob();
     _searchDebounce?.cancel();
     _searchCtrl.dispose();
     _searchFocusNode.dispose();
@@ -338,10 +344,10 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
       ),
       floatingActionButton: _selecting
           ? null
-          : FloatingActionButton.extended(
+          : FloatingActionButton(
               onPressed: () => _addItemSheet(context),
-              icon: const Icon(Icons.add_rounded),
-              label: const Text('Add Photo or Note'),
+              tooltip: 'Add photo or note',
+              child: const Icon(Icons.add_rounded),
             ),
       bottomNavigationBar: _selecting
           ? SafeArea(
@@ -527,7 +533,7 @@ class _Body extends StatelessWidget {
       return DateTime(d.year, d.month, d.day);
     });
     final days = byDay.keys.toList()..sort((a, b) => b.compareTo(a));
-    final bottomPad = selecting ? 100.0 : 100.0;
+    final bottomPad = selecting ? 88.0 : 80.0;
 
     return RefreshIndicator(
       onRefresh: onRefresh,
@@ -600,8 +606,14 @@ class _Body extends StatelessWidget {
               style: const TextStyle(color: AppColors.subtle, fontSize: 12, fontWeight: FontWeight.w600),
             ),
           ),
-          for (final t in byDay[d]!)
-            _ItemRow(
+          TimelineDayContent(
+            dayItems: byDay[d]!,
+            storage: storage,
+            selecting: selecting,
+            selected: selected,
+            onToggle: onToggle,
+            onLongPress: onLongPress,
+            rowBuilder: (t) => _ItemRow(
               timeline: t,
               storage: storage,
               selecting: selecting,
@@ -609,6 +621,7 @@ class _Body extends StatelessWidget {
               onToggle: () => onToggle(t.item.id),
               onLongPress: () => onLongPress(t.item.id),
             ),
+          ),
         ],
       ],
     ),
@@ -1127,7 +1140,7 @@ class _EmptyTimeline extends StatelessWidget {
           SizedBox(height: 8),
           Text('No items yet', style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.ink)),
           SizedBox(height: 4),
-          Text('Tap "Add Photo or Note" to start capturing, or open Photos for rapid batch capture.',
+          Text('Tap + to start capturing, or open Photos for rapid batch capture.',
               style: TextStyle(color: AppColors.subtle, fontSize: 12)),
         ],
       ),
