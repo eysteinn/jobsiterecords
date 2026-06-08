@@ -192,10 +192,14 @@
   box-shadow: var(--shadow);
 }
 
-.cardMenu {
+.cardMenuWrap {
   position: absolute;
   top: 8px;
   right: 8px;
+  z-index: 2;
+}
+
+.cardMenu {
   width: 32px;
   height: 32px;
   border: none;
@@ -203,6 +207,58 @@
   color: var(--muted);
   font-size: 1.125rem;
   border-radius: 6px;
+  cursor: pointer;
+}
+
+.cardMenuDropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 140px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  padding: 4px;
+  display: grid;
+  gap: 2px;
+}
+
+.cardMenuDropdown button {
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  padding: 8px 10px;
+  text-align: left;
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.cardMenuDropdown button:hover {
+  background: #f3f4f6;
+}
+
+.cardMenuDanger {
+  color: #dc2626;
+}
+
+.cardCheckbox {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 22px;
+  height: 22px;
+  accent-color: var(--accent);
+}
+
+.cardSelecting {
+  outline: 2px solid transparent;
+}
+
+.cardSelected {
+  outline: 2px solid var(--accent);
+  border-color: var(--accent);
 }
 
 .cardBody {

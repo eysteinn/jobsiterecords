@@ -62,12 +62,14 @@ func (s *Service) listMediaFiles(ctx context.Context, jobID string, since *time.
 		       m.status, m.etag, m.created_at, m.updated_at, m.deleted_at
 		FROM media_files m
 		JOIN items i ON i.id = m.item_id
-		WHERE i.job_id = $1 AND m.deleted_at IS NULL
+		WHERE i.job_id = $1
 	`
 	args := []any{jobID}
 	if since != nil {
 		q += ` AND m.updated_at >= $2`
 		args = append(args, *since)
+	} else {
+		q += ` AND m.deleted_at IS NULL`
 	}
 	q += ` ORDER BY m.updated_at DESC`
 	rows, err := s.pool.Query(ctx, q, args...)

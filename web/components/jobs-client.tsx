@@ -13,6 +13,8 @@ import { SYNC_POLL } from "@/lib/sync-poll-config";
 import { EmptyState, PageShell } from "@/components/page-shell";
 import { SearchFilterBar } from "@/components/search-filter-bar";
 import { JobFormDrawer } from "@/components/job-form-drawer";
+import { ConfirmDialog } from "@/components/confirm-dialog";
+import { buildJobDeletePayload } from "@/lib/delete-helpers";
 import { MobileJobCard } from "@/components/mobile-job-card";
 import { MobileStatusFilters } from "@/components/mobile-status-filters";
 import { MobileSyncStatus } from "@/components/mobile-sync-status";
@@ -38,6 +40,8 @@ export function JobsClient({ workspaceId, workspaceName, userEmail, jobs }: Prop
   const [refreshing, setRefreshing] = useState(false);
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [jobToDelete, setJobToDelete] = useState<Job | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(() => new Date());
   const searchParams = useSearchParams();
   const [detailed, setDetailed] = useState(() => searchParams.has("status"));
@@ -105,6 +109,25 @@ export function JobsClient({ workspaceId, workspaceName, userEmail, jobs }: Prop
     await fetch("/api/auth/logout", { method: "POST" });
     router.push("/login");
     router.refresh();
+  }
+
+  async function deleteJob(job: Job) {
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/jobs/${job.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildJobDeletePayload(job)),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Could not delete job");
+      setJobToDelete(null);
+      router.refresh();
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "Could not delete job");
+    } finally {
+      setDeleting(false);
+    }
   }
 
   return (
@@ -198,7 +221,7 @@ export function JobsClient({ workspaceId, workspaceName, userEmail, jobs }: Prop
         ) : (
           <div className={styles.cardList}>
             {filteredJobs.map((job) => (
-              <MobileJobCard key={job.id} job={job} />
+              <MobileJobCard key={job.id} job={job} onDelete={() => setJobToDelete(job)} />
             ))}
           </div>
         )}
@@ -285,37 +308,68 @@ export function JobsClient({ workspaceId, workspaceName, userEmail, jobs }: Prop
                     <th>Client</th>
                     <th>Status</th>
                     <th>Updated</th>
+                    <th aria-label="Actions" />
                   </tr>
                 </thead>
                 <tbody>
                   {filteredJobs.map((job) => {
                     const href = `/jobs/${job.id}`;
                     return (
-                      <tr
-                        key={job.id}
-                        className={styles.row}
-                        tabIndex={0}
-                        role="link"
-                        aria-label={`Open job ${job.name}`}
-                        onClick={() => router.push(href)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            router.push(href);
-                          }
-                        }}
-                      >
-                        <td>
+                      <tr key={job.id} className={styles.row}>
+                        <td
+                          tabIndex={0}
+                          role="link"
+                          aria-label={`Open job ${job.name}`}
+                          onClick={() => router.push(href)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              router.push(href);
+                            }
+                          }}
+                        >
                           <span className={styles.jobName}>{job.name}</span>
                           {job.address && <div className={styles.sub}>{job.address}</div>}
                         </td>
-                        <td>{job.client_name || "—"}</td>
-                        <td>
+                        <td
+                          onClick={() => router.push(href)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") router.push(href);
+                          }}
+                        >
+                          {job.client_name || "—"}
+                        </td>
+                        <td
+                          onClick={() => router.push(href)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") router.push(href);
+                          }}
+                        >
                           <span className={`${styles.pill} ${styles[`status_${job.status}`]}`}>
                             {job.status.replace(/_/g, " ")}
                           </span>
                         </td>
-                        <td>{formatDateTime(job.last_activity_at ?? job.updated_at)}</td>
+                        <td
+                          onClick={() => router.push(href)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") router.push(href);
+                          }}
+                        >
+                          {formatDateTime(job.last_activity_at ?? job.updated_at)}
+                        </td>
+                        <td className={styles.rowActions}>
+                          <button
+                            type="button"
+                            className={styles.rowMenuBtn}
+                            aria-label={`Actions for ${job.name}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setJobToDelete(job);
+                            }}
+                          >
+                            ⋯
+                          </button>
+                        </td>
                       </tr>
                     );
                   })}
@@ -327,6 +381,15 @@ export function JobsClient({ workspaceId, workspaceName, userEmail, jobs }: Prop
       </div>
 
       {open && <JobFormDrawer mode="create" workspaceId={workspaceId} onClose={() => setOpen(false)} />}
+
+      <ConfirmDialog
+        open={jobToDelete != null}
+        title="Delete job?"
+        message="This removes the job and all its items from all your devices. This cannot be undone."
+        busy={deleting}
+        onConfirm={() => jobToDelete && deleteJob(jobToDelete)}
+        onCancel={() => setJobToDelete(null)}
+      />
     </>
   );
 }

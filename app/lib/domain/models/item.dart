@@ -35,6 +35,7 @@ class Item {
   final DateTime capturedAt;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final DateTime? deletedAt;
 
   const Item({
     required this.id,
@@ -47,7 +48,10 @@ class Item {
     required this.capturedAt,
     required this.createdAt,
     required this.updatedAt,
+    this.deletedAt,
   });
+
+  bool get isDeleted => deletedAt != null;
 
   Item copyWith({
     String? caption,
@@ -56,6 +60,7 @@ class Item {
     DateTime? lastSyncedAt,
     DateTime? capturedAt,
     DateTime? updatedAt,
+    DateTime? deletedAt,
   }) {
     return Item(
       id: id,
@@ -68,6 +73,7 @@ class Item {
       capturedAt: capturedAt ?? this.capturedAt,
       createdAt: createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
     );
   }
 
@@ -82,6 +88,7 @@ class Item {
         'captured_at': capturedAt.toIso8601String(),
         'created_at': createdAt.toIso8601String(),
         'updated_at': updatedAt.toIso8601String(),
+        'deleted_at': deletedAt?.toIso8601String(),
       };
 
   factory Item.fromDb(Map<String, Object?> r) => Item(
@@ -95,5 +102,6 @@ class Item {
         capturedAt: DateTime.parse(r['captured_at']! as String),
         createdAt: DateTime.parse(r['created_at']! as String),
         updatedAt: DateTime.parse(r['updated_at']! as String),
+        deletedAt: r['deleted_at'] == null ? null : DateTime.tryParse(r['deleted_at']! as String),
       );
 }

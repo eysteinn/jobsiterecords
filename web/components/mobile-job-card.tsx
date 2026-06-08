@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Job } from "@/lib/api-jobs";
 import { formatUpdatedLabel } from "@/lib/format";
@@ -8,15 +9,29 @@ import styles from "./mobile-job-card.module.css";
 
 type Props = {
   job: Job;
+  onDelete?: () => void;
 };
 
 function statusLabel(status: Job["status"]): string {
   return status.replace(/_/g, " ");
 }
 
-export function MobileJobCard({ job }: Props) {
+export function MobileJobCard({ job, onDelete }: Props) {
   const router = useRouter();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const href = `/jobs/${job.id}`;
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onPointerDown(event: PointerEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [menuOpen]);
   const subtitle = job.address || job.client_name || null;
   const updated = formatUpdatedLabel(job.last_activity_at ?? job.updated_at);
   const thumbSrc = job.cover_item_id
@@ -59,9 +74,41 @@ export function MobileJobCard({ job }: Props) {
           <span>{updated}</span>
         </p>
       </div>
-      <span className={styles.chevron} aria-hidden>
-        ›
-      </span>
+      {onDelete ? (
+        <div className={styles.menuWrap} ref={menuRef}>
+          <button
+            type="button"
+            className={styles.menuBtn}
+            aria-label={`Actions for ${job.name}`}
+            aria-expanded={menuOpen}
+            onClick={(e) => {
+              e.stopPropagation();
+              setMenuOpen((open) => !open);
+            }}
+          >
+            ⋮
+          </button>
+          {menuOpen && (
+            <div className={styles.menuDropdown}>
+              <button
+                type="button"
+                className={styles.menuDanger}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMenuOpen(false);
+                  onDelete();
+                }}
+              >
+                Delete job
+              </button>
+            </div>
+          )}
+        </div>
+      ) : (
+        <span className={styles.chevron} aria-hidden>
+          ›
+        </span>
+      )}
     </article>
   );
 }

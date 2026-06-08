@@ -175,12 +175,15 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
   Future<void> _deleteSelected() async {
     final n = _selected.length;
     if (n == 0 || _deleting) return;
+    final synced = ref.read(captureContextProvider).isWorkspace;
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
         title: Text('Delete $n item${n == 1 ? '' : 's'}?'),
-        content: const Text(
-          'This permanently removes the selected items from this device. This cannot be undone.',
+        content: Text(
+          synced
+              ? 'This removes the selected items from this job on all your devices. This cannot be undone.'
+              : 'This permanently removes the selected items from this device. This cannot be undone.',
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
@@ -476,11 +479,16 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
           ref.invalidate(jobProvider(jobId));
         }
       case 'delete':
+        final synced = ref.read(captureContextProvider).isWorkspace;
         final ok = await showDialog<bool>(
           context: context,
           builder: (_) => AlertDialog(
             title: const Text('Delete job?'),
-            content: const Text('This permanently removes the job and all of its items.'),
+            content: Text(
+              synced
+                  ? 'This removes the job and all its items from all your devices. This cannot be undone.'
+                  : 'This permanently removes the job and all of its items from this device.',
+            ),
             actions: [
               TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
               TextButton(

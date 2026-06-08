@@ -43,6 +43,7 @@ class Job {
   final DateTime? lastSyncedAt;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final DateTime? deletedAt;
 
   const Job({
     required this.id,
@@ -60,7 +61,10 @@ class Job {
     this.lastSyncedAt,
     required this.createdAt,
     required this.updatedAt,
+    this.deletedAt,
   });
+
+  bool get isDeleted => deletedAt != null;
 
   Job copyWith({
     String? name,
@@ -76,6 +80,7 @@ class Job {
     SyncState? syncState,
     DateTime? lastSyncedAt,
     DateTime? updatedAt,
+    DateTime? deletedAt,
   }) {
     return Job(
       id: id,
@@ -93,6 +98,7 @@ class Job {
       lastSyncedAt: lastSyncedAt ?? this.lastSyncedAt,
       createdAt: createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
     );
   }
 
@@ -112,6 +118,7 @@ class Job {
         'last_synced_at': lastSyncedAt?.toIso8601String(),
         'created_at': createdAt.toIso8601String(),
         'updated_at': updatedAt.toIso8601String(),
+        'deleted_at': deletedAt?.toIso8601String(),
       };
 
   factory Job.fromDb(Map<String, Object?> r) => Job(
@@ -130,6 +137,7 @@ class Job {
         lastSyncedAt: r['last_synced_at'] == null ? null : DateTime.tryParse(r['last_synced_at']! as String),
         createdAt: DateTime.parse(r['created_at']! as String),
         updatedAt: DateTime.parse(r['updated_at']! as String),
+        deletedAt: r['deleted_at'] == null ? null : DateTime.tryParse(r['deleted_at']! as String),
       );
 }
 

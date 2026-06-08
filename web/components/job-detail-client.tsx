@@ -4,6 +4,9 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Item, ItemTag, Job, MediaFile, Tag } from "@/lib/api-jobs";
+import { buildItemDeletePayload, buildItemRestorePayload, buildJobDeletePayload } from "@/lib/delete-helpers";
+import { ConfirmDialog } from "@/components/confirm-dialog";
+import { UndoToast } from "@/components/undo-toast";
 import { useSyncPoll } from "@/hooks/use-sync-poll";
 import { useUrlQueryParam, useUrlSetParam } from "@/hooks/use-url-filter-state";
 import { formatDate, formatDayKey, formatTime } from "@/lib/format";
@@ -115,6 +118,18 @@ export function JobDetailClient({
   const searchRef = useRef<HTMLInputElement>(null);
   const [tags, setTags] = useState(initialTags);
   const [itemTags, setItemTags] = useState(initialItemTags);
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<
+    { type: "items"; itemIds: string[] } | { type: "job" } | null
+  >(null);
+  const [undoState, setUndoState] = useState<{
+    message: string;
+    items: Item[];
+    mediaFiles: MediaFile[];
+    itemTags: ItemTag[];
+  } | null>(null);
 
   useEffect(() => {
     if (searchParams.has("kind") || searchParams.has("tag")) setFiltersExpanded(true);
@@ -212,6 +227,11 @@ export function JobDetailClient({
         return;
       }
 
+      if ((delta.job as Job & { deleted_at?: string | null })?.deleted_at) {
+        router.push("/jobs");
+        return;
+      }
+
       const merged = mergeJobBundle(
         itemsRef.current,
         mediaRef.current,
@@ -219,6 +239,10 @@ export function JobDetailClient({
         tagsRef.current,
         itemTagsRef.current,
       );
+      if (merged.jobDeleted) {
+        router.push("/jobs");
+        return;
+      }
       if (merged.job) {
         setJob(merged.job);
       }
@@ -407,8 +431,168 @@ export function JobDetailClient({
   }
 
   const openPhoto = useCallback((itemId: string, mediaId?: string) => {
+    if (selecting) {
+      setSelected((prev) => {
+        const next = new Set(prev);
+        if (next.has(itemId)) next.delete(itemId);
+        else next.add(itemId);
+        return next;
+      });
+      return;
+    }
     setLightbox({ itemId, mediaId });
-  }, []);
+  }, [selecting]);
+
+  function exitSelection() {
+    setSelecting(false);
+    setSelected(new Set());
+  }
+
+  function enterSelection(initialItemId?: string) {
+    setSelecting(true);
+    setSelected(initialItemId ? new Set([initialItemId]) : new Set());
+  }
+
+  function toggleSelected(itemId: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(itemId)) next.delete(itemId);
+      else next.add(itemId);
+      return next;
+    });
+  }
+
+  function selectAllVisible() {
+    setSelected(new Set(filteredItems.map((item) => item.id)));
+  }
+
+  function requestDeleteItems(itemIds: string[]) {
+    if (itemIds.length === 0 || readOnly) return;
+    setConfirmAction({ type: "items", itemIds });
+  }
+
+  function requestDeleteJob() {
+    if (readOnly) return;
+    setConfirmAction({ type: "job" });
+    setMobileMenuOpen(false);
+  }
+
+  async function performDeleteItems(itemIds: string[]) {
+    const idSet = new Set(itemIds);
+    const snapshotItems = items.filter((item) => idSet.has(item.id));
+    const snapshotMedia = mediaFiles.filter((media) => idSet.has(media.item_id));
+    const snapshotItemTags = itemTags.filter((link) => idSet.has(link.item_id));
+
+    setDeleting(true);
+    setItems((prev) => prev.filter((item) => !idSet.has(item.id)));
+    setMediaFiles((prev) => prev.filter((media) => !idSet.has(media.item_id)));
+    setItemTags((prev) => prev.filter((link) => !idSet.has(link.item_id)));
+    if (lightbox && idSet.has(lightbox.itemId)) setLightbox(null);
+    exitSelection();
+
+    try {
+      await Promise.all(
+        snapshotItems.map(async (item) => {
+          const res = await fetch(`/api/jobs/${job.id}/items/${item.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(buildItemDeletePayload(item)),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.message || "Could not delete item");
+        }),
+      );
+      setUndoState({
+        message: `Deleted ${snapshotItems.length} item${snapshotItems.length === 1 ? "" : "s"}`,
+        items: snapshotItems,
+        mediaFiles: snapshotMedia,
+        itemTags: snapshotItemTags,
+      });
+      router.refresh();
+    } catch (err) {
+      setItems((prev) =>
+        [...snapshotItems, ...prev].sort(
+          (a, b) => new Date(b.captured_at).getTime() - new Date(a.captured_at).getTime(),
+        ),
+      );
+      setMediaFiles((prev) => [...prev, ...snapshotMedia]);
+      setItemTags((prev) => [...prev, ...snapshotItemTags]);
+      setToast(err instanceof Error ? err.message : "Could not delete items");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  async function performDeleteJob() {
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/jobs/${job.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildJobDeletePayload(job)),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Could not delete job");
+      router.push("/jobs");
+      router.refresh();
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : "Could not delete job");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  async function handleConfirmDelete() {
+    if (!confirmAction) return;
+    if (confirmAction.type === "job") {
+      setConfirmAction(null);
+      await performDeleteJob();
+      return;
+    }
+    const ids = confirmAction.itemIds;
+    setConfirmAction(null);
+    await performDeleteItems(ids);
+  }
+
+  async function undoDelete() {
+    if (!undoState) return;
+    const { items: restoredItems, mediaFiles: restoredMedia, itemTags: restoredLinks } = undoState;
+    setUndoState(null);
+    try {
+      await Promise.all(
+        restoredItems.map(async (item) => {
+          const res = await fetch(`/api/jobs/${job.id}/items/${item.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(buildItemRestorePayload(item)),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.message || "Could not restore item");
+        }),
+      );
+      setItems((prev) => {
+        const map = new Map(prev.map((item) => [item.id, item]));
+        for (const item of restoredItems) map.set(item.id, item);
+        return [...map.values()].sort(
+          (a, b) => new Date(b.captured_at).getTime() - new Date(a.captured_at).getTime(),
+        );
+      });
+      setMediaFiles((prev) => {
+        const map = new Map(prev.map((media) => [media.id, media]));
+        for (const media of restoredMedia) map.set(media.id, media);
+        return [...map.values()];
+      });
+      setItemTags((prev) => {
+        const map = new Map(prev.map((link) => [`${link.item_id}:${link.tag_id}`, link]));
+        for (const link of restoredLinks) map.set(`${link.item_id}:${link.tag_id}`, link);
+        return [...map.values()];
+      });
+      setToast("Deletion undone");
+      router.refresh();
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : "Could not undo delete");
+    }
+  }
 
   function handleAnnotationSaved(itemId: string, updatedMedia: MediaFile[]) {
     setMediaFiles((prev) => {
@@ -432,39 +616,74 @@ export function JobDetailClient({
     <>
     <header className={`${styles.mobileDetailHeader} mobileOnly`}>
       <div className={styles.mobileNavRow}>
-        <Link href="/jobs" className={styles.mobileBack} aria-label="Back to jobs">
-          ←
-        </Link>
-        <div className={styles.mobileNavActions}>
-        <div className={styles.mobileDetailMenu} ref={mobileMenuRef}>
-          <button
-            type="button"
-            className={styles.mobileMenuBtn}
-            onClick={() => setMobileMenuOpen((v) => !v)}
-            aria-expanded={mobileMenuOpen}
-            aria-label="Job menu"
-          >
-            ⋮
-          </button>
-          {mobileMenuOpen && (
-            <div className={styles.mobileMenuDropdown}>
-              <button type="button" onClick={() => { refresh(); setMobileMenuOpen(false); }} disabled={refreshing}>
-                {refreshing ? "Refreshing…" : "Refresh"}
-              </button>
-              {!readOnly && JOB_STATUSES.map((option) => (
+        {selecting ? (
+          <>
+            <button type="button" className={styles.mobileBack} onClick={exitSelection} aria-label="Cancel selection">
+              ×
+            </button>
+            <span className={styles.selectionBarCount}>
+              {selected.size === 0 ? "Select items" : `${selected.size} selected`}
+            </span>
+            <button type="button" className={styles.selectBtn} onClick={selectAllVisible} disabled={deleting}>
+              All
+            </button>
+          </>
+        ) : (
+          <>
+            <Link href="/jobs" className={styles.mobileBack} aria-label="Back to jobs">
+              ←
+            </Link>
+            <div className={styles.mobileNavActions}>
+              <div className={styles.mobileDetailMenu} ref={mobileMenuRef}>
                 <button
-                  key={option.value}
                   type="button"
-                  disabled={updatingStatus || job.status === option.value}
-                  onClick={() => { updateJobStatus(option.value); setMobileMenuOpen(false); }}
+                  className={styles.mobileMenuBtn}
+                  onClick={() => setMobileMenuOpen((v) => !v)}
+                  aria-expanded={mobileMenuOpen}
+                  aria-label="Job menu"
                 >
-                  Set {option.label}
+                  ⋮
                 </button>
-              ))}
+                {mobileMenuOpen && (
+                  <div className={styles.mobileMenuDropdown}>
+                    <button type="button" onClick={() => { refresh(); setMobileMenuOpen(false); }} disabled={refreshing}>
+                      {refreshing ? "Refreshing…" : "Refresh"}
+                    </button>
+                    {!readOnly && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          enterSelection();
+                          setMobileMenuOpen(false);
+                        }}
+                      >
+                        Select items…
+                      </button>
+                    )}
+                    {!readOnly && JOB_STATUSES.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        disabled={updatingStatus || job.status === option.value}
+                        onClick={() => { updateJobStatus(option.value); setMobileMenuOpen(false); }}
+                      >
+                        Set {option.label}
+                      </button>
+                    ))}
+                    {!readOnly && (
+                      <>
+                        <hr />
+                        <button type="button" className={styles.mobileMenuDanger} onClick={requestDeleteJob}>
+                          Delete job
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
-          )}
-        </div>
-        </div>
+          </>
+        )}
       </div>
       <div className={styles.mobileTitleRow}>
         <h1 className={styles.mobileDetailTitle}>{job.name}</h1>
@@ -584,6 +803,16 @@ export function JobDetailClient({
           <button type="button" className={styles.refreshBtn} onClick={refresh} disabled={refreshing}>
             {refreshing ? "Refreshing…" : "Refresh"}
           </button>
+          {!readOnly && (
+            <button
+              type="button"
+              className={selecting ? `${styles.selectBtn} ${styles.selectBtnActive}` : styles.selectBtn}
+              onClick={() => (selecting ? exitSelection() : enterSelection())}
+              aria-pressed={selecting}
+            >
+              {selecting ? "Cancel" : "Select"}
+            </button>
+          )}
           <Link href="/jobs" className={styles.backLink}>
             ← All jobs
           </Link>
@@ -712,6 +941,12 @@ export function JobDetailClient({
                     onOpenPhoto={openPhoto}
                     onToggleTag={toggleTag}
                     tagFilter={tagFilter}
+                    selecting={selecting}
+                    selected={selected}
+                    onToggleSelect={toggleSelected}
+                    onLongPressSelect={enterSelection}
+                    onDeleteItem={(itemId) => requestDeleteItems([itemId])}
+                    readOnly={readOnly}
                   />
                 </div>
                 <section className={`${styles.dayGroup} desktopOnly`}>
@@ -727,6 +962,9 @@ export function JobDetailClient({
                           tagFilter={tagFilter}
                           onOpen={openPhoto}
                           onToggleTag={toggleTag}
+                          selecting={selecting}
+                          selected={selected}
+                          onToggleSelect={toggleSelected}
                         />
                       ) : (
                         <ul key={`r-${seg.item.id}`} className={styles.timelineRows}>
@@ -737,6 +975,11 @@ export function JobDetailClient({
                               tags={tagsByItem.get(seg.item.id) ?? []}
                               tagFilter={tagFilter}
                               onToggleTag={toggleTag}
+                              selecting={selecting}
+                              selected={selected.has(seg.item.id)}
+                              onToggleSelect={() => toggleSelected(seg.item.id)}
+                              onDelete={() => requestDeleteItems([seg.item.id])}
+                              readOnly={readOnly}
                             />
                           </li>
                         </ul>
@@ -764,6 +1007,7 @@ export function JobDetailClient({
             setLightbox(null);
             setAnnotatingItemId(itemId);
           }}
+          onDelete={(itemId) => requestDeleteItems([itemId])}
         />
       )}
 
@@ -787,11 +1031,12 @@ export function JobDetailClient({
             setJob(updated);
             setToast("Job details saved");
           }}
+          onDelete={requestDeleteJob}
         />
       )}
     </PageShell>
 
-    {!readOnly && (
+    {!readOnly && !selecting && (
       <button
         type="button"
         className={`${styles.mobileAddFab} mobileOnly`}
@@ -800,6 +1045,47 @@ export function JobDetailClient({
       >
         + Add
       </button>
+    )}
+
+    {selecting && !readOnly && (
+      <div className={styles.selectionBar}>
+        <span className={styles.selectionBarCount}>
+          {selected.size === 0 ? "Tap items to select" : `${selected.size} selected`}
+        </span>
+        <div className={styles.selectionBarActions}>
+          <button
+            type="button"
+            className={styles.selectionDeleteBtn}
+            disabled={selected.size === 0 || deleting}
+            onClick={() => requestDeleteItems([...selected])}
+          >
+            {deleting ? "Deleting…" : "Delete"}
+          </button>
+        </div>
+      </div>
+    )}
+
+    <ConfirmDialog
+      open={confirmAction != null}
+      title={
+        confirmAction?.type === "job"
+          ? "Delete job?"
+          : `Delete ${confirmAction?.type === "items" ? confirmAction.itemIds.length : 0} item${
+              confirmAction?.type === "items" && confirmAction.itemIds.length === 1 ? "" : "s"
+            }?`
+      }
+      message={
+        confirmAction?.type === "job"
+          ? "This removes the job and all its items from all your devices. This cannot be undone."
+          : "This removes the selected items from this job on all your devices. This cannot be undone."
+      }
+      busy={deleting}
+      onConfirm={handleConfirmDelete}
+      onCancel={() => setConfirmAction(null)}
+    />
+
+    {undoState && (
+      <UndoToast message={undoState.message} onUndo={undoDelete} onDismiss={() => setUndoState(null)} />
     )}
 
     <MobileAddSheet
@@ -843,6 +1129,9 @@ function PhotoGrid({
   tagFilter,
   onOpen,
   onToggleTag,
+  selecting = false,
+  selected,
+  onToggleSelect,
 }: {
   items: Item[];
   mediaByItem: Map<string, MediaFile[]>;
@@ -850,6 +1139,9 @@ function PhotoGrid({
   tagFilter: ReadonlySet<string>;
   onOpen: (itemId: string, mediaId?: string) => void;
   onToggleTag: (tagId: string) => void;
+  selecting?: boolean;
+  selected?: Set<string>;
+  onToggleSelect?: (itemId: string) => void;
 }) {
   return (
     <div className={styles.photoGrid} role="group" aria-label="Photos">
@@ -862,6 +1154,9 @@ function PhotoGrid({
           tagFilter={tagFilter}
           onOpen={onOpen}
           onToggleTag={onToggleTag}
+          selecting={selecting}
+          isSelected={selected?.has(item.id) ?? false}
+          onToggleSelect={onToggleSelect}
         />
       ))}
     </div>
@@ -902,6 +1197,9 @@ function PhotoCell({
   tagFilter,
   onOpen,
   onToggleTag,
+  selecting = false,
+  isSelected = false,
+  onToggleSelect,
 }: {
   item: Item;
   media: MediaFile[];
@@ -909,6 +1207,9 @@ function PhotoCell({
   tagFilter: ReadonlySet<string>;
   onOpen: (itemId: string, mediaId?: string) => void;
   onToggleTag: (tagId: string) => void;
+  selecting?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: (itemId: string) => void;
 }) {
   const { display, hasAnnotations } = getPhotoMedia(media);
   const time = formatTime(item.captured_at);
@@ -923,7 +1224,20 @@ function PhotoCell({
   }
 
   return (
-    <div className={styles.photoCellWrap}>
+    <div
+      className={`${styles.photoCellWrap} ${selecting ? styles.photoCellWrapSelecting : ""} ${
+        isSelected ? styles.photoCellSelected : ""
+      }`}
+    >
+      {selecting && (
+        <input
+          type="checkbox"
+          className={styles.selectCheckbox}
+          checked={isSelected}
+          onChange={() => onToggleSelect?.(item.id)}
+          aria-label={`Select photo ${time}`}
+        />
+      )}
       <button
         type="button"
         className={styles.photoCell}
@@ -961,12 +1275,22 @@ function TimelineRow({
   tags,
   tagFilter,
   onToggleTag,
+  selecting = false,
+  selected = false,
+  onToggleSelect,
+  onDelete,
+  readOnly = false,
 }: {
   item: Item;
   media: MediaFile[];
   tags: Tag[];
   tagFilter: ReadonlySet<string>;
   onToggleTag: (tagId: string) => void;
+  selecting?: boolean;
+  selected?: boolean;
+  onToggleSelect?: () => void;
+  onDelete?: () => void;
+  readOnly?: boolean;
 }) {
   const preview =
     item.kind === "note"
@@ -976,8 +1300,21 @@ function TimelineRow({
         : null;
 
   return (
-    <article className={styles.timelineRow}>
+    <article
+      className={`${styles.timelineRow} ${selecting ? styles.timelineRowSelecting : ""} ${
+        selected ? styles.timelineRowSelected : ""
+      }`}
+    >
       <div className={styles.timelineRowMain}>
+        {selecting && (
+          <input
+            type="checkbox"
+            className={styles.selectCheckbox}
+            checked={selected}
+            onChange={onToggleSelect}
+            aria-label={`Select ${item.kind}`}
+          />
+        )}
         <div className={styles.timelineRowIcon} aria-hidden>
           {item.kind === "voice" && <VoiceIcon />}
           {item.kind === "note" && <NoteIcon />}
@@ -993,6 +1330,11 @@ function TimelineRow({
           <RowMedia item={item} media={media} />
           <TagRow tags={tags} tagFilter={tagFilter} onToggleTag={onToggleTag} />
         </div>
+        {!readOnly && !selecting && onDelete && (
+          <button type="button" className={styles.rowDeleteBtn} onClick={onDelete} aria-label="Delete item">
+            Delete
+          </button>
+        )}
       </div>
     </article>
   );
@@ -1037,6 +1379,7 @@ function PhotoLightbox({
   onNavigate,
   onSaveCaption,
   onAnnotate,
+  onDelete,
 }: {
   items: Item[];
   photoItems: Item[];
@@ -1047,6 +1390,7 @@ function PhotoLightbox({
   onNavigate: (itemId: string, mediaId?: string) => void;
   onSaveCaption: (item: Item, caption: string) => Promise<void>;
   onAnnotate: (itemId: string) => void;
+  onDelete?: (itemId: string) => void;
 }) {
   const index = photoItems.findIndex((p) => p.id === lightbox.itemId);
   const item = items.find((i) => i.id === lightbox.itemId);
@@ -1143,6 +1487,11 @@ function PhotoLightbox({
               {canAnnotate && (
                 <button type="button" className={styles.annotateBtn} onClick={() => onAnnotate(item.id)}>
                   {hasAnnotations ? "Edit annotations" : "Annotate"}
+                </button>
+              )}
+              {!readOnly && onDelete && (
+                <button type="button" className={styles.lightboxDeleteBtn} onClick={() => onDelete(item.id)}>
+                  Delete
                 </button>
               )}
             </div>
