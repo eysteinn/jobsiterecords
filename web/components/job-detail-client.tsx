@@ -25,6 +25,14 @@ type TimelineSegment =
   | { type: "photos"; items: Item[] }
   | { type: "row"; item: Item };
 
+type JobStatus = Job["status"];
+
+const JOB_STATUSES: { value: JobStatus; label: string }[] = [
+  { value: "planning", label: "Planning" },
+  { value: "in_progress", label: "In progress" },
+  { value: "completed", label: "Completed" },
+];
+
 export function JobDetailClient({ job: initialJob, items: initialItems, mediaFiles: initialMediaFiles, readOnly = false }: Props) {
   const router = useRouter();
   const [job, setJob] = useState(initialJob);
@@ -34,8 +42,10 @@ export function JobDetailClient({ job: initialJob, items: initialItems, mediaFil
   const [noteCaption, setNoteCaption] = useState("");
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [closing, setClosing] = useState(false);
+  const [statusMenuOpen, setStatusMenuOpen] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const statusMenuRef = useRef<HTMLDivElement>(null);
   const [fieldUpdateBanner, setFieldUpdateBanner] = useState(false);
   const [lightbox, setLightbox] = useState<{ itemId: string; mediaId?: string } | null>(null);
   const [annotatingItemId, setAnnotatingItemId] = useState<string | null>(null);
@@ -60,6 +70,17 @@ export function JobDetailClient({ job: initialJob, items: initialItems, mediaFil
   useEffect(() => {
     cursorRef.current = job.last_activity_at ?? job.updated_at;
   }, [job.last_activity_at, job.updated_at]);
+
+  useEffect(() => {
+    if (!statusMenuOpen) return;
+    function onPointerDown(event: PointerEvent) {
+      if (statusMenuRef.current && !statusMenuRef.current.contains(event.target as Node)) {
+        setStatusMenuOpen(false);
+      }
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [statusMenuOpen]);
 
   const onJobChanged = useCallback(
     async (result: { cursor: string | null }) => {
@@ -158,9 +179,12 @@ export function JobDetailClient({ job: initialJob, items: initialItems, mediaFil
     }
   }
 
-  async function closeJob() {
-    if (job.status === "completed" || readOnly) return;
-    setClosing(true);
+  async function updateJobStatus(nextStatus: JobStatus) {
+    if (readOnly || nextStatus === job.status) {
+      setStatusMenuOpen(false);
+      return;
+    }
+    setUpdatingStatus(true);
     setMessage(null);
     try {
       const now = new Date().toISOString();
@@ -173,23 +197,25 @@ export function JobDetailClient({ job: initialJob, items: initialItems, mediaFil
           client_name: job.client_name,
           address: job.address,
           job_number: job.job_number,
-          status: "completed",
+          status: nextStatus,
           start_date: job.start_date,
-          end_date: job.end_date ?? now.slice(0, 10),
+          end_date:
+            nextStatus === "completed" ? (job.end_date ?? now.slice(0, 10)) : job.end_date,
           notes: job.notes,
           created_at: job.created_at,
           updated_at: now,
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Could not close job");
+      if (!res.ok) throw new Error(data.message || "Could not update status");
       setJob(data);
-      setMessage("Job closed");
+      setStatusMenuOpen(false);
+      setMessage("Status updated");
       router.refresh();
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Could not close job");
+      setMessage(err instanceof Error ? err.message : "Could not update status");
     } finally {
-      setClosing(false);
+      setUpdatingStatus(false);
     }
   }
 
@@ -233,19 +259,48 @@ export function JobDetailClient({ job: initialJob, items: initialItems, mediaFil
       subtitle={[job.client_name, job.address].filter(Boolean).join(" · ") || "Job timeline"}
       action={
         <div className={styles.headerActions}>
-          <span className={`${styles.statusPill} ${styles[`status_${job.status}`]}`}>
-            {job.status.replace(/_/g, " ")}
-          </span>
-          {!readOnly && job.status !== "completed" && (
-            <button
-              type="button"
-              className={styles.closeJobBtn}
-              onClick={closeJob}
-              disabled={closing}
-            >
-              {closing ? "Closing…" : "Close job"}
-            </button>
-          )}
+          <div className={styles.statusPicker} ref={statusMenuRef}>
+            {readOnly ? (
+              <span className={`${styles.statusPill} ${styles[`status_${job.status}`]}`}>
+                {job.status.replace(/_/g, " ")}
+              </span>
+            ) : (
+              <button
+                type="button"
+                className={`${styles.statusPill} ${styles.statusPillBtn} ${styles[`status_${job.status}`]}`}
+                onClick={() => setStatusMenuOpen((open) => !open)}
+                disabled={updatingStatus}
+                aria-haspopup="listbox"
+                aria-expanded={statusMenuOpen}
+              >
+                {job.status.replace(/_/g, " ")}
+                <span className={styles.statusChevron} aria-hidden>
+                  ▾
+                </span>
+              </button>
+            )}
+            {statusMenuOpen && !readOnly && (
+              <div className={styles.statusMenu} role="listbox" aria-label="Job status">
+                {JOB_STATUSES.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    role="option"
+                    aria-selected={job.status === option.value}
+                    className={
+                      job.status === option.value
+                        ? `${styles.statusOption} ${styles.statusOptionActive}`
+                        : styles.statusOption
+                    }
+                    onClick={() => updateJobStatus(option.value)}
+                    disabled={updatingStatus}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <button type="button" className={styles.refreshBtn} onClick={refresh} disabled={refreshing}>
             {refreshing ? "Refreshing…" : "Refresh"}
           </button>

@@ -284,15 +284,34 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                 ),
                 PopupMenuButton<String>(
                   onSelected: (v) => _onMenu(context, ref, v),
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(value: 'select', child: Text('Select items…')),
-                    PopupMenuItem(value: 'export', child: Text('Export…')),
-                    PopupMenuItem(value: 'complete', child: Text('Close job')),
-                    PopupMenuItem(
-                      value: 'delete',
-                      child: Text('Delete Job', style: TextStyle(color: Colors.red)),
-                    ),
-                  ],
+                  itemBuilder: (context) {
+                    final currentStatus = jobAsync.valueOrNull?.status;
+                    return [
+                      const PopupMenuItem(value: 'select', child: Text('Select items…')),
+                      const PopupMenuItem(value: 'export', child: Text('Export…')),
+                      const PopupMenuDivider(),
+                      for (final status in JobStatus.values)
+                        PopupMenuItem(
+                          value: 'status:${status.dbValue}',
+                          child: Row(
+                            children: [
+                              SizedBox(
+                                width: 20,
+                                child: currentStatus == status
+                                    ? const Icon(Icons.check, size: 18)
+                                    : null,
+                              ),
+                              Text(status.label),
+                            ],
+                          ),
+                        ),
+                      const PopupMenuDivider(),
+                      const PopupMenuItem(
+                        value: 'delete',
+                        child: Text('Delete Job', style: TextStyle(color: Colors.red)),
+                      ),
+                    ];
+                  },
                 ),
               ],
             ),
@@ -446,12 +465,14 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
         _enterSelection();
       case 'export':
         context.pushNamed('job-export', pathParameters: {'id': jobId});
-      case 'complete':
+      case final v when v.startsWith('status:'):
+        final nextStatus = JobStatus.fromDb(v.substring('status:'.length));
         final repo = ref.read(jobsRepositoryProvider);
         final job = await repo.byId(jobId);
-        if (job != null) {
-          await repo.update(job.copyWith(status: JobStatus.completed));
+        if (job != null && job.status != nextStatus) {
+          await repo.update(job.copyWith(status: nextStatus));
           bumpDataRevision(ref);
+          ref.invalidate(jobProvider(jobId));
         }
       case 'delete':
         final ok = await showDialog<bool>(
