@@ -67,6 +67,26 @@
   box-shadow: inset 0 0 0 2px var(--accent);
 }
 
+.rowActions {
+  width: 48px;
+  text-align: right;
+}
+
+.rowMenuBtn {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1.125rem;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.rowMenuBtn:hover {
+  background: #f3f4f6;
+}
+
 .jobName {
   font-weight: 600;
   color: #111827;

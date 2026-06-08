@@ -14,6 +14,7 @@ class JobsRepository {
   Future<List<Job>> all({String? query, bool localOnly = true, String? workspaceId}) async {
     final where = <String>[];
     final args = <Object?>[];
+    where.add('deleted_at IS NULL');
     if (localOnly) {
       where.add('workspace_id IS NULL');
     } else if (workspaceId != null) {
@@ -35,7 +36,12 @@ class JobsRepository {
   }
 
   Future<Job?> byId(String id) async {
-    final rows = await _db.db.query('jobs', where: 'id = ?', whereArgs: [id], limit: 1);
+    final rows = await _db.db.query(
+      'jobs',
+      where: 'id = ? AND deleted_at IS NULL',
+      whereArgs: [id],
+      limit: 1,
+    );
     if (rows.isEmpty) return null;
     return Job.fromDb(rows.first);
   }
@@ -82,6 +88,31 @@ class JobsRepository {
   }
 
   Future<void> delete(String id) async {
+    final rows = await _db.db.query('jobs', where: 'id = ?', whereArgs: [id], limit: 1);
+    if (rows.isEmpty) return;
+    final job = Job.fromDb(rows.first);
+    if (job.workspaceId == null) {
+      await _hardDeleteJob(id);
+      return;
+    }
+    final ts = now();
+    await _db.db.update(
+      'jobs',
+      {
+        'deleted_at': ts.toIso8601String(),
+        'updated_at': ts.toIso8601String(),
+        'sync_state': SyncState.pending.dbValue,
+      },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<void> purgeAfterSync(String jobId) async {
+    await _hardDeleteJob(jobId);
+  }
+
+  Future<void> _hardDeleteJob(String id) async {
     await _db.db.transaction((txn) async {
       await txn.delete('jobs', where: 'id = ?', whereArgs: [id]);
     });
@@ -93,13 +124,14 @@ class JobsRepository {
   Future<Map<String, JobSummary>> summaries({bool localOnly = true, String? workspaceId}) async {
     final where = <String>[];
     final args = <Object?>[];
+    where.add('j.deleted_at IS NULL');
     if (localOnly) {
       where.add('j.workspace_id IS NULL');
     } else if (workspaceId != null) {
       where.add('j.workspace_id = ?');
       args.add(workspaceId);
     }
-    final filter = where.isEmpty ? '' : 'WHERE ${where.join(' AND ')}';
+    final filter = 'WHERE ${where.join(' AND ')}';
     final rows = await _db.db.rawQuery('''
       SELECT
         j.id AS job_id,
@@ -110,7 +142,7 @@ class JobsRepository {
         SUM(CASE WHEN i.kind = 'file'  THEN 1 ELSE 0 END) AS files,
         MAX(i.updated_at) AS last_item_update
       FROM jobs j
-      LEFT JOIN items i ON i.job_id = j.id
+      LEFT JOIN items i ON i.job_id = j.id AND i.deleted_at IS NULL
       $filter
       GROUP BY j.id
     ''', args);

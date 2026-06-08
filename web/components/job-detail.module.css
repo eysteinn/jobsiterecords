@@ -240,6 +240,7 @@
 }
 
 .photoCellWrap {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -293,8 +294,14 @@
   position: relative;
   aspect-ratio: 1;
   border-radius: 8px;
-  overflow: hidden;
   border: 1px solid var(--border);
+}
+
+.photoThumbClip {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  overflow: hidden;
 }
 
 .photoThumb {
@@ -378,6 +385,12 @@
   display: flex;
   gap: 12px;
   align-items: flex-start;
+}
+
+.timelineRowMain .selectCheckbox {
+  position: static;
+  flex-shrink: 0;
+  margin-top: 4px;
 }
 
 .timelineRowIcon {
@@ -707,6 +720,8 @@
   margin-bottom: 0;
   padding: var(--mobile-page-padding);
   padding-top: calc(var(--mobile-page-padding) + env(safe-area-inset-top, 0));
+  /* Reserve space for the fixed account button in the dashboard shell */
+  padding-right: calc(var(--mobile-page-padding) + 44px);
   background: var(--bg);
 }
 
@@ -726,18 +741,17 @@
   color: var(--text);
 }
 
-.mobileNavActions {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
 .mobileTitleRow {
   display: flex;
   align-items: flex-start;
   gap: 4px;
   min-width: 0;
+}
+
+.mobileTitleActions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
 }
 
 .mobileDetailTitle {
@@ -775,7 +789,7 @@
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
   padding: 6px;
   display: grid;
-  z-index: 30;
+  z-index: 35;
 }
 
 .mobileMenuDropdown button {
@@ -871,6 +885,272 @@
   padding: 12px 24px;
   box-shadow: 0 4px 16px rgba(245, 158, 11, 0.4);
   white-space: nowrap;
+}
+
+.selectBtn {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: var(--surface);
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.selectBtnActive {
+  border-color: var(--accent);
+  background: #fffbeb;
+}
+
+.selectionBar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0));
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.06);
+}
+
+@media (max-width: 767px) {
+  .selectionBar {
+    /* Sit above the fixed bottom nav (z-index 30), not behind it */
+    bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0));
+    z-index: 35;
+    padding-bottom: 12px;
+  }
+
+  .selectionBarActions {
+    flex-shrink: 0;
+    gap: 6px;
+  }
+
+  .selectionOutlineBtn {
+    padding: 8px 10px;
+    font-size: 0.8125rem;
+  }
+}
+
+.selectionCancelBtn {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+.selectionBarCount {
+  flex: 1;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.selectionBarActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.selectionOutlineBtn {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: var(--surface);
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.selectionDeleteSolid {
+  border: none;
+  border-radius: 8px;
+  padding: 8px 14px;
+  background: #dc2626;
+  color: #fff;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.selectionDeleteSolid:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+@media (max-width: 767px) {
+  .detailShellSelecting {
+    /* Room for the selection bar stacked above bottom nav */
+    padding-bottom: 64px;
+  }
+}
+
+.jobMenuWrap {
+  position: relative;
+}
+
+.jobMenuBtn {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 1.125rem;
+  cursor: pointer;
+}
+
+.jobMenuDropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  min-width: 180px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  padding: 4px;
+  display: grid;
+  gap: 2px;
+}
+
+.jobMenuDropdown button {
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  padding: 8px 10px;
+  text-align: left;
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.jobMenuDropdown button:hover {
+  background: #f3f4f6;
+}
+
+.jobMenuDanger {
+  color: #dc2626;
+}
+
+.photoThumbMenu {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 3;
+}
+
+.photoThumbCheckbox {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 3;
+  width: 22px;
+  height: 22px;
+  accent-color: var(--accent);
+}
+
+@media (min-width: 768px) {
+  .photoThumbMenu {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+  }
+
+  .photoCellWrap:hover .photoThumbMenu,
+  .photoCellWrap:focus-within .photoThumbMenu {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+.timelineRowMenu {
+  margin-left: auto;
+  align-self: flex-start;
+}
+
+.noteEditBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.noteEditDialog {
+  width: min(100%, 480px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  display: grid;
+  gap: 12px;
+}
+
+.noteEditDialog h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.noteEditLabel {
+  display: grid;
+  gap: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.noteEditLabel input,
+.noteEditLabel textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font: inherit;
+}
+
+.noteEditActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.selectCheckbox {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2;
+  width: 22px;
+  height: 22px;
+  accent-color: var(--accent);
+}
+
+.photoCellWrapSelecting,
+.timelineRowSelecting {
+  position: relative;
+}
+
+.photoCellWrapSelecting .photoCell,
+.timelineRowSelecting .timelineRowMain {
+  outline: 2px solid transparent;
+  transition: outline-color 0.15s;
+}
+
+.photoCellSelected .photoCell,
+.timelineRowSelected .timelineRowMain {
+  outline: 2px solid var(--accent);
+}
+
+.mobileMenuDanger {
+  color: #dc2626;
 }
 
 @media (max-width: 767px) {

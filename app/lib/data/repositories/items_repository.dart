@@ -22,7 +22,12 @@ class ItemsRepository {
   final MediaStorage _storage;
 
   Future<TimelineItem?> byId(String id) async {
-    final rows = await _db.db.query('items', where: 'id = ?', whereArgs: [id], limit: 1);
+    final rows = await _db.db.query(
+      'items',
+      where: 'id = ? AND deleted_at IS NULL',
+      whereArgs: [id],
+      limit: 1,
+    );
     if (rows.isEmpty) return null;
     final item = Item.fromDb(rows.first);
     final media = await _mediaForItems([id]);
@@ -31,7 +36,7 @@ class ItemsRepository {
   }
 
   Future<List<TimelineItem>> forJob(String jobId, {TimelineQuery query = TimelineQuery.empty}) async {
-    final where = <String>['i.job_id = ?'];
+    final where = <String>['i.job_id = ?', 'i.deleted_at IS NULL'];
     final args = <Object?>[jobId];
 
     if (query.kinds.isNotEmpty) {
@@ -821,13 +826,42 @@ class ItemsRepository {
   }
 
   Future<void> delete(String itemId) async {
-    String? jobId;
-    final r = await _db.db.query('items', columns: ['job_id'], where: 'id = ?', whereArgs: [itemId]);
-    if (r.isNotEmpty) jobId = r.first['job_id'] as String;
-    await _db.db.delete('items', where: 'id = ?', whereArgs: [itemId]);
-    if (jobId != null) {
-      await _storage.deleteForItem(jobId, itemId);
+    final r = await _db.db.query('items', where: 'id = ?', whereArgs: [itemId], limit: 1);
+    if (r.isEmpty) return;
+    final jobId = r.first['job_id'] as String;
+    final syncState = await _syncStateForJob(jobId);
+    if (syncState == SyncState.localOnly) {
+      await _hardDeleteItem(itemId, jobId);
+      return;
     }
+    final ts = now();
+    await _db.db.transaction((txn) async {
+      await txn.update(
+        'items',
+        {
+          'deleted_at': ts.toIso8601String(),
+          'updated_at': ts.toIso8601String(),
+          'sync_state': SyncState.pending.dbValue,
+        },
+        where: 'id = ?',
+        whereArgs: [itemId],
+      );
+      await txn.update(
+        'jobs',
+        {'updated_at': ts.toIso8601String()},
+        where: 'id = ?',
+        whereArgs: [jobId],
+      );
+    });
+  }
+
+  Future<void> purgeAfterSync(String itemId, String jobId) async {
+    await _hardDeleteItem(itemId, jobId);
+  }
+
+  Future<void> _hardDeleteItem(String itemId, String jobId) async {
+    await _db.db.delete('items', where: 'id = ?', whereArgs: [itemId]);
+    await _storage.deleteForItem(jobId, itemId);
   }
 }
 

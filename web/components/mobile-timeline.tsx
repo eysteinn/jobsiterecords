@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import type { Item, MediaFile, Tag } from "@/lib/api-jobs";
 import { formatDayHeading, formatDuration, formatFileSize, formatTime } from "@/lib/format";
 import { getPhotoMedia, itemThumbUrl } from "@/lib/photo-media";
@@ -53,6 +54,9 @@ type ToolbarProps = {
   hasFilters: boolean;
   hasTagFilter: boolean;
   inputRef?: React.RefObject<HTMLInputElement | null>;
+  selecting?: boolean;
+  onSelectToggle?: () => void;
+  readOnly?: boolean;
 };
 
 export function MobileTimelineToolbar({
@@ -63,6 +67,9 @@ export function MobileTimelineToolbar({
   hasFilters,
   hasTagFilter,
   inputRef,
+  selecting = false,
+  onSelectToggle,
+  readOnly = false,
 }: ToolbarProps) {
   return (
     <div className={styles.toolbar}>
@@ -108,6 +115,16 @@ export function MobileTimelineToolbar({
         <span aria-hidden>☰</span>
         {hasFilters && !hasTagFilter && <span className={styles.filterDot} aria-hidden />}
       </button>
+      {!readOnly && onSelectToggle && (
+        <button
+          type="button"
+          className={selecting ? `${styles.selectBtn} ${styles.selectBtnActive}` : styles.selectBtn}
+          onClick={onSelectToggle}
+          aria-pressed={selecting}
+        >
+          {selecting ? "Cancel" : "Select"}
+        </button>
+      )}
     </div>
   );
 }
@@ -171,6 +188,13 @@ type DayTimelineProps = {
   onOpenPhoto: (itemId: string, mediaId?: string) => void;
   onToggleTag?: (tagId: string) => void;
   tagFilter?: ReadonlySet<string>;
+  selecting?: boolean;
+  selected?: Set<string>;
+  onToggleSelect?: (itemId: string) => void;
+  onLongPressSelect?: (itemId: string) => void;
+  onDeleteItem?: (itemId: string) => void;
+  onEditItem?: (itemId: string) => void;
+  readOnly?: boolean;
 };
 
 export function MobileDayTimeline({
@@ -181,6 +205,13 @@ export function MobileDayTimeline({
   onOpenPhoto,
   onToggleTag,
   tagFilter,
+  selecting = false,
+  selected,
+  onToggleSelect,
+  onLongPressSelect,
+  onDeleteItem,
+  onEditItem,
+  readOnly = false,
 }: DayTimelineProps) {
   return (
     <section className={styles.daySection}>
@@ -195,6 +226,13 @@ export function MobileDayTimeline({
               onOpenPhoto={onOpenPhoto}
               onToggleTag={onToggleTag}
               tagFilter={tagFilter}
+              selecting={selecting}
+              isSelected={selected?.has(item.id) ?? false}
+              onToggleSelect={onToggleSelect}
+              onLongPressSelect={onLongPressSelect}
+              onDeleteItem={onDeleteItem}
+              onEditItem={onEditItem}
+              readOnly={readOnly}
             />
           </li>
         ))}
@@ -210,17 +248,120 @@ type CardProps = {
   onOpenPhoto: (itemId: string, mediaId?: string) => void;
   onToggleTag?: (tagId: string) => void;
   tagFilter?: ReadonlySet<string>;
+  selecting?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: (itemId: string) => void;
+  onLongPressSelect?: (itemId: string) => void;
+  onDeleteItem?: (itemId: string) => void;
+  onEditItem?: (itemId: string) => void;
+  readOnly?: boolean;
 };
 
-function MobileTimelineCard({ item, media, tags, onOpenPhoto, onToggleTag, tagFilter }: CardProps) {
+function MobileTimelineCard({
+  item,
+  media,
+  tags,
+  onOpenPhoto,
+  onToggleTag,
+  tagFilter,
+  selecting = false,
+  isSelected = false,
+  onToggleSelect,
+  onLongPressSelect,
+  onDeleteItem,
+  onEditItem,
+  readOnly = false,
+}: CardProps) {
   const time = formatTime(item.captured_at);
   const kindLabel = item.kind === "voice" ? "Voice note" : item.kind.charAt(0).toUpperCase() + item.kind.slice(1);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const longPressRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onPointerDown(event: PointerEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [menuOpen]);
+
+  function clearLongPress() {
+    if (longPressRef.current != null) {
+      window.clearTimeout(longPressRef.current);
+      longPressRef.current = null;
+    }
+  }
+
+  function handlePointerDown() {
+    if (readOnly || selecting || !onLongPressSelect) return;
+    clearLongPress();
+    longPressRef.current = window.setTimeout(() => {
+      onLongPressSelect(item.id);
+      longPressRef.current = null;
+    }, 500);
+  }
 
   return (
-    <article className={styles.card}>
-      <button type="button" className={styles.cardMenu} aria-label="More options">
-        ⋮
-      </button>
+    <article
+      className={`${styles.card} ${selecting ? styles.cardSelecting : ""} ${isSelected ? styles.cardSelected : ""}`}
+      onPointerDown={handlePointerDown}
+      onPointerUp={clearLongPress}
+      onPointerLeave={clearLongPress}
+      onPointerCancel={clearLongPress}
+    >
+      {selecting ? (
+        <input
+          type="checkbox"
+          className={styles.cardCheckbox}
+          checked={isSelected}
+          onChange={() => onToggleSelect?.(item.id)}
+          aria-label={`Select ${kindLabel}`}
+        />
+      ) : (
+        !readOnly &&
+        onDeleteItem && (
+          <div className={styles.cardMenuWrap} ref={menuRef}>
+            <button
+              type="button"
+              className={styles.cardMenu}
+              aria-label="More options"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((open) => !open)}
+            >
+              ⋮
+            </button>
+            {menuOpen && (
+              <div className={styles.cardMenuDropdown}>
+                {onEditItem && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onEditItem(item.id);
+                      setMenuOpen(false);
+                    }}
+                  >
+                    Edit
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className={styles.cardMenuDanger}
+                  onClick={() => {
+                    onDeleteItem(item.id);
+                    setMenuOpen(false);
+                  }}
+                >
+                  Delete
+                </button>
+              </div>
+            )}
+          </div>
+        )
+      )}
       <div className={styles.cardBody}>
         <div className={styles.cardMedia}>{renderMedia(item, media, onOpenPhoto)}</div>
         <div className={styles.cardContent}>

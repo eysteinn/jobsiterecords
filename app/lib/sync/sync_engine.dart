@@ -141,7 +141,11 @@ class SyncEngine {
         final body = _jobPayload(job);
         final res = await _api.put('/api/v1/jobs/${job.id}', body: body, accessToken: accessToken);
         final data = decodeJsonMap(res);
-        await _applyJobFromServer(data, markSynced: true);
+        if (job.isDeleted) {
+          await _deleteLocalJob(job.id);
+        } else {
+          await _applyJobFromServer(data, markSynced: true);
+        }
         jobsPushed++;
       } catch (e) {
         lastError ??= userFacingSyncError(e);
@@ -167,8 +171,12 @@ class SyncEngine {
           body: body,
           accessToken: accessToken,
         );
-        final data = decodeJsonMap(res);
-        await _applyItemFromServer(data, markSynced: true);
+        if (item.isDeleted) {
+          await _deleteLocalItem(item.id, item.jobId);
+        } else {
+          final data = decodeJsonMap(res);
+          await _applyItemFromServer(data, markSynced: true);
+        }
         itemsPushed++;
       } catch (e) {
         lastError ??= userFacingSyncError(e);
@@ -367,14 +375,17 @@ class SyncEngine {
       }
       if (await _mergeJobFromServer(jobJson)) pulledJobs++;
       final items = (bundle['items'] as List? ?? []);
+      final serverItemIds = <String>{};
       for (final raw in items) {
         final itemJson = Map<String, dynamic>.from(raw as Map);
+        serverItemIds.add(itemJson['id'] as String);
         if (itemJson['deleted_at'] != null) {
           if (await _deleteLocalItem(itemJson['id'] as String, jobId)) pulledItems++;
           continue;
         }
         if (await _mergeItemFromServer(itemJson)) pulledItems++;
       }
+      pulledItems += await _reconcileMissingItems(jobId, serverItemIds);
       final mediaFiles = (bundle['media_files'] as List? ?? []);
       for (final raw in mediaFiles) {
         final mediaJson = Map<String, dynamic>.from(raw as Map);
@@ -473,21 +484,27 @@ class SyncEngine {
     };
   }
 
-  Map<String, dynamic> _jobPayload(Job job) => {
-        'id': job.id,
-        'workspace_id': job.workspaceId,
-        'name': job.name,
-        'client_name': job.clientName,
-        'address': job.address,
-        'job_number': job.jobNumber,
-        'status': job.status.dbValue,
-        'start_date': job.startDate?.toIso8601String().split('T').first,
-        'end_date': job.endDate?.toIso8601String().split('T').first,
-        'notes': job.notes,
-        'cover_item_id': job.coverItemId,
-        'created_at': job.createdAt.toUtc().toIso8601String(),
-        'updated_at': job.updatedAt.toUtc().toIso8601String(),
-      };
+  Map<String, dynamic> _jobPayload(Job job) {
+    final payload = <String, dynamic>{
+      'id': job.id,
+      'workspace_id': job.workspaceId,
+      'name': job.name,
+      'client_name': job.clientName,
+      'address': job.address,
+      'job_number': job.jobNumber,
+      'status': job.status.dbValue,
+      'start_date': job.startDate?.toIso8601String().split('T').first,
+      'end_date': job.endDate?.toIso8601String().split('T').first,
+      'notes': job.notes,
+      'cover_item_id': job.coverItemId,
+      'created_at': job.createdAt.toUtc().toIso8601String(),
+      'updated_at': job.updatedAt.toUtc().toIso8601String(),
+    };
+    if (job.deletedAt != null) {
+      payload['deleted_at'] = job.deletedAt!.toUtc().toIso8601String();
+    }
+    return payload;
+  }
 
   Future<void> _pushTags(String accessToken, String workspaceId) async {
     final rows = await _db.db.query('tags', orderBy: 'sort_order ASC, name COLLATE NOCASE ASC');
@@ -513,7 +530,7 @@ class SyncEngine {
 
   Future<Map<String, dynamic>> _itemPayload(Item item) async {
     final tagIds = await _tagIdsForItem(item.id);
-    return {
+    final payload = <String, dynamic>{
       'job_id': item.jobId,
       'kind': item.kind.dbValue,
       'caption': item.caption,
@@ -523,6 +540,10 @@ class SyncEngine {
       'updated_at': item.updatedAt.toUtc().toIso8601String(),
       'tag_ids': tagIds,
     };
+    if (item.deletedAt != null) {
+      payload['deleted_at'] = item.deletedAt!.toUtc().toIso8601String();
+    }
+    return payload;
   }
 
   Future<bool> _mergeJobFromServer(Map<String, dynamic> json) async {
@@ -635,6 +656,24 @@ class SyncEngine {
       await txn.delete('items', where: 'job_id = ?', whereArgs: [jobId]);
       await txn.delete('jobs', where: 'id = ?', whereArgs: [jobId]);
     });
+  }
+
+  Future<int> _reconcileMissingItems(String jobId, Set<String> serverItemIds) async {
+    final localRows = await _db.db.query(
+      'items',
+      columns: ['id', 'sync_state'],
+      where: 'job_id = ? AND deleted_at IS NULL',
+      whereArgs: [jobId],
+    );
+    var removed = 0;
+    for (final row in localRows) {
+      final id = row['id'] as String;
+      final state = SyncState.fromDb(row['sync_state'] as String?);
+      if (!serverItemIds.contains(id) && state == SyncState.synced) {
+        if (await _deleteLocalItem(id, jobId)) removed++;
+      }
+    }
+    return removed;
   }
 
   Future<bool> _deleteLocalItem(String itemId, String jobId) async {

@@ -109,3 +109,34 @@
   margin: 0;
   font-size: 0.875rem;
 }
+
+.dangerZone {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+
+.dangerLabel {
+  margin: 0 0 8px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.deleteJobBtn {
+  border: 1px solid #dc2626;
+  border-radius: 8px;
+  padding: 10px 14px;
+  background: transparent;
+  color: #dc2626;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.deleteJobBtn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

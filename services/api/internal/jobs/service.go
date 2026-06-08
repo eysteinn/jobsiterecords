@@ -448,6 +448,9 @@ func (s *Service) getJobAccess(ctx context.Context, userID, jobID string) (Job, 
 	if err != nil {
 		return Job{}, false, err
 	}
+	if job.DeletedAt != nil {
+		return Job{}, false, errors.New("gone")
+	}
 	role, err := s.memberRole(ctx, userID, job.WorkspaceID)
 	if err != nil {
 		return Job{}, false, err
@@ -552,6 +555,8 @@ func (s *Service) listItems(ctx context.Context, jobID string, since *time.Time)
 	if since != nil {
 		q += ` AND updated_at >= $2`
 		args = append(args, *since)
+	} else {
+		q += ` AND deleted_at IS NULL`
 	}
 	q += ` ORDER BY captured_at DESC`
 	rows, err := s.pool.Query(ctx, q, args...)

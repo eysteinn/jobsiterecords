@@ -64,6 +64,7 @@ export function mergeJobBundle(
   itemTags: ItemTag[];
   job: Job | null;
   added: number;
+  jobDeleted: boolean;
 } {
   const itemMap = new Map(items.map((it) => [it.id, it]));
   let added = 0;
@@ -107,12 +108,16 @@ export function mergeJobBundle(
     itemTagMap.set(`${link.item_id}:${link.tag_id}`, link);
   }
 
+  const rawJob = delta.job as (Job & { deleted_at?: string | null }) | undefined;
+  const job = rawJob?.deleted_at ? null : (rawJob ?? null);
+
   return {
     items: mergedItems,
     mediaFiles: [...mediaMap.values()],
     tags: [...tagMap.values()].sort((a, b) => a.name.localeCompare(b.name)),
     itemTags: [...itemTagMap.values()],
-    job: delta.job ?? null,
+    job,
     added,
+    jobDeleted: Boolean(rawJob?.deleted_at),
   };
 }

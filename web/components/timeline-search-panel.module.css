@@ -11,6 +11,27 @@
   gap: 12px;
 }
 
+.toolbarRight {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.selectBtn {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: var(--surface);
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.selectBtnActive {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
 .searchToggle {
   display: inline-flex;
   align-items: center;

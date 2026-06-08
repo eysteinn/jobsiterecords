@@ -72,11 +72,16 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
   }
 
   Future<void> _delete() async {
+    final synced = ref.read(captureContextProvider).isWorkspace;
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Delete item?'),
-        content: const Text('This permanently removes the item from this device.'),
+        content: Text(
+          synced
+              ? 'This removes the item from this job on all your devices. This cannot be undone.'
+              : 'This permanently removes the item from this device.',
+        ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
           TextButton(

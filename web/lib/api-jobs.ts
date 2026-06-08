@@ -16,6 +16,7 @@ export type Job = {
   created_at: string;
   updated_at: string;
   last_activity_at: string;
+  deleted_at?: string | null;
 };
 
 export type MediaFile = {
@@ -50,6 +51,7 @@ export type Item = {
   captured_at: string;
   created_at: string;
   updated_at: string;
+  deleted_at?: string | null;
 };
 
 export type Tag = {
@@ -115,5 +117,37 @@ export function upsertItem(jobId: string, itemId: string, body: Partial<Item> & 
   return apiFetch<Item>(`/api/v1/jobs/${jobId}/items/${itemId}`, {
     method: "PUT",
     body: JSON.stringify(body),
+  });
+}
+
+export function softDeleteItem(jobId: string, item: Item) {
+  const now = new Date().toISOString();
+  return upsertItem(jobId, item.id, {
+    kind: item.kind,
+    body: item.body,
+    caption: item.caption,
+    captured_at: item.captured_at,
+    created_at: item.created_at,
+    updated_at: now,
+    deleted_at: now,
+  });
+}
+
+export function softDeleteJob(job: Job) {
+  const now = new Date().toISOString();
+  return upsertJob(job.id, {
+    workspace_id: job.workspace_id,
+    name: job.name,
+    client_name: job.client_name,
+    address: job.address,
+    job_number: job.job_number,
+    status: job.status,
+    start_date: job.start_date,
+    end_date: job.end_date,
+    notes: job.notes,
+    cover_item_id: job.cover_item_id,
+    created_at: job.created_at,
+    updated_at: now,
+    deleted_at: now,
   });
 }
