@@ -10,6 +10,8 @@
   --danger: #dc2626;
   --sidebar-width: 240px;
   --header-height: 56px;
+  --bottom-nav-height: 64px;
+  --mobile-page-padding: 16px;
   --radius: 10px;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
 }
@@ -54,6 +56,19 @@ button {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+/* Responsive layout helpers — viewport width, not user-agent */
+@media (max-width: 767px) {
+  .desktopOnly {
+    display: none !important;
+  }
+}
+
+@media (min-width: 768px) {
+  .mobileOnly {
+    display: none !important;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

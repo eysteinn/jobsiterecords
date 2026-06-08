@@ -106,3 +106,23 @@
   color: var(--muted);
   font-size: 0.75rem;
 }
+
+.barMobile {
+  margin-bottom: 0;
+}
+
+@media (max-width: 767px) {
+  .barMobile .searchInput {
+    min-height: 52px;
+    padding: 14px 40px 14px 14px;
+    font-size: 1rem;
+    border-radius: 12px;
+  }
+
+  .barMobile .modeBtn {
+    min-height: 52px;
+    min-width: 44px;
+    padding: 12px 14px;
+    font-size: 0.9375rem;
+  }
+}

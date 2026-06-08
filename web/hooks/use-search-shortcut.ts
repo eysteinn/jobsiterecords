@@ -8,8 +8,14 @@ function isTypingTarget(target: EventTarget | null): boolean {
   return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable;
 }
 
-export function useSearchShortcut(inputRef: RefObject<HTMLInputElement | null>) {
+export function useSearchShortcut(
+  inputRef: RefObject<HTMLInputElement | null>,
+  options?: { enabled?: boolean },
+) {
+  const enabled = options?.enabled !== false;
+
   useEffect(() => {
+    if (!enabled) return;
     function onKeyDown(e: KeyboardEvent) {
       if (e.key !== "/" || e.metaKey || e.ctrlKey || e.altKey) return;
       if (isTypingTarget(e.target)) return;
@@ -18,5 +24,5 @@ export function useSearchShortcut(inputRef: RefObject<HTMLInputElement | null>) 
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [inputRef]);
+  }, [inputRef, enabled]);
 }

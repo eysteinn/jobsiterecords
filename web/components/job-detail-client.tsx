@@ -18,6 +18,7 @@ import {
   TimelineSearchPanel,
   TimelineSectionHeader,
 } from "@/components/timeline-search-panel";
+import { MobileAddSheet } from "@/components/mobile-add-sheet";
 import styles from "./job-detail.module.css";
 
 type Props = {
@@ -65,6 +66,11 @@ export function JobDetailClient({
   const [fieldUpdateBanner, setFieldUpdateBanner] = useState(false);
   const [lightbox, setLightbox] = useState<{ itemId: string; mediaId?: string } | null>(null);
   const [annotatingItemId, setAnnotatingItemId] = useState<string | null>(null);
+  const [addSheetOpen, setAddSheetOpen] = useState(false);
+  const [mobileNoteOpen, setMobileNoteOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
+  const noteBodyRef = useRef<HTMLTextAreaElement>(null);
   const searchParams = useSearchParams();
   const [filtersExpanded, setFiltersExpanded] = useState(
     () => searchParams.has("kind") || searchParams.has("tag"),
@@ -119,6 +125,17 @@ export function JobDetailClient({
     document.addEventListener("pointerdown", onPointerDown);
     return () => document.removeEventListener("pointerdown", onPointerDown);
   }, [statusMenuOpen]);
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    function onPointerDown(event: PointerEvent) {
+      if (mobileMenuRef.current && !mobileMenuRef.current.contains(event.target as Node)) {
+        setMobileMenuOpen(false);
+      }
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [mobileMenuOpen]);
 
   const onJobChanged = useCallback(
     async (result: { cursor: string | null }) => {
@@ -201,6 +218,14 @@ export function JobDetailClient({
 
   const hasActiveFilters =
     query.trim().length > 0 || kindFilter.size > 0 || tagFilter.size > 0;
+
+  const kindCounts = useMemo(() => {
+    const counts = { photo: 0, voice: 0, note: 0, file: 0 };
+    for (const item of items) {
+      if (item.kind in counts) counts[item.kind as keyof typeof counts] += 1;
+    }
+    return counts;
+  }, [items]);
 
   function clearFilters() {
     setQuery("");
@@ -315,9 +340,66 @@ export function JobDetailClient({
   }
 
   const annotatingItem = annotatingItemId ? items.find((i) => i.id === annotatingItemId) : null;
+  const locationLine = [job.address, job.client_name].filter(Boolean).join(" · ");
+
+  function openMobileNoteCompose() {
+    setMobileNoteOpen(true);
+    window.requestAnimationFrame(() => noteBodyRef.current?.focus());
+  }
 
   return (
+    <>
+    <header className={`${styles.mobileDetailHeader} mobileOnly`}>
+      <div className={styles.mobileDetailTop}>
+        <Link href="/jobs" className={styles.mobileBack} aria-label="Back to jobs">
+          ←
+        </Link>
+        <h1 className={styles.mobileDetailTitle}>{job.name}</h1>
+        <div className={styles.mobileDetailMenu} ref={mobileMenuRef}>
+          <button
+            type="button"
+            className={styles.mobileMenuBtn}
+            onClick={() => setMobileMenuOpen((v) => !v)}
+            aria-expanded={mobileMenuOpen}
+            aria-label="Job menu"
+          >
+            ⋮
+          </button>
+          {mobileMenuOpen && (
+            <div className={styles.mobileMenuDropdown}>
+              <button type="button" onClick={() => { refresh(); setMobileMenuOpen(false); }} disabled={refreshing}>
+                {refreshing ? "Refreshing…" : "Refresh"}
+              </button>
+              {!readOnly && JOB_STATUSES.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  disabled={updatingStatus || job.status === option.value}
+                  onClick={() => { updateJobStatus(option.value); setMobileMenuOpen(false); }}
+                >
+                  Set {option.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+      {locationLine && <p className={styles.mobileDetailLocation}>{locationLine}</p>}
+      <span className={`${styles.mobileDetailStatus} ${styles[`status_${job.status}`]}`}>
+        {job.status.replace(/_/g, " ")}
+      </span>
+      {items.length > 0 && (
+        <div className={styles.summaryChips} role="group" aria-label="Item counts">
+          {kindCounts.photo > 0 && <span className={styles.summaryChip}>Photos {kindCounts.photo}</span>}
+          {kindCounts.note > 0 && <span className={styles.summaryChip}>Notes {kindCounts.note}</span>}
+          {kindCounts.voice > 0 && <span className={styles.summaryChip}>Voice {kindCounts.voice}</span>}
+          {kindCounts.file > 0 && <span className={styles.summaryChip}>Files {kindCounts.file}</span>}
+        </div>
+      )}
+    </header>
+
     <PageShell
+      className={styles.detailShell}
       title={job.name}
       subtitle={[job.client_name, job.address].filter(Boolean).join(" · ") || "Job timeline"}
       action={
@@ -403,7 +485,10 @@ export function JobDetailClient({
       )}
 
       {!readOnly && (
-      <section className={styles.compose}>
+      <section
+        className={mobileNoteOpen ? `${styles.compose} ${styles.composeMobileOpen}` : styles.compose}
+        id="note-compose"
+      >
         <h2>Add text note</h2>
         <input
           placeholder="Caption (optional)"
@@ -411,6 +496,7 @@ export function JobDetailClient({
           onChange={(e) => setNoteCaption(e.target.value)}
         />
         <textarea
+          ref={noteBodyRef}
           placeholder="Note body"
           rows={3}
           value={noteBody}
@@ -491,6 +577,26 @@ export function JobDetailClient({
         />
       )}
     </PageShell>
+
+    {!readOnly && (
+      <button
+        type="button"
+        className={`${styles.mobileAddFab} mobileOnly`}
+        onClick={() => setAddSheetOpen(true)}
+        aria-label="Add"
+      >
+        + Add
+      </button>
+    )}
+
+    <MobileAddSheet
+      open={addSheetOpen}
+      onClose={() => setAddSheetOpen(false)}
+      jobName={job.name}
+      readOnly={readOnly}
+      onAddNote={openMobileNoteCompose}
+    />
+    </>
   );
 }
 

@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { Session } from "@/lib/types";
 import { CommandPalette } from "./command-palette";
+import { MobileBottomNav } from "./mobile-bottom-nav";
 import styles from "./dashboard-shell.module.css";
 
 const nav = [
@@ -25,6 +26,7 @@ export function DashboardShell({ session, children }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const workspace = session.workspaces[0];
+  const isJobsList = pathname === "/jobs";
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -45,7 +47,7 @@ export function DashboardShell({ session, children }: Props) {
 
   return (
     <div className={styles.shell}>
-      <aside className={styles.sidebar}>
+      <aside className={`${styles.sidebar} desktopOnly`}>
         <div className={styles.sidebarBrand}>
           <span className={styles.logoMark} aria-hidden />
           <span>Job Site Records</span>
@@ -67,7 +69,7 @@ export function DashboardShell({ session, children }: Props) {
       </aside>
 
       <div className={styles.main}>
-        <header className={styles.header}>
+        <header className={`${styles.header} desktopOnly`}>
           <div className={styles.headerLeft}>
             {workspace ? (
               <div className={styles.workspaceSwitcher}>
@@ -108,8 +110,38 @@ export function DashboardShell({ session, children }: Props) {
             </div>
           </div>
         </header>
+
+        {!isJobsList && (
+          <div className={`${styles.mobileAccountBar} mobileOnly`}>
+            <div className={styles.userMenu}>
+              <button
+                type="button"
+                className={styles.mobileAccountBtn}
+                onClick={() => setMenuOpen((v) => !v)}
+                aria-expanded={menuOpen}
+                aria-label="Account menu"
+              >
+                <AccountIcon />
+              </button>
+              {menuOpen && (
+                <div className={styles.userDropdown}>
+                  <p className={styles.dropdownEmail}>{session.user.email}</p>
+                  <Link href="/settings" onClick={() => setMenuOpen(false)}>
+                    Account settings
+                  </Link>
+                  <button type="button" onClick={signOut}>
+                    Sign out
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         <main className={styles.content}>{children}</main>
       </div>
+
+      <MobileBottomNav />
 
       <CommandPalette
         open={paletteOpen}
@@ -117,5 +149,14 @@ export function DashboardShell({ session, children }: Props) {
         workspaceId={workspace?.id}
       />
     </div>
+  );
+}
+
+function AccountIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
+    </svg>
   );
 }
