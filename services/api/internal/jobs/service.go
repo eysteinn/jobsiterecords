@@ -49,10 +49,23 @@ type Item struct {
 	DeletedAt       *time.Time `json:"deleted_at,omitempty"`
 }
 
+type Tag struct {
+	ID          string `json:"id"`
+	WorkspaceID string `json:"workspace_id"`
+	Name        string `json:"name"`
+}
+
+type ItemTag struct {
+	ItemID string `json:"item_id"`
+	TagID  string `json:"tag_id"`
+}
+
 type JobBundle struct {
 	Job        Job         `json:"job"`
 	Items      []Item      `json:"items"`
 	MediaFiles []MediaFile `json:"media_files"`
+	Tags       []Tag       `json:"tags,omitempty"`
+	ItemTags   []ItemTag   `json:"item_tags,omitempty"`
 	ReadOnly   bool        `json:"read_only,omitempty"`
 }
 
@@ -94,7 +107,15 @@ func (s *Service) GetJobBundle(ctx context.Context, userID, jobID string, since 
 	if err != nil {
 		return JobBundle{}, err
 	}
-	return JobBundle{Job: job, Items: items, MediaFiles: media, ReadOnly: readOnly}, nil
+	tags, itemTags, err := s.listJobTags(ctx, jobID)
+	if err != nil {
+		return JobBundle{}, err
+	}
+	return JobBundle{
+		Job: job, Items: items, MediaFiles: media,
+		Tags: tags, ItemTags: itemTags,
+		ReadOnly: readOnly,
+	}, nil
 }
 
 func (s *Service) UpsertJob(ctx context.Context, userID string, in Job) (Job, error) {
@@ -370,6 +391,63 @@ func (s *Service) fetchItem(ctx context.Context, id string) (Item, error) {
 		FROM items WHERE id = $1
 	`, id)
 	return scanItem(row)
+}
+
+func (s *Service) listJobTags(ctx context.Context, jobID string) ([]Tag, []ItemTag, error) {
+	tagRows, err := s.pool.Query(ctx, `
+		SELECT DISTINCT t.id, t.workspace_id, t.name
+		FROM tags t
+		JOIN item_tags it ON it.tag_id = t.id
+		JOIN items i ON i.id = it.item_id
+		WHERE i.job_id = $1
+		  AND i.deleted_at IS NULL
+		  AND it.deleted_at IS NULL
+		  AND t.deleted_at IS NULL
+		ORDER BY t.name
+	`, jobID)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer tagRows.Close()
+	var tags []Tag
+	for tagRows.Next() {
+		var t Tag
+		if err := tagRows.Scan(&t.ID, &t.WorkspaceID, &t.Name); err != nil {
+			return nil, nil, err
+		}
+		tags = append(tags, t)
+	}
+	if err := tagRows.Err(); err != nil {
+		return nil, nil, err
+	}
+	if tags == nil {
+		tags = []Tag{}
+	}
+
+	itRows, err := s.pool.Query(ctx, `
+		SELECT it.item_id, it.tag_id
+		FROM item_tags it
+		JOIN items i ON i.id = it.item_id
+		WHERE i.job_id = $1
+		  AND i.deleted_at IS NULL
+		  AND it.deleted_at IS NULL
+	`, jobID)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer itRows.Close()
+	var itemTags []ItemTag
+	for itRows.Next() {
+		var it ItemTag
+		if err := itRows.Scan(&it.ItemID, &it.TagID); err != nil {
+			return nil, nil, err
+		}
+		itemTags = append(itemTags, it)
+	}
+	if itemTags == nil {
+		itemTags = []ItemTag{}
+	}
+	return tags, itemTags, itRows.Err()
 }
 
 func (s *Service) listItems(ctx context.Context, jobID string, since *time.Time) ([]Item, error) {

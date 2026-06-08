@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { Suspense } from "react";
 import { JobsClient } from "@/components/jobs-client";
 import { listJobs } from "@/lib/api-jobs";
 import { requireSession } from "@/lib/server-session";
@@ -11,5 +12,9 @@ export default async function JobsPage() {
     return <p>No workspace found for this account.</p>;
   }
   const { jobs } = await listJobs(workspace.id);
-  return <JobsClient workspaceId={workspace.id} jobs={jobs} />;
+  return (
+    <Suspense>
+      <JobsClient workspaceId={workspace.id} jobs={jobs} />
+    </Suspense>
+  );
 }

@@ -111,7 +111,11 @@ export function DashboardShell({ session, children }: Props) {
         <main className={styles.content}>{children}</main>
       </div>
 
-      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        workspaceId={workspace?.id}
+      />
     </div>
   );
 }

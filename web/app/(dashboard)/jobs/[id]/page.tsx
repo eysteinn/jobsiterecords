@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { JobDetailClient } from "@/components/job-detail-client";
 import { getJob } from "@/lib/api-jobs";
 import { requireSession } from "@/lib/server-session";
@@ -16,13 +17,17 @@ export default async function JobDetailPage({
   try {
     const bundle = await getJob(id);
     return (
-      <JobDetailClient
-        job={bundle.job}
-        items={bundle.items ?? []}
-        mediaFiles={bundle.media_files ?? []}
-        workspaceId={workspace.id}
-        readOnly={bundle.read_only ?? false}
-      />
+      <Suspense>
+        <JobDetailClient
+          job={bundle.job}
+          items={bundle.items ?? []}
+          mediaFiles={bundle.media_files ?? []}
+          tags={bundle.tags ?? []}
+          itemTags={bundle.item_tags ?? []}
+          workspaceId={workspace.id}
+          readOnly={bundle.read_only ?? false}
+        />
+      </Suspense>
     );
   } catch {
     notFound();
