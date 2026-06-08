@@ -662,50 +662,46 @@ export function JobDetailClient({
             </button>
           </>
         ) : (
-          <>
-            <Link href="/jobs" className={styles.mobileBack} aria-label="Back to jobs">
-              ←
-            </Link>
-            <div className={styles.mobileNavActions}>
-              <div className={styles.mobileDetailMenu} ref={mobileMenuRef}>
-                <button
-                  type="button"
-                  className={styles.mobileMenuBtn}
-                  onClick={() => setMobileMenuOpen((v) => !v)}
-                  aria-expanded={mobileMenuOpen}
-                  aria-label="Job menu"
-                >
-                  ⋮
-                </button>
-                {mobileMenuOpen && (
-                  <div className={styles.mobileMenuDropdown}>
-                    {!readOnly && (
-                      <>
-                        <button type="button" onClick={() => { setEditOpen(true); setMobileMenuOpen(false); }}>
-                          Edit job
-                        </button>
-                        <button type="button" onClick={handleExportJob}>
-                          Export job
-                        </button>
-                        <button type="button" onClick={handleArchiveJob}>
-                          Archive job
-                        </button>
-                        <hr />
-                        <button type="button" className={styles.mobileMenuDanger} onClick={requestDeleteJob}>
-                          Delete job
-                        </button>
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          </>
+          <Link href="/jobs" className={styles.mobileBack} aria-label="Back to jobs">
+            ←
+          </Link>
         )}
       </div>
       <div className={styles.mobileTitleRow}>
         <h1 className={styles.mobileDetailTitle}>{job.name}</h1>
-        {!readOnly && <JobSettingsButton onClick={() => setEditOpen(true)} />}
+        {!readOnly && !selecting && (
+          <div className={styles.mobileTitleActions}>
+            <div className={styles.mobileDetailMenu} ref={mobileMenuRef}>
+              <button
+                type="button"
+                className={styles.mobileMenuBtn}
+                onClick={() => setMobileMenuOpen((v) => !v)}
+                aria-expanded={mobileMenuOpen}
+                aria-label="Job menu"
+              >
+                ⋮
+              </button>
+              {mobileMenuOpen && (
+                <div className={styles.mobileMenuDropdown}>
+                  <button type="button" onClick={() => { setEditOpen(true); setMobileMenuOpen(false); }}>
+                    Edit job
+                  </button>
+                  <button type="button" onClick={handleExportJob}>
+                    Export job
+                  </button>
+                  <button type="button" onClick={handleArchiveJob}>
+                    Archive job
+                  </button>
+                  <hr />
+                  <button type="button" className={styles.mobileMenuDanger} onClick={requestDeleteJob}>
+                    Delete job
+                  </button>
+                </div>
+              )}
+            </div>
+            <JobSettingsButton onClick={() => setEditOpen(true)} />
+          </div>
+        )}
       </div>
       {locationLine && <p className={styles.mobileDetailLocation}>{locationLine}</p>}
       <span className={`${styles.mobileDetailStatus} ${styles[`status_${job.status}`]}`}>

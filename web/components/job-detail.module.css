@@ -720,6 +720,8 @@
   margin-bottom: 0;
   padding: var(--mobile-page-padding);
   padding-top: calc(var(--mobile-page-padding) + env(safe-area-inset-top, 0));
+  /* Reserve space for the fixed account button in the dashboard shell */
+  padding-right: calc(var(--mobile-page-padding) + 44px);
   background: var(--bg);
 }
 
@@ -739,18 +741,17 @@
   color: var(--text);
 }
 
-.mobileNavActions {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
 .mobileTitleRow {
   display: flex;
   align-items: flex-start;
   gap: 4px;
   min-width: 0;
+}
+
+.mobileTitleActions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
 }
 
 .mobileDetailTitle {
@@ -788,7 +789,7 @@
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
   padding: 6px;
   display: grid;
-  z-index: 30;
+  z-index: 35;
 }
 
 .mobileMenuDropdown button {
