@@ -9,6 +9,7 @@ export type Job = {
   address?: string | null;
   job_number?: string | null;
   status: "planning" | "in_progress" | "completed";
+  cover_item_id?: string | null;
   start_date?: string | null;
   end_date?: string | null;
   notes?: string | null;

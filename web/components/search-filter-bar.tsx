@@ -21,6 +21,8 @@ type Props = {
   shownCount?: number;
   totalCount?: number;
   inputRef?: RefObject<HTMLInputElement | null>;
+  mobile?: boolean;
+  onOpenFilterSheet?: () => void;
 };
 
 export function SearchFilterBar({
@@ -35,19 +37,29 @@ export function SearchFilterBar({
   shownCount,
   totalCount,
   inputRef,
+  mobile = false,
+  onOpenFilterSheet,
 }: Props) {
   const labelId = useId();
   const internalRef = useRef<HTMLInputElement>(null);
   const resolvedRef = inputRef ?? internalRef;
-  useSearchShortcut(resolvedRef);
+  useSearchShortcut(resolvedRef, { enabled: !mobile });
 
   const hasFilters =
     query.trim().length > 0 || (activeChipIds != null && activeChipIds.size > 0);
   const showCount =
     hasFilters && shownCount != null && totalCount != null && shownCount !== totalCount;
 
+  function handleMoreFilters() {
+    if (mobile && onOpenFilterSheet) {
+      onOpenFilterSheet();
+    } else {
+      onDetailedChange(!detailed);
+    }
+  }
+
   return (
-    <div className={styles.bar} role="search" aria-labelledby={labelId}>
+    <div className={`${styles.bar} ${mobile ? styles.barMobile : ""}`} role="search" aria-labelledby={labelId}>
       <span id={labelId} className="sr-only">
         Search and filter
       </span>
@@ -76,16 +88,17 @@ export function SearchFilterBar({
         {chips && chips.length > 0 && (
           <button
             type="button"
-            className={`${styles.modeBtn} ${detailed ? styles.modeBtnActive : ""}`}
-            onClick={() => onDetailedChange(!detailed)}
+            className={`${styles.modeBtn} ${detailed || (mobile && hasFilters && activeChipIds && activeChipIds.size > 0) ? styles.modeBtnActive : ""}`}
+            onClick={handleMoreFilters}
             aria-expanded={detailed}
-            aria-controls={`${labelId}-filters`}
+            aria-controls={mobile ? undefined : `${labelId}-filters`}
+            aria-label="More filters"
           >
-            {detailed ? "Simple" : "More filters"}
+            {mobile ? "Filters" : detailed ? "Simple" : "More filters"}
           </button>
         )}
       </div>
-      {detailed && chips && chips.length > 0 && (
+      {!mobile && detailed && chips && chips.length > 0 && (
         <div id={`${labelId}-filters`} className={styles.filters}>
           {chips.map((chip) => {
             const active = activeChipIds?.has(chip.id) ?? false;
@@ -109,7 +122,7 @@ export function SearchFilterBar({
             {shownCount} of {totalCount}
           </p>
         )}
-        <span className={styles.hint}>/ to focus search</span>
+        {!mobile && <span className={styles.hint}>/ to focus search</span>}
       </div>
     </div>
   );

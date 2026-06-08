@@ -14,7 +14,12 @@ export default async function JobsPage() {
   const { jobs } = await listJobs(workspace.id);
   return (
     <Suspense>
-      <JobsClient workspaceId={workspace.id} jobs={jobs} />
+      <JobsClient
+        workspaceId={workspace.id}
+        workspaceName={workspace.name}
+        userEmail={session.user.email}
+        jobs={jobs}
+      />
     </Suspense>
   );
 }

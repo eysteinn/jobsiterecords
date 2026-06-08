@@ -20,6 +20,11 @@
   opacity: 0.6;
 }
 
+.desktopActions {
+  display: flex;
+  gap: 8px;
+}
+
 .tableWrap {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -96,4 +101,177 @@
 .status_completed {
   background: #d1fae5;
   color: #065f46;
+}
+
+/* Mobile layout */
+.mobilePage {
+  display: grid;
+  gap: 16px;
+  margin: calc(-1 * var(--mobile-page-padding));
+  padding: var(--mobile-page-padding);
+  padding-top: calc(var(--mobile-page-padding) + env(safe-area-inset-top, 0));
+}
+
+.mobileHeader {
+  display: grid;
+  gap: 4px;
+}
+
+.mobileHeaderTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.mobileTitle {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.mobileHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.iconBtn {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: none;
+  background: none;
+  border-radius: 999px;
+  color: var(--text);
+}
+
+.iconBtn:disabled {
+  opacity: 0.5;
+}
+
+.spin {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.accountMenu {
+  position: relative;
+}
+
+.accountDropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  min-width: 200px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  padding: 6px;
+  display: grid;
+  z-index: 30;
+}
+
+.accountDropdown a,
+.accountDropdown button {
+  text-align: left;
+  border: none;
+  background: none;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 0.875rem;
+}
+
+.accountDropdown a:hover,
+.accountDropdown button:hover {
+  background: #f9fafb;
+}
+
+.accountEmail {
+  margin: 0;
+  padding: 8px 12px 4px;
+  font-size: 0.75rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspaceBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 0.875rem;
+  color: var(--muted);
+  max-width: 100%;
+  cursor: default;
+}
+
+.workspaceName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobileSearchSection {
+  display: grid;
+  gap: 12px;
+}
+
+.cardList {
+  display: grid;
+  gap: 12px;
+}
+
+.mobileEmpty {
+  text-align: center;
+  padding: 48px 16px;
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+}
+
+.mobileEmpty h2 {
+  margin: 0 0 8px;
+  font-size: 1.125rem;
+}
+
+.mobileEmpty p {
+  margin: 0 0 20px;
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+
+.fab,
+.fabSticky {
+  border: none;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #111827;
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+  min-height: 48px;
+  padding: 12px 24px;
+}
+
+.fabSticky {
+  position: fixed;
+  bottom: calc(var(--bottom-nav-height) + 12px + env(safe-area-inset-bottom, 0));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.4);
+  white-space: nowrap;
 }

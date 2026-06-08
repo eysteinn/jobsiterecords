@@ -236,3 +236,23 @@
   color: var(--muted);
   font-size: 0.75rem;
 }
+
+@media (max-width: 767px) {
+  .searchInput {
+    min-height: 52px;
+    padding: 14px 40px 14px 14px;
+    font-size: 1rem;
+    border-radius: 12px;
+  }
+
+  .searchToggle {
+    min-height: 44px;
+    padding: 10px 14px;
+  }
+
+  .chip {
+    min-height: 44px;
+    padding: 10px 14px;
+    font-size: 0.875rem;
+  }
+}

@@ -1,0 +1,43 @@
+.wrap {
+  display: grid;
+  gap: 12px;
+}
+
+.searchSkeleton {
+  height: 52px;
+  border-radius: 12px;
+  background: linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.2s infinite;
+}
+
+.cardSkeleton {
+  min-height: 96px;
+  border-radius: var(--radius);
+  background: linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.2s infinite;
+}
+
+@media (min-width: 768px) {
+  .cardSkeleton {
+    min-height: 48px;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .searchSkeleton,
+  .cardSkeleton {
+    animation: none;
+    background: #e5e7eb;
+  }
+}
