@@ -287,7 +287,7 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                   itemBuilder: (_) => const [
                     PopupMenuItem(value: 'select', child: Text('Select items…')),
                     PopupMenuItem(value: 'export', child: Text('Export…')),
-                    PopupMenuItem(value: 'complete', child: Text('Mark Completed')),
+                    PopupMenuItem(value: 'complete', child: Text('Close job')),
                     PopupMenuItem(
                       value: 'delete',
                       child: Text('Delete Job', style: TextStyle(color: Colors.red)),

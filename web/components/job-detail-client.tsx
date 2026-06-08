@@ -25,14 +25,16 @@ type TimelineSegment =
   | { type: "photos"; items: Item[] }
   | { type: "row"; item: Item };
 
-export function JobDetailClient({ job, items: initialItems, mediaFiles: initialMediaFiles, readOnly = false }: Props) {
+export function JobDetailClient({ job: initialJob, items: initialItems, mediaFiles: initialMediaFiles, readOnly = false }: Props) {
   const router = useRouter();
+  const [job, setJob] = useState(initialJob);
   const [items, setItems] = useState(initialItems ?? []);
   const [mediaFiles, setMediaFiles] = useState(initialMediaFiles ?? []);
   const [noteBody, setNoteBody] = useState("");
   const [noteCaption, setNoteCaption] = useState("");
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [closing, setClosing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [fieldUpdateBanner, setFieldUpdateBanner] = useState(false);
   const [lightbox, setLightbox] = useState<{ itemId: string; mediaId?: string } | null>(null);
@@ -42,6 +44,10 @@ export function JobDetailClient({ job, items: initialItems, mediaFiles: initialM
   const mediaRef = useRef(mediaFiles);
   itemsRef.current = items;
   mediaRef.current = mediaFiles;
+
+  useEffect(() => {
+    setJob(initialJob);
+  }, [initialJob]);
 
   useEffect(() => {
     setItems(initialItems ?? []);
@@ -152,6 +158,41 @@ export function JobDetailClient({ job, items: initialItems, mediaFiles: initialM
     }
   }
 
+  async function closeJob() {
+    if (job.status === "completed" || readOnly) return;
+    setClosing(true);
+    setMessage(null);
+    try {
+      const now = new Date().toISOString();
+      const res = await fetch(`/api/jobs/${job.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          workspace_id: job.workspace_id,
+          name: job.name,
+          client_name: job.client_name,
+          address: job.address,
+          job_number: job.job_number,
+          status: "completed",
+          start_date: job.start_date,
+          end_date: job.end_date ?? now.slice(0, 10),
+          notes: job.notes,
+          created_at: job.created_at,
+          updated_at: now,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Could not close job");
+      setJob(data);
+      setMessage("Job closed");
+      router.refresh();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Could not close job");
+    } finally {
+      setClosing(false);
+    }
+  }
+
   async function saveCaption(item: Item, caption: string) {
     const now = new Date().toISOString();
     const res = await fetch(`/api/jobs/${job.id}/items/${item.id}`, {
@@ -192,6 +233,19 @@ export function JobDetailClient({ job, items: initialItems, mediaFiles: initialM
       subtitle={[job.client_name, job.address].filter(Boolean).join(" · ") || "Job timeline"}
       action={
         <div className={styles.headerActions}>
+          <span className={`${styles.statusPill} ${styles[`status_${job.status}`]}`}>
+            {job.status.replace(/_/g, " ")}
+          </span>
+          {!readOnly && job.status !== "completed" && (
+            <button
+              type="button"
+              className={styles.closeJobBtn}
+              onClick={closeJob}
+              disabled={closing}
+            >
+              {closing ? "Closing…" : "Close job"}
+            </button>
+          )}
           <button type="button" className={styles.refreshBtn} onClick={refresh} disabled={refreshing}>
             {refreshing ? "Refreshing…" : "Refresh"}
           </button>

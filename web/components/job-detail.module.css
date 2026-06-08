@@ -1,7 +1,48 @@
 .headerActions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 12px;
+}
+
+.statusPill {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.status_planning {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.status_in_progress {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status_completed {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.closeJobBtn {
+  border: 1px solid #a7f3d0;
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: #ecfdf5;
+  color: #065f46;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.closeJobBtn:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 .refreshBtn {
