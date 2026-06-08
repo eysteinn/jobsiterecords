@@ -19,7 +19,20 @@ import {
   TimelineSectionHeader,
 } from "@/components/timeline-search-panel";
 import { MobileAddSheet } from "@/components/mobile-add-sheet";
+import { MobileFilterSheet } from "@/components/mobile-filter-sheet";
+import {
+  MobileDayTimeline,
+  MobileSummaryChips,
+  MobileTimelineToolbar,
+} from "@/components/mobile-timeline";
 import styles from "./job-detail.module.css";
+
+const TIMELINE_KIND_CHIPS: { id: ItemKind; label: string }[] = [
+  { id: "photo", label: "Photos" },
+  { id: "voice", label: "Voice" },
+  { id: "note", label: "Notes" },
+  { id: "file", label: "Files" },
+];
 
 type Props = {
   job: Job;
@@ -69,6 +82,7 @@ export function JobDetailClient({
   const [addSheetOpen, setAddSheetOpen] = useState(false);
   const [mobileNoteOpen, setMobileNoteOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
   const noteBodyRef = useRef<HTMLTextAreaElement>(null);
   const searchParams = useSearchParams();
@@ -350,11 +364,10 @@ export function JobDetailClient({
   return (
     <>
     <header className={`${styles.mobileDetailHeader} mobileOnly`}>
-      <div className={styles.mobileDetailTop}>
+      <div className={styles.mobileNavRow}>
         <Link href="/jobs" className={styles.mobileBack} aria-label="Back to jobs">
           ←
         </Link>
-        <h1 className={styles.mobileDetailTitle}>{job.name}</h1>
         <div className={styles.mobileDetailMenu} ref={mobileMenuRef}>
           <button
             type="button"
@@ -384,17 +397,27 @@ export function JobDetailClient({
           )}
         </div>
       </div>
+      <h1 className={styles.mobileDetailTitle}>{job.name}</h1>
       {locationLine && <p className={styles.mobileDetailLocation}>{locationLine}</p>}
       <span className={`${styles.mobileDetailStatus} ${styles[`status_${job.status}`]}`}>
+        {job.status === "completed" && <span aria-hidden>✓ </span>}
         {job.status.replace(/_/g, " ")}
       </span>
       {items.length > 0 && (
-        <div className={styles.summaryChips} role="group" aria-label="Item counts">
-          {kindCounts.photo > 0 && <span className={styles.summaryChip}>Photos {kindCounts.photo}</span>}
-          {kindCounts.note > 0 && <span className={styles.summaryChip}>Notes {kindCounts.note}</span>}
-          {kindCounts.voice > 0 && <span className={styles.summaryChip}>Voice {kindCounts.voice}</span>}
-          {kindCounts.file > 0 && <span className={styles.summaryChip}>Files {kindCounts.file}</span>}
-        </div>
+        <MobileSummaryChips
+          counts={kindCounts}
+          kindFilter={kindFilter as ReadonlySet<ItemKind>}
+          onToggleKind={(kind) => toggleKind(kind)}
+        />
+      )}
+      {items.length > 0 && (
+        <MobileTimelineToolbar
+          query={query}
+          onQueryChange={setQuery}
+          onOpenFilters={() => setMobileFilterOpen(true)}
+          hasFilters={hasActiveFilters}
+          inputRef={searchRef}
+        />
       )}
     </header>
 
@@ -467,21 +490,23 @@ export function JobDetailClient({
       )}
 
       {items.length > 0 && (
-        <TimelineSearchPanel
-          query={query}
-          onQueryChange={setQuery}
-          kindFilter={kindFilter as ReadonlySet<ItemKind>}
-          onToggleKind={(kind) => toggleKind(kind)}
-          tagFilter={tagFilter}
-          onToggleTag={toggleTag}
-          tags={tags}
-          expanded={filtersExpanded}
-          onExpandedChange={setFiltersExpanded}
-          onClearFilters={clearFilters}
-          shownCount={filteredItems.length}
-          totalCount={items.length}
-          inputRef={searchRef}
-        />
+        <div className="desktopOnly">
+          <TimelineSearchPanel
+            query={query}
+            onQueryChange={setQuery}
+            kindFilter={kindFilter as ReadonlySet<ItemKind>}
+            onToggleKind={(kind) => toggleKind(kind)}
+            tagFilter={tagFilter}
+            onToggleTag={toggleTag}
+            tags={tags}
+            expanded={filtersExpanded}
+            onExpandedChange={setFiltersExpanded}
+            onClearFilters={clearFilters}
+            shownCount={filteredItems.length}
+            totalCount={items.length}
+            inputRef={searchRef}
+          />
+        </div>
       )}
 
       {!readOnly && (
@@ -515,37 +540,50 @@ export function JobDetailClient({
         <p className={styles.empty}>No timeline items yet.</p>
       ) : (
         <>
-          <TimelineSectionHeader
-            shownCount={filteredItems.length}
-            totalCount={items.length}
-            hasFilters={hasActiveFilters}
-          />
+          <div className="desktopOnly">
+            <TimelineSectionHeader
+              shownCount={filteredItems.length}
+              totalCount={items.length}
+              hasFilters={hasActiveFilters}
+            />
+          </div>
           {filteredItems.length === 0 ? (
             <TimelineFilteredEmpty onClear={clearFilters} />
           ) : (
-        sortedDays.map(([dayKey, dayItems]) => (
-          <section key={dayKey} className={styles.dayGroup}>
-            <h3>{formatDate(`${dayKey}T12:00:00.000Z`)}</h3>
-            <div className={styles.dayContent}>
-              {segmentDayItems(dayItems).map((seg, i) =>
-                seg.type === "photos" ? (
-                  <PhotoGrid
-                    key={`g-${dayKey}-${i}`}
-                    items={seg.items}
+            sortedDays.map(([dayKey, dayItems]) => (
+              <div key={dayKey}>
+                <div className="mobileOnly">
+                  <MobileDayTimeline
+                    dayKey={dayKey}
+                    items={dayItems}
                     mediaByItem={mediaByItem}
-                    onOpen={openPhoto}
+                    tagsByItem={tagsByItem}
+                    onOpenPhoto={openPhoto}
                   />
-                ) : (
-                  <ul key={`r-${seg.item.id}`} className={styles.timelineRows}>
-                    <li>
-                      <TimelineRow item={seg.item} media={mediaByItem.get(seg.item.id) ?? []} />
-                    </li>
-                  </ul>
-                ),
-              )}
-            </div>
-          </section>
-        ))
+                </div>
+                <section className={`${styles.dayGroup} desktopOnly`}>
+                  <h3>{formatDate(`${dayKey}T12:00:00.000Z`)}</h3>
+                  <div className={styles.dayContent}>
+                    {segmentDayItems(dayItems).map((seg, i) =>
+                      seg.type === "photos" ? (
+                        <PhotoGrid
+                          key={`g-${dayKey}-${i}`}
+                          items={seg.items}
+                          mediaByItem={mediaByItem}
+                          onOpen={openPhoto}
+                        />
+                      ) : (
+                        <ul key={`r-${seg.item.id}`} className={styles.timelineRows}>
+                          <li>
+                            <TimelineRow item={seg.item} media={mediaByItem.get(seg.item.id) ?? []} />
+                          </li>
+                        </ul>
+                      ),
+                    )}
+                  </div>
+                </section>
+              </div>
+            ))
           )}
         </>
       )}
@@ -595,6 +633,27 @@ export function JobDetailClient({
       jobName={job.name}
       readOnly={readOnly}
       onAddNote={openMobileNoteCompose}
+    />
+
+    <MobileFilterSheet
+      open={mobileFilterOpen}
+      onClose={() => setMobileFilterOpen(false)}
+      title="Filter timeline"
+      chips={[
+        ...TIMELINE_KIND_CHIPS,
+        ...tags.map((tag) => ({ id: `tag:${tag.id}`, label: tag.name })),
+      ]}
+      activeChipIds={
+        new Set([
+          ...kindFilter,
+          ...[...tagFilter].map((id) => `tag:${id}`),
+        ])
+      }
+      onToggleChip={(id) => {
+        if (id.startsWith("tag:")) toggleTag(id.slice(4));
+        else toggleKind(id as ItemKind);
+      }}
+      onClear={clearFilters}
     />
     </>
   );

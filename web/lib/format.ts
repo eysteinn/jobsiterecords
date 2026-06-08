@@ -48,6 +48,26 @@ export function formatDayKey(iso: string): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** Day section heading — "Today" when the day key is UTC today. */
+export function formatDayHeading(dayKey: string): string {
+  const today = new Date().toISOString().slice(0, 10);
+  if (dayKey === today) return "Today";
+  return formatDate(`${dayKey}T12:00:00.000Z`);
+}
+
+export function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+export function formatDuration(ms: number): string {
+  const totalSec = Math.max(0, Math.floor(ms / 1000));
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  return `${min}:${pad2(sec)}`;
+}
+
 /** Relative time for mobile cards (e.g. "2d ago", "Updated 03/06/2026 22:51"). */
 export function formatRelativeTime(iso: string): string {
   const d = parseUtc(iso);
