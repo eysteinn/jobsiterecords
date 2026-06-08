@@ -770,7 +770,7 @@ export function JobDetailClient({
     </header>
 
     <PageShell
-      className={styles.detailShell}
+      className={`${styles.detailShell} ${selecting && selected.size > 0 ? styles.detailShellSelecting : ""}`}
       headerClassName="desktopOnly"
       title={job.name}
       titleAccessory={

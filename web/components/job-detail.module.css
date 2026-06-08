@@ -915,6 +915,25 @@
   box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.06);
 }
 
+@media (max-width: 767px) {
+  .selectionBar {
+    /* Sit above the fixed bottom nav (z-index 30), not behind it */
+    bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0));
+    z-index: 35;
+    padding-bottom: 12px;
+  }
+
+  .selectionBarActions {
+    flex-shrink: 0;
+    gap: 6px;
+  }
+
+  .selectionOutlineBtn {
+    padding: 8px 10px;
+    font-size: 0.8125rem;
+  }
+}
+
 .selectionCancelBtn {
   border: none;
   background: transparent;
@@ -962,6 +981,13 @@
 .selectionDeleteSolid:disabled {
   opacity: 0.6;
   cursor: default;
+}
+
+@media (max-width: 767px) {
+  .detailShellSelecting {
+    /* Room for the selection bar stacked above bottom nav */
+    padding-bottom: 64px;
+  }
 }
 
 .jobMenuWrap {
