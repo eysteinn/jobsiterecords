@@ -330,4 +330,12 @@
   font-size: 0.75rem;
   font-weight: 500;
   color: var(--text);
+  border: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+button.tag {
+  font-size: 0.75rem;
+  font-weight: 500;
 }

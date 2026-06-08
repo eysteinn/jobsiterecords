@@ -156,10 +156,12 @@ class SyncEngine {
         AND i.sync_state IN ('pending', 'failed')
     ''', [workspaceId]);
 
+    await _pushTags(accessToken, workspaceId);
+
     for (final row in itemRows) {
       final item = Item.fromDb(row);
       try {
-        final body = _itemPayload(item);
+        final body = await _itemPayload(item);
         final res = await _api.put(
           '/api/v1/jobs/${item.jobId}/items/${item.id}',
           body: body,
@@ -214,7 +216,7 @@ class SyncEngine {
     if (itemRows.isEmpty) return;
     final item = Item.fromDb(itemRows.first);
     if (item.syncState == SyncState.pending || item.syncState == SyncState.failed) {
-      final body = _itemPayload(item);
+      final body = await _itemPayload(item);
       final res = await _api.put(
         '/api/v1/jobs/${item.jobId}/items/${item.id}',
         body: body,
@@ -487,15 +489,41 @@ class SyncEngine {
         'updated_at': job.updatedAt.toUtc().toIso8601String(),
       };
 
-  Map<String, dynamic> _itemPayload(Item item) => {
-        'job_id': item.jobId,
-        'kind': item.kind.dbValue,
-        'caption': item.caption,
-        'body': item.body,
-        'captured_at': item.capturedAt.toUtc().toIso8601String(),
-        'created_at': item.createdAt.toUtc().toIso8601String(),
-        'updated_at': item.updatedAt.toUtc().toIso8601String(),
-      };
+  Future<void> _pushTags(String accessToken, String workspaceId) async {
+    final rows = await _db.db.query('tags', orderBy: 'sort_order ASC, name COLLATE NOCASE ASC');
+    for (final row in rows) {
+      final tagId = row['id'] as String;
+      final name = row['name'] as String;
+      try {
+        await _api.put(
+          '/api/v1/workspaces/$workspaceId/tags/$tagId',
+          body: {'name': name},
+          accessToken: accessToken,
+        );
+      } catch (e) {
+        // Tag push failures should not block item/media sync.
+      }
+    }
+  }
+
+  Future<List<String>> _tagIdsForItem(String itemId) async {
+    final rows = await _db.db.query('item_tags', where: 'item_id = ?', whereArgs: [itemId]);
+    return rows.map((row) => row['tag_id'] as String).toList();
+  }
+
+  Future<Map<String, dynamic>> _itemPayload(Item item) async {
+    final tagIds = await _tagIdsForItem(item.id);
+    return {
+      'job_id': item.jobId,
+      'kind': item.kind.dbValue,
+      'caption': item.caption,
+      'body': item.body,
+      'captured_at': item.capturedAt.toUtc().toIso8601String(),
+      'created_at': item.createdAt.toUtc().toIso8601String(),
+      'updated_at': item.updatedAt.toUtc().toIso8601String(),
+      'tag_ids': tagIds,
+    };
+  }
 
   Future<bool> _mergeJobFromServer(Map<String, dynamic> json) async {
     final remote = _jobFromApi(json);

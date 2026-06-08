@@ -1,9 +1,9 @@
 "use client";
 
-import { type RefObject, useEffect, useId, useMemo, useRef, useState } from "react";
+import { type RefObject, useRef } from "react";
 import type { Tag } from "@/lib/api-jobs";
 import { useSearchShortcut } from "@/hooks/use-search-shortcut";
-import { buildActiveFilterLabels, kindLabel, type ItemKind } from "@/lib/search";
+import { buildActiveFilterLabels, kindLabel, quickTagsForJob, type ItemKind } from "@/lib/search";
 import styles from "./timeline-search-panel.module.css";
 
 const KINDS: ItemKind[] = ["photo", "voice", "note", "file"];
@@ -15,7 +15,9 @@ type Props = {
   onToggleKind: (kind: ItemKind) => void;
   tagFilter: ReadonlySet<string>;
   onToggleTag: (tagId: string) => void;
-  tags: Tag[];
+  onOpenTagFilter: () => void;
+  allTags: Tag[];
+  tagsInJob: ReadonlySet<string>;
   expanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
   onClearFilters: () => void;
@@ -31,7 +33,9 @@ export function TimelineSearchPanel({
   onToggleKind,
   tagFilter,
   onToggleTag,
-  tags,
+  onOpenTagFilter,
+  allTags,
+  tagsInJob,
   expanded,
   onExpandedChange,
   onClearFilters,
@@ -39,36 +43,15 @@ export function TimelineSearchPanel({
   totalCount,
   inputRef,
 }: Props) {
-  const labelId = useId();
   const internalRef = useRef<HTMLInputElement>(null);
   const resolvedRef = inputRef ?? internalRef;
-  const tagMenuRef = useRef<HTMLDivElement>(null);
-  const [tagMenuOpen, setTagMenuOpen] = useState(false);
-  const [tagMenuSearch, setTagMenuSearch] = useState("");
   useSearchShortcut(resolvedRef);
 
   const hasFilters =
     query.trim().length > 0 || kindFilter.size > 0 || tagFilter.size > 0;
-  const summary = buildActiveFilterLabels(query, kindFilter, tagFilter, tags).join(" · ");
-  const quickTags = tags.slice(0, 6);
-  const moreTagCount = Math.max(0, tags.length - quickTags.length);
-
-  const filteredTagMenu = useMemo(() => {
-    const needle = tagMenuSearch.trim().toLowerCase();
-    if (!needle) return tags;
-    return tags.filter((tag) => tag.name.toLowerCase().includes(needle));
-  }, [tagMenuSearch, tags]);
-
-  useEffect(() => {
-    if (!tagMenuOpen) return;
-    function onPointerDown(event: PointerEvent) {
-      if (tagMenuRef.current && !tagMenuRef.current.contains(event.target as Node)) {
-        setTagMenuOpen(false);
-      }
-    }
-    document.addEventListener("pointerdown", onPointerDown);
-    return () => document.removeEventListener("pointerdown", onPointerDown);
-  }, [tagMenuOpen]);
+  const summary = buildActiveFilterLabels(query, kindFilter, tagFilter, allTags).join(" · ");
+  const quickTags = quickTagsForJob(allTags, tagsInJob);
+  const moreTagCount = Math.max(0, tagsInJob.size - quickTags.length);
 
   function toggleExpanded() {
     if (expanded) {
@@ -80,10 +63,7 @@ export function TimelineSearchPanel({
   }
 
   return (
-    <div className={styles.wrap} role="search" aria-labelledby={labelId}>
-      <span id={labelId} className="sr-only">
-        Timeline search and filters
-      </span>
+    <div className={styles.wrap} role="search">
       <div className={styles.toolbar}>
         <button
           type="button"
@@ -158,45 +138,14 @@ export function TimelineSearchPanel({
               );
             })}
 
-            {tags.length > 0 && (
-              <div className={styles.tagMenuWrap} ref={tagMenuRef}>
-                <button
-                  type="button"
-                  className={`${styles.chip} ${tagFilter.size > 0 ? styles.tagChipActive : ""}`}
-                  aria-expanded={tagMenuOpen}
-                  onClick={() => setTagMenuOpen((open) => !open)}
-                >
-                  {tagFilter.size === 0 ? "Tags" : `Tags (${tagFilter.size})`}
-                </button>
-                {tagMenuOpen && (
-                  <div className={styles.tagMenu} role="listbox" aria-label="Filter by tag">
-                    <input
-                      className={styles.tagMenuSearch}
-                      placeholder="Search tags"
-                      value={tagMenuSearch}
-                      onChange={(e) => setTagMenuSearch(e.target.value)}
-                    />
-                    {filteredTagMenu.map((tag) => {
-                      const active = tagFilter.has(tag.id);
-                      return (
-                        <button
-                          key={tag.id}
-                          type="button"
-                          role="option"
-                          aria-selected={active}
-                          className={`${styles.tagMenuItem} ${active ? styles.tagMenuItemActive : ""}`}
-                          onClick={() => onToggleTag(tag.id)}
-                        >
-                          {tag.name}
-                        </button>
-                      );
-                    })}
-                    {filteredTagMenu.length === 0 && (
-                      <p className={styles.timelineCount}>No tags match your search.</p>
-                    )}
-                  </div>
-                )}
-              </div>
+            {allTags.length > 0 && (
+              <button
+                type="button"
+                className={`${styles.chip} ${tagFilter.size > 0 ? styles.tagChipActive : ""}`}
+                onClick={onOpenTagFilter}
+              >
+                {tagFilter.size === 0 ? "Tags" : `Tags (${tagFilter.size})`}
+              </button>
             )}
 
             {hasFilters && (
@@ -223,7 +172,7 @@ export function TimelineSearchPanel({
                 );
               })}
               {moreTagCount > 0 && (
-                <button type="button" className={`${styles.chip} ${styles.clearChip}`} onClick={() => setTagMenuOpen(true)}>
+                <button type="button" className={`${styles.chip} ${styles.clearChip}`} onClick={onOpenTagFilter}>
                   +{moreTagCount} more
                 </button>
               )}

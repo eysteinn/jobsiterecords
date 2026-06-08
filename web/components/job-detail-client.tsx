@@ -7,7 +7,13 @@ import type { Item, ItemTag, Job, MediaFile, Tag } from "@/lib/api-jobs";
 import { useSyncPoll } from "@/hooks/use-sync-poll";
 import { useUrlQueryParam, useUrlSetParam } from "@/hooks/use-url-filter-state";
 import { formatDate, formatDayKey, formatTime } from "@/lib/format";
-import { buildTagsByItem, filterTimelineItems, type ItemKind } from "@/lib/search";
+import {
+  buildActiveFilterLabels,
+  buildTagsByItem,
+  filterTimelineItems,
+  tagsUsedInJob,
+  type ItemKind,
+} from "@/lib/search";
 import { fetchJobDelta, mergeJobBundle, pollJobCursor } from "@/lib/sync-cursor";
 import { SYNC_POLL } from "@/lib/sync-poll-config";
 import { getPhotoMedia, itemThumbUrl, mediaDownloadUrl } from "@/lib/photo-media";
@@ -18,6 +24,7 @@ import {
   TimelineSearchPanel,
   TimelineSectionHeader,
 } from "@/components/timeline-search-panel";
+import { TimelineTagFilterSheet } from "@/components/timeline-tag-filter-sheet";
 import { MobileAddSheet } from "@/components/mobile-add-sheet";
 import { MobileFilterSheet } from "@/components/mobile-filter-sheet";
 import {
@@ -44,6 +51,13 @@ type Props = {
   readOnly?: boolean;
 };
 
+async function fetchWorkspaceTags(workspaceId: string): Promise<Tag[]> {
+  const res = await fetch(`/api/workspaces/${workspaceId}/tags`, { cache: "no-store" });
+  const data = await res.json();
+  if (!res.ok) return [];
+  return (data.tags as Tag[] | undefined) ?? [];
+}
+
 type TimelineSegment =
   | { type: "photos"; items: Item[] }
   | { type: "row"; item: Item };
@@ -62,6 +76,7 @@ export function JobDetailClient({
   mediaFiles: initialMediaFiles,
   tags: initialTags = [],
   itemTags: initialItemTags = [],
+  workspaceId,
   readOnly = false,
 }: Props) {
   const router = useRouter();
@@ -83,6 +98,8 @@ export function JobDetailClient({
   const [mobileNoteOpen, setMobileNoteOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
+  const [tagFilterOpen, setTagFilterOpen] = useState(false);
+  const [workspaceTags, setWorkspaceTags] = useState<Tag[]>(initialTags);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
   const noteBodyRef = useRef<HTMLTextAreaElement>(null);
   const searchParams = useSearchParams();
@@ -102,8 +119,12 @@ export function JobDetailClient({
   const cursorRef = useRef(job.last_activity_at ?? job.updated_at);
   const itemsRef = useRef(items);
   const mediaRef = useRef(mediaFiles);
+  const tagsRef = useRef(tags);
+  const itemTagsRef = useRef(itemTags);
   itemsRef.current = items;
   mediaRef.current = mediaFiles;
+  tagsRef.current = tags;
+  itemTagsRef.current = itemTags;
 
   useEffect(() => {
     setJob(initialJob);
@@ -124,6 +145,16 @@ export function JobDetailClient({
   useEffect(() => {
     setItemTags(initialItemTags);
   }, [initialItemTags]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchWorkspaceTags(workspaceId).then((next) => {
+      if (!cancelled && next.length > 0) setWorkspaceTags(next);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [workspaceId]);
 
   useEffect(() => {
     cursorRef.current = job.last_activity_at ?? job.updated_at;
@@ -166,15 +197,25 @@ export function JobDetailClient({
         return;
       }
 
-      const merged = mergeJobBundle(itemsRef.current, mediaRef.current, delta);
+      const merged = mergeJobBundle(
+        itemsRef.current,
+        mediaRef.current,
+        delta,
+        tagsRef.current,
+        itemTagsRef.current,
+      );
       if (merged.added > 0) {
         setItems(merged.items);
         setMediaFiles(merged.mediaFiles);
+        setTags(merged.tags);
+        setItemTags(merged.itemTags);
         setFieldUpdateBanner(true);
         window.setTimeout(() => setFieldUpdateBanner(false), SYNC_POLL.updatedBannerMs);
       } else if (hasDelta) {
         setItems(merged.items);
         setMediaFiles(merged.mediaFiles);
+        setTags(merged.tags);
+        setItemTags(merged.itemTags);
       }
       cursorRef.current = nextCursor;
     },
@@ -207,7 +248,15 @@ export function JobDetailClient({
     return map;
   }, [mediaFiles]);
 
-  const tagsByItem = useMemo(() => buildTagsByItem(tags, itemTags), [tags, itemTags]);
+  const allTags = useMemo(() => {
+    const byId = new Map<string, Tag>();
+    for (const tag of workspaceTags) byId.set(tag.id, tag);
+    for (const tag of tags) byId.set(tag.id, tag);
+    return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [workspaceTags, tags]);
+
+  const tagsByItem = useMemo(() => buildTagsByItem(allTags, itemTags), [allTags, itemTags]);
+  const tagsInJob = useMemo(() => tagsUsedInJob(tagsByItem, items), [tagsByItem, items]);
 
   const filteredItems = useMemo(
     () =>
@@ -247,6 +296,18 @@ export function JobDetailClient({
     setTagFilter(new Set());
     setFiltersExpanded(false);
   }
+
+  function applyTagFilter(next: Set<string>) {
+    setTagFilter(next);
+    if (next.size > 0) setFiltersExpanded(true);
+  }
+
+  const activeFilterSummary = buildActiveFilterLabels(
+    query,
+    kindFilter as ReadonlySet<ItemKind>,
+    tagFilter,
+    allTags,
+  ).join(" · ");
 
   async function addNote() {
     if (!noteBody.trim()) return;
@@ -419,6 +480,27 @@ export function JobDetailClient({
           inputRef={searchRef}
         />
       )}
+      {items.length > 0 && hasActiveFilters && (
+        <button
+          type="button"
+          className={styles.mobileFilterSummary}
+          onClick={() => setMobileFilterOpen(true)}
+        >
+          <span>{activeFilterSummary}</span>
+          <span
+            className={styles.mobileFilterSummaryClear}
+            onClick={(event) => {
+              event.stopPropagation();
+              clearFilters();
+            }}
+            role="button"
+            tabIndex={0}
+            aria-label="Clear filters"
+          >
+            ×
+          </span>
+        </button>
+      )}
     </header>
 
     <PageShell
@@ -499,7 +581,9 @@ export function JobDetailClient({
             onToggleKind={(kind) => toggleKind(kind)}
             tagFilter={tagFilter}
             onToggleTag={toggleTag}
-            tags={tags}
+            onOpenTagFilter={() => setTagFilterOpen(true)}
+            allTags={allTags}
+            tagsInJob={tagsInJob}
             expanded={filtersExpanded}
             onExpandedChange={setFiltersExpanded}
             onClearFilters={clearFilters}
@@ -560,6 +644,7 @@ export function JobDetailClient({
                     mediaByItem={mediaByItem}
                     tagsByItem={tagsByItem}
                     onOpenPhoto={openPhoto}
+                    onToggleTag={toggleTag}
                   />
                 </div>
                 <section className={`${styles.dayGroup} desktopOnly`}>
@@ -571,12 +656,21 @@ export function JobDetailClient({
                           key={`g-${dayKey}-${i}`}
                           items={seg.items}
                           mediaByItem={mediaByItem}
+                          tagsByItem={tagsByItem}
+                          tagFilter={tagFilter}
                           onOpen={openPhoto}
+                          onToggleTag={toggleTag}
                         />
                       ) : (
                         <ul key={`r-${seg.item.id}`} className={styles.timelineRows}>
                           <li>
-                            <TimelineRow item={seg.item} media={mediaByItem.get(seg.item.id) ?? []} />
+                            <TimelineRow
+                              item={seg.item}
+                              media={mediaByItem.get(seg.item.id) ?? []}
+                              tags={tagsByItem.get(seg.item.id) ?? []}
+                              tagFilter={tagFilter}
+                              onToggleTag={toggleTag}
+                            />
                           </li>
                         </ul>
                       ),
@@ -640,21 +734,29 @@ export function JobDetailClient({
       open={mobileFilterOpen}
       onClose={() => setMobileFilterOpen(false)}
       title="Filter timeline"
-      chips={[
-        ...TIMELINE_KIND_CHIPS,
-        ...tags.map((tag) => ({ id: `tag:${tag.id}`, label: tag.name })),
-      ]}
-      activeChipIds={
-        new Set([
-          ...kindFilter,
-          ...[...tagFilter].map((id) => `tag:${id}`),
-        ])
+      chips={TIMELINE_KIND_CHIPS}
+      activeChipIds={kindFilter}
+      onToggleChip={(id) => toggleKind(id as ItemKind)}
+      onClear={() => setKindFilter(new Set())}
+      extraAction={
+        allTags.length > 0 ? (
+          <button type="button" className={styles.mobileTagFilterBtn} onClick={() => {
+            setMobileFilterOpen(false);
+            setTagFilterOpen(true);
+          }}>
+            {tagFilter.size === 0 ? "Filter by tag" : `Tags (${tagFilter.size})`}
+          </button>
+        ) : null
       }
-      onToggleChip={(id) => {
-        if (id.startsWith("tag:")) toggleTag(id.slice(4));
-        else toggleKind(id as ItemKind);
-      }}
-      onClear={clearFilters}
+    />
+
+    <TimelineTagFilterSheet
+      open={tagFilterOpen}
+      onClose={() => setTagFilterOpen(false)}
+      allTags={allTags}
+      tagsInJob={tagsInJob}
+      selectedTagIds={tagFilter}
+      onApply={applyTagFilter}
     />
     </>
   );
@@ -663,11 +765,17 @@ export function JobDetailClient({
 function PhotoGrid({
   items,
   mediaByItem,
+  tagsByItem,
+  tagFilter,
   onOpen,
+  onToggleTag,
 }: {
   items: Item[];
   mediaByItem: Map<string, MediaFile[]>;
+  tagsByItem: Map<string, Tag[]>;
+  tagFilter: ReadonlySet<string>;
   onOpen: (itemId: string, mediaId?: string) => void;
+  onToggleTag: (tagId: string) => void;
 }) {
   return (
     <div className={styles.photoGrid} role="group" aria-label="Photos">
@@ -676,8 +784,38 @@ function PhotoGrid({
           key={item.id}
           item={item}
           media={mediaByItem.get(item.id) ?? []}
+          tags={tagsByItem.get(item.id) ?? []}
+          tagFilter={tagFilter}
           onOpen={onOpen}
+          onToggleTag={onToggleTag}
         />
+      ))}
+    </div>
+  );
+}
+
+function TagRow({
+  tags,
+  tagFilter,
+  onToggleTag,
+}: {
+  tags: Tag[];
+  tagFilter: ReadonlySet<string>;
+  onToggleTag: (tagId: string) => void;
+}) {
+  if (tags.length === 0) return null;
+  return (
+    <div className={styles.itemTagRow}>
+      {tags.map((tag) => (
+        <button
+          key={tag.id}
+          type="button"
+          className={`${styles.itemTag} ${tagFilter.has(tag.id) ? styles.itemTagActive : ""}`}
+          aria-pressed={tagFilter.has(tag.id)}
+          onClick={() => onToggleTag(tag.id)}
+        >
+          {tag.name}
+        </button>
       ))}
     </div>
   );
@@ -686,11 +824,17 @@ function PhotoGrid({
 function PhotoCell({
   item,
   media,
+  tags,
+  tagFilter,
   onOpen,
+  onToggleTag,
 }: {
   item: Item;
   media: MediaFile[];
+  tags: Tag[];
+  tagFilter: ReadonlySet<string>;
   onOpen: (itemId: string, mediaId?: string) => void;
+  onToggleTag: (tagId: string) => void;
 }) {
   const { display, hasAnnotations } = getPhotoMedia(media);
   const time = formatTime(item.captured_at);
@@ -705,36 +849,51 @@ function PhotoCell({
   }
 
   return (
-    <button
-      type="button"
-      className={styles.photoCell}
-      onClick={() => onOpen(item.id, display.id)}
-      aria-label={label}
-    >
-      <span className={styles.photoThumbWrap}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          key={display.updated_at}
-          src={itemThumbUrl(item.id, display, 384)}
-          alt=""
-          className={styles.photoThumb}
-          loading="lazy"
-        />
-        {hasAnnotations && (
-          <span className={styles.photoAnnotatedBadge} aria-hidden>
-            ✎
-          </span>
-        )}
-        <span className={styles.photoTime}>{time}</span>
-      </span>
-      <p className={item.caption ? styles.photoCaption : `${styles.photoCaption} ${styles.photoCaptionEmpty}`}>
-        {item.caption || "No caption"}
-      </p>
-    </button>
+    <div className={styles.photoCellWrap}>
+      <button
+        type="button"
+        className={styles.photoCell}
+        onClick={() => onOpen(item.id, display.id)}
+        aria-label={label}
+      >
+        <span className={styles.photoThumbWrap}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            key={display.updated_at}
+            src={itemThumbUrl(item.id, display, 384)}
+            alt=""
+            className={styles.photoThumb}
+            loading="lazy"
+          />
+          {hasAnnotations && (
+            <span className={styles.photoAnnotatedBadge} aria-hidden>
+              ✎
+            </span>
+          )}
+          <span className={styles.photoTime}>{time}</span>
+        </span>
+        <p className={item.caption ? styles.photoCaption : `${styles.photoCaption} ${styles.photoCaptionEmpty}`}>
+          {item.caption || "No caption"}
+        </p>
+      </button>
+      <TagRow tags={tags} tagFilter={tagFilter} onToggleTag={onToggleTag} />
+    </div>
   );
 }
 
-function TimelineRow({ item, media }: { item: Item; media: MediaFile[] }) {
+function TimelineRow({
+  item,
+  media,
+  tags,
+  tagFilter,
+  onToggleTag,
+}: {
+  item: Item;
+  media: MediaFile[];
+  tags: Tag[];
+  tagFilter: ReadonlySet<string>;
+  onToggleTag: (tagId: string) => void;
+}) {
   const preview =
     item.kind === "note"
       ? item.body
@@ -758,6 +917,7 @@ function TimelineRow({ item, media }: { item: Item; media: MediaFile[] }) {
           {item.kind === "note" && item.body && <p className={styles.body}>{item.body}</p>}
           {preview && item.kind === "voice" && <p className={styles.rowPreview}>{preview}</p>}
           <RowMedia item={item} media={media} />
+          <TagRow tags={tags} tagFilter={tagFilter} onToggleTag={onToggleTag} />
         </div>
       </div>
     </article>

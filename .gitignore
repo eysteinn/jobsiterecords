@@ -64,6 +64,7 @@ app/coverage/
 # ---------------------------------------------------------------------------
 web/node_modules/
 web/.next/
+web/tsconfig.tsbuildinfo
 
 # ---------------------------------------------------------------------------
 # Services (placeholder; each service will add its own rules under its folder)

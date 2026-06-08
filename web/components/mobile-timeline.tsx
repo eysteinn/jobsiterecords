@@ -105,9 +105,17 @@ type DayTimelineProps = {
   mediaByItem: Map<string, MediaFile[]>;
   tagsByItem: Map<string, Tag[]>;
   onOpenPhoto: (itemId: string, mediaId?: string) => void;
+  onToggleTag?: (tagId: string) => void;
 };
 
-export function MobileDayTimeline({ dayKey, items, mediaByItem, tagsByItem, onOpenPhoto }: DayTimelineProps) {
+export function MobileDayTimeline({
+  dayKey,
+  items,
+  mediaByItem,
+  tagsByItem,
+  onOpenPhoto,
+  onToggleTag,
+}: DayTimelineProps) {
   return (
     <section className={styles.daySection}>
       <h3 className={styles.dayHeading}>{formatDayHeading(dayKey)}</h3>
@@ -119,6 +127,7 @@ export function MobileDayTimeline({ dayKey, items, mediaByItem, tagsByItem, onOp
               media={mediaByItem.get(item.id) ?? []}
               tags={tagsByItem.get(item.id) ?? []}
               onOpenPhoto={onOpenPhoto}
+              onToggleTag={onToggleTag}
             />
           </li>
         ))}
@@ -132,9 +141,10 @@ type CardProps = {
   media: MediaFile[];
   tags: Tag[];
   onOpenPhoto: (itemId: string, mediaId?: string) => void;
+  onToggleTag?: (tagId: string) => void;
 };
 
-function MobileTimelineCard({ item, media, tags, onOpenPhoto }: CardProps) {
+function MobileTimelineCard({ item, media, tags, onOpenPhoto, onToggleTag }: CardProps) {
   const time = formatTime(item.captured_at);
   const kindLabel = item.kind === "voice" ? "Voice note" : item.kind.charAt(0).toUpperCase() + item.kind.slice(1);
 
@@ -158,11 +168,22 @@ function MobileTimelineCard({ item, media, tags, onOpenPhoto }: CardProps) {
           {renderText(item, media)}
           {tags.length > 0 && (
             <div className={styles.tagRow}>
-              {tags.map((tag) => (
-                <span key={tag.id} className={styles.tag}>
-                  {tag.name}
-                </span>
-              ))}
+              {tags.map((tag) =>
+                onToggleTag ? (
+                  <button
+                    key={tag.id}
+                    type="button"
+                    className={styles.tag}
+                    onClick={() => onToggleTag(tag.id)}
+                  >
+                    {tag.name}
+                  </button>
+                ) : (
+                  <span key={tag.id} className={styles.tag}>
+                    {tag.name}
+                  </span>
+                ),
+              )}
             </div>
           )}
         </div>
