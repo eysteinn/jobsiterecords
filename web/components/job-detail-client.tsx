@@ -1304,24 +1304,6 @@ function PhotoCell({
         isSelected ? styles.photoCellSelected : ""
       }`}
     >
-      {selecting ? (
-        <input
-          type="checkbox"
-          className={styles.selectCheckbox}
-          checked={isSelected}
-          onChange={() => onToggleSelect?.(item.id)}
-          aria-label={`Select photo ${time}`}
-        />
-      ) : (
-        !readOnly &&
-        onDelete && (
-          <ItemActionsMenu
-            className={styles.photoCellMenu}
-            onEdit={onEdit}
-            onDelete={onDelete}
-          />
-        )
-      )}
       <button
         type="button"
         className={styles.photoCell}
@@ -1329,20 +1311,42 @@ function PhotoCell({
         aria-label={label}
       >
         <span className={styles.photoThumbWrap}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            key={display.updated_at}
-            src={itemThumbUrl(item.id, display, 384)}
-            alt=""
-            className={styles.photoThumb}
-            loading="lazy"
-          />
-          {hasAnnotations && (
-            <span className={styles.photoAnnotatedBadge} aria-hidden>
-              ✎
-            </span>
+          <span className={styles.photoThumbClip}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              key={display.updated_at}
+              src={itemThumbUrl(item.id, display, 384)}
+              alt=""
+              className={styles.photoThumb}
+              loading="lazy"
+            />
+            {hasAnnotations && (
+              <span className={styles.photoAnnotatedBadge} aria-hidden>
+                ✎
+              </span>
+            )}
+            <span className={styles.photoTime}>{time}</span>
+          </span>
+          {selecting ? (
+            <input
+              type="checkbox"
+              className={styles.photoThumbCheckbox}
+              checked={isSelected}
+              onChange={() => onToggleSelect?.(item.id)}
+              onClick={(e) => e.stopPropagation()}
+              aria-label={`Select photo ${time}`}
+            />
+          ) : (
+            !readOnly &&
+            onDelete && (
+              <ItemActionsMenu
+                overlay
+                className={styles.photoThumbMenu}
+                onEdit={onEdit}
+                onDelete={onDelete}
+              />
+            )
           )}
-          <span className={styles.photoTime}>{time}</span>
         </span>
         <p className={item.caption ? styles.photoCaption : `${styles.photoCaption} ${styles.photoCaptionEmpty}`}>
           {item.caption || "No caption"}

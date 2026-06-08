@@ -294,8 +294,14 @@
   position: relative;
   aspect-ratio: 1;
   border-radius: 8px;
-  overflow: hidden;
   border: 1px solid var(--border);
+}
+
+.photoThumbClip {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  overflow: hidden;
 }
 
 .photoThumb {
@@ -1007,11 +1013,35 @@
   color: #dc2626;
 }
 
-.photoCellMenu {
+.photoThumbMenu {
   position: absolute;
-  top: 4px;
-  right: 4px;
-  z-index: 2;
+  top: 6px;
+  right: 6px;
+  z-index: 3;
+}
+
+.photoThumbCheckbox {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 3;
+  width: 22px;
+  height: 22px;
+  accent-color: var(--accent);
+}
+
+@media (min-width: 768px) {
+  .photoThumbMenu {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+  }
+
+  .photoCellWrap:hover .photoThumbMenu,
+  .photoCellWrap:focus-within .photoThumbMenu {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
 
 .timelineRowMenu {

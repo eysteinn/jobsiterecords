@@ -8,9 +8,10 @@ type Props = {
   onDelete: () => void;
   align?: "left" | "right";
   className?: string;
+  overlay?: boolean;
 };
 
-export function ItemActionsMenu({ onEdit, onDelete, align = "right", className }: Props) {
+export function ItemActionsMenu({ onEdit, onDelete, align = "right", className, overlay = false }: Props) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -26,7 +27,7 @@ export function ItemActionsMenu({ onEdit, onDelete, align = "right", className }
   }, [open]);
 
   return (
-    <div className={`${styles.wrap} ${className ?? ""}`} ref={ref}>
+    <div className={`${styles.wrap} ${overlay ? styles.overlay : ""} ${className ?? ""}`} ref={ref}>
       <button
         type="button"
         className={styles.trigger}
