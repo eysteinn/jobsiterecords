@@ -17,6 +17,7 @@ import {
 import { buildJobPutPayload } from "@/lib/job-form";
 import { fetchJobDelta, mergeJobBundle, pollJobCursor } from "@/lib/sync-cursor";
 import { JobFormDrawer } from "@/components/job-form-drawer";
+import { JobSettingsButton } from "@/components/job-settings-button";
 import { SYNC_POLL } from "@/lib/sync-poll-config";
 import { getPhotoMedia, itemThumbUrl, mediaDownloadUrl } from "@/lib/photo-media";
 import { PhotoAnnotationEditor } from "@/components/photo-annotation/photo-annotation-editor";
@@ -435,16 +436,6 @@ export function JobDetailClient({
           ←
         </Link>
         <div className={styles.mobileNavActions}>
-          {!readOnly && (
-            <button
-              type="button"
-              className={styles.jobSettingsBtn}
-              onClick={() => setEditOpen(true)}
-              aria-label="Job settings"
-            >
-              <JobSettingsIcon />
-            </button>
-          )}
         <div className={styles.mobileDetailMenu} ref={mobileMenuRef}>
           <button
             type="button"
@@ -475,7 +466,10 @@ export function JobDetailClient({
         </div>
         </div>
       </div>
-      <h1 className={styles.mobileDetailTitle}>{job.name}</h1>
+      <div className={styles.mobileTitleRow}>
+        <h1 className={styles.mobileDetailTitle}>{job.name}</h1>
+        {!readOnly && <JobSettingsButton onClick={() => setEditOpen(true)} />}
+      </div>
       {locationLine && <p className={styles.mobileDetailLocation}>{locationLine}</p>}
       <span className={`${styles.mobileDetailStatus} ${styles[`status_${job.status}`]}`}>
         {job.status === "completed" && <span aria-hidden>✓ </span>}
@@ -539,20 +533,12 @@ export function JobDetailClient({
       className={styles.detailShell}
       headerClassName="desktopOnly"
       title={job.name}
+      titleAccessory={
+        !readOnly ? <JobSettingsButton onClick={() => setEditOpen(true)} /> : undefined
+      }
       subtitle={subtitle || "Job timeline"}
       action={
         <div className={styles.headerActions}>
-          {!readOnly && (
-            <button
-              type="button"
-              className={styles.jobSettingsBtn}
-              onClick={() => setEditOpen(true)}
-              aria-label="Job settings"
-              title="Job settings"
-            >
-              <JobSettingsIcon />
-            </button>
-          )}
           <div className={styles.statusPicker} ref={statusMenuRef}>
             {readOnly ? (
               <span className={`${styles.statusPill} ${styles[`status_${job.status}`]}`}>
@@ -646,7 +632,7 @@ export function JobDetailClient({
             </dl>
           ) : (
             <p className={styles.detailsEmpty}>
-              No job number, dates, or notes yet. Use the settings icon above to add them.
+              No job number, dates, or notes yet. Use the settings icon next to the job name to add them.
             </p>
           )}
         </section>
@@ -1351,11 +1337,3 @@ function groupByDate(items: Item[]) {
   }, {});
 }
 
-function JobSettingsIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
-      <circle cx="12" cy="12" r="3" />
-      <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
-    </svg>
-  );
-}

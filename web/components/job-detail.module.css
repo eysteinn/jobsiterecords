@@ -91,22 +91,6 @@
   cursor: default;
 }
 
-.jobSettingsBtn {
-  width: 40px;
-  height: 40px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
-  color: var(--text);
-  cursor: pointer;
-}
-
-.jobSettingsBtn:hover {
-  background: #f9fafb;
-}
-
 .refreshBtn {
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -749,7 +733,16 @@
   gap: 4px;
 }
 
+.mobileTitleRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+
 .mobileDetailTitle {
+  flex: 1;
+  min-width: 0;
   margin: 0;
   font-size: 1.625rem;
   font-weight: 700;
