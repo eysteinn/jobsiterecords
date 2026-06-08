@@ -6,12 +6,13 @@ type Props = {
   action?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
+  headerClassName?: string;
 };
 
-export function PageShell({ title, subtitle, action, children, className }: Props) {
+export function PageShell({ title, subtitle, action, children, className, headerClassName }: Props) {
   return (
     <div className={className ? `${styles.page} ${className}` : styles.page}>
-      <div className={styles.header}>
+      <div className={headerClassName ? `${styles.header} ${headerClassName}` : styles.header}>
         <div>
           <h1>{title}</h1>
           <p>{subtitle}</p>

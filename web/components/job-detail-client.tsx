@@ -423,6 +423,7 @@ export function JobDetailClient({
 
     <PageShell
       className={styles.detailShell}
+      headerClassName="desktopOnly"
       title={job.name}
       subtitle={[job.client_name, job.address].filter(Boolean).join(" · ") || "Job timeline"}
       action={

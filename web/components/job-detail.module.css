@@ -750,10 +750,6 @@
 }
 
 @media (max-width: 767px) {
-  .detailShell .header {
-    display: none;
-  }
-
   .refreshBtn,
   .backLink {
     display: none;
