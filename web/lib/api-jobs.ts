@@ -51,10 +51,23 @@ export type Item = {
   updated_at: string;
 };
 
+export type Tag = {
+  id: string;
+  workspace_id: string;
+  name: string;
+};
+
+export type ItemTag = {
+  item_id: string;
+  tag_id: string;
+};
+
 export type JobBundle = {
   job: Job;
   items: Item[];
   media_files: MediaFile[];
+  tags?: Tag[];
+  item_tags?: ItemTag[];
   read_only?: boolean;
 };
 

@@ -85,7 +85,7 @@ export function JobsClient({ workspaceId, jobs }: Props) {
           <SearchFilterBar
             query={query}
             onQueryChange={setQuery}
-            placeholder="Search jobs by name, client, address, or number…"
+            placeholder="Search jobs"
             detailed={detailed}
             onDetailedChange={setDetailed}
             chips={STATUS_CHIPS}

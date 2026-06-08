@@ -3,30 +3,29 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Item, Job, MediaFile } from "@/lib/api-jobs";
+import type { Item, ItemTag, Job, MediaFile, Tag } from "@/lib/api-jobs";
 import { useSyncPoll } from "@/hooks/use-sync-poll";
 import { useUrlQueryParam, useUrlSetParam } from "@/hooks/use-url-filter-state";
 import { formatDate, formatDayKey, formatTime } from "@/lib/format";
-import { filterTimelineItems, type ItemKind } from "@/lib/search";
+import { buildTagsByItem, filterTimelineItems, type ItemKind } from "@/lib/search";
 import { fetchJobDelta, mergeJobBundle, pollJobCursor } from "@/lib/sync-cursor";
 import { SYNC_POLL } from "@/lib/sync-poll-config";
 import { getPhotoMedia, itemThumbUrl, mediaDownloadUrl } from "@/lib/photo-media";
 import { PhotoAnnotationEditor } from "@/components/photo-annotation/photo-annotation-editor";
 import { PageShell } from "@/components/page-shell";
-import { SearchFilterBar } from "@/components/search-filter-bar";
+import {
+  TimelineFilteredEmpty,
+  TimelineSearchPanel,
+  TimelineSectionHeader,
+} from "@/components/timeline-search-panel";
 import styles from "./job-detail.module.css";
-
-const KIND_CHIPS: { id: ItemKind; label: string }[] = [
-  { id: "photo", label: "Photos" },
-  { id: "voice", label: "Voice" },
-  { id: "note", label: "Notes" },
-  { id: "file", label: "Files" },
-];
 
 type Props = {
   job: Job;
   items: Item[];
   mediaFiles: MediaFile[];
+  tags?: Tag[];
+  itemTags?: ItemTag[];
   workspaceId: string;
   readOnly?: boolean;
 };
@@ -43,7 +42,14 @@ const JOB_STATUSES: { value: JobStatus; label: string }[] = [
   { value: "completed", label: "Completed" },
 ];
 
-export function JobDetailClient({ job: initialJob, items: initialItems, mediaFiles: initialMediaFiles, readOnly = false }: Props) {
+export function JobDetailClient({
+  job: initialJob,
+  items: initialItems,
+  mediaFiles: initialMediaFiles,
+  tags: initialTags = [],
+  itemTags: initialItemTags = [],
+  readOnly = false,
+}: Props) {
   const router = useRouter();
   const [job, setJob] = useState(initialJob);
   const [items, setItems] = useState(initialItems ?? []);
@@ -60,14 +66,19 @@ export function JobDetailClient({ job: initialJob, items: initialItems, mediaFil
   const [lightbox, setLightbox] = useState<{ itemId: string; mediaId?: string } | null>(null);
   const [annotatingItemId, setAnnotatingItemId] = useState<string | null>(null);
   const searchParams = useSearchParams();
-  const [detailed, setDetailed] = useState(() => searchParams.has("kind"));
+  const [filtersExpanded, setFiltersExpanded] = useState(
+    () => searchParams.has("kind") || searchParams.has("tag"),
+  );
   const searchRef = useRef<HTMLInputElement>(null);
+  const [tags, setTags] = useState(initialTags);
+  const [itemTags, setItemTags] = useState(initialItemTags);
 
   useEffect(() => {
-    if (searchParams.has("kind")) setDetailed(true);
+    if (searchParams.has("kind") || searchParams.has("tag")) setFiltersExpanded(true);
   }, [searchParams]);
   const [query, setQuery] = useUrlQueryParam("q");
-  const { values: kindFilter, toggle: toggleKind } = useUrlSetParam("kind");
+  const { values: kindFilter, toggle: toggleKind, setValues: setKindFilter } = useUrlSetParam("kind");
+  const { values: tagFilter, toggle: toggleTag, setValues: setTagFilter } = useUrlSetParam("tag");
   const cursorRef = useRef(job.last_activity_at ?? job.updated_at);
   const itemsRef = useRef(items);
   const mediaRef = useRef(mediaFiles);
@@ -85,6 +96,14 @@ export function JobDetailClient({ job: initialJob, items: initialItems, mediaFil
   useEffect(() => {
     setMediaFiles(initialMediaFiles ?? []);
   }, [initialMediaFiles]);
+
+  useEffect(() => {
+    setTags(initialTags);
+  }, [initialTags]);
+
+  useEffect(() => {
+    setItemTags(initialItemTags);
+  }, [initialItemTags]);
 
   useEffect(() => {
     cursorRef.current = job.last_activity_at ?? job.updated_at;
@@ -157,15 +176,19 @@ export function JobDetailClient({ job: initialJob, items: initialItems, mediaFil
     return map;
   }, [mediaFiles]);
 
+  const tagsByItem = useMemo(() => buildTagsByItem(tags, itemTags), [tags, itemTags]);
+
   const filteredItems = useMemo(
     () =>
       filterTimelineItems(
         items,
         mediaByItem,
+        tagsByItem,
         query,
         kindFilter.size > 0 ? (kindFilter as ReadonlySet<ItemKind>) : undefined,
+        tagFilter.size > 0 ? tagFilter : undefined,
       ),
-    [items, mediaByItem, query, kindFilter],
+    [items, mediaByItem, tagsByItem, query, kindFilter, tagFilter],
   );
 
   const photoItems = useMemo(() => photoItemsInJob(filteredItems), [filteredItems]);
@@ -177,7 +200,14 @@ export function JobDetailClient({ job: initialJob, items: initialItems, mediaFil
   );
 
   const hasActiveFilters =
-    query.trim().length > 0 || kindFilter.size > 0;
+    query.trim().length > 0 || kindFilter.size > 0 || tagFilter.size > 0;
+
+  function clearFilters() {
+    setQuery("");
+    setKindFilter(new Set());
+    setTagFilter(new Set());
+    setFiltersExpanded(false);
+  }
 
   async function addNote() {
     if (!noteBody.trim()) return;
@@ -355,15 +385,17 @@ export function JobDetailClient({ job: initialJob, items: initialItems, mediaFil
       )}
 
       {items.length > 0 && (
-        <SearchFilterBar
+        <TimelineSearchPanel
           query={query}
           onQueryChange={setQuery}
-          placeholder="Search caption, note text, or filename…"
-          detailed={detailed}
-          onDetailedChange={setDetailed}
-          chips={KIND_CHIPS}
-          activeChipIds={kindFilter}
-          onToggleChip={toggleKind}
+          kindFilter={kindFilter as ReadonlySet<ItemKind>}
+          onToggleKind={(kind) => toggleKind(kind)}
+          tagFilter={tagFilter}
+          onToggleTag={toggleTag}
+          tags={tags}
+          expanded={filtersExpanded}
+          onExpandedChange={setFiltersExpanded}
+          onClearFilters={clearFilters}
           shownCount={filteredItems.length}
           totalCount={items.length}
           inputRef={searchRef}
@@ -395,11 +427,16 @@ export function JobDetailClient({ job: initialJob, items: initialItems, mediaFil
 
       {items.length === 0 ? (
         <p className={styles.empty}>No timeline items yet.</p>
-      ) : filteredItems.length === 0 ? (
-        <p className={styles.empty}>
-          {hasActiveFilters ? "No items match your search or filters." : "No timeline items yet."}
-        </p>
       ) : (
+        <>
+          <TimelineSectionHeader
+            shownCount={filteredItems.length}
+            totalCount={items.length}
+            hasFilters={hasActiveFilters}
+          />
+          {filteredItems.length === 0 ? (
+            <TimelineFilteredEmpty onClear={clearFilters} />
+          ) : (
         sortedDays.map(([dayKey, dayItems]) => (
           <section key={dayKey} className={styles.dayGroup}>
             <h3>{formatDate(`${dayKey}T12:00:00.000Z`)}</h3>
@@ -423,6 +460,8 @@ export function JobDetailClient({ job: initialJob, items: initialItems, mediaFil
             </div>
           </section>
         ))
+          )}
+        </>
       )}
 
       {lightbox && (

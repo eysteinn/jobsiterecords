@@ -22,6 +22,8 @@ export default async function JobDetailPage({
           job={bundle.job}
           items={bundle.items ?? []}
           mediaFiles={bundle.media_files ?? []}
+          tags={bundle.tags ?? []}
+          itemTags={bundle.item_tags ?? []}
           workspaceId={workspace.id}
           readOnly={bundle.read_only ?? false}
         />
