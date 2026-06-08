@@ -2,7 +2,7 @@
 
 > **Job notes, photos, and files — organized by project.** A free offline field record for contractors. Capture photos, voice notes, text notes, tags, and attachments on the job, then export a clean record when you need it. **Not a CRM. Not estimating software. Just the job record.**
 
-**Principles:** **Narrow scope** — a simple **job-centered record** (photos, voice, text notes, files, tags, timeline, export) and **handoff** (zip; Phase 2 PDF/dashboard/sync). Not a construction PM suite, accounting stack, or “everything app.” **Simple path** — few steps, plain labels, one obvious primary action; the capture loop must feel **as fast as camera roll or texting yourself** or users will abandon it. Defer depth to Settings or Phase 2.
+**Principles:** **Narrow scope** — a simple **job-centered record** (photos, voice, text notes, files, tags, timeline, export) and **handoff** (zip; Phase 2 PDF/dashboard/sync). Not a construction PM suite, accounting stack, or “everything app.” **Simple path** — few steps, plain labels, one obvious primary action; the capture loop must feel **as fast as camera roll or texting yourself** or users will abandon it. Defer depth to Settings or Phase 2. **Surface parity** — desktop web, mobile web, and the native app are **equally viable** ways to use the product, with a **similar experience** on each ([§1.1](#11-client-surfaces)).
 
 Product and marketing domain: **jobsiterecords.com**.
 
@@ -38,7 +38,7 @@ Contractors are not lacking ways to take photos or notes. They are lacking a **s
 
 Job Site Records is **not** a photo app. It is a **lightweight, offline job timeline** for photos, voice notes, text notes, files, tags, and exports — organized by job.
 
-The product centers on a **mobile app** that helps contractors capture and retrieve field records without paperwork or cloud setup; the **MVP** also includes the **Phase 2** **web dashboard** and **cloud sync** for teams who subscribe ([§2](#2-goals--non-goals)). Users create a job folder, capture photos/voice/text/files, add captions and tags, browse a chronological timeline, and export a tidy zip archive when they need a clean handoff.
+The product helps contractors capture and retrieve field records without paperwork or cloud setup. Once the **MVP** is complete, users choose among **three equally viable client surfaces** — desktop web, mobile web, and the native app — with a similar experience on each ([§1.1](#11-client-surfaces)). The **MVP** includes the **mobile app** (with a permanent free local-only path), the **web dashboard** at **app.jobsiterecords.com**, and **cloud sync** for teams who subscribe ([§2](#2-goals--non-goals)). Users create a job folder, capture photos/voice/text/files, add captions and tags, browse a chronological timeline, and export a tidy zip archive (or Phase 2 PDF) when they need a clean handoff.
 
 The core loop stays **shallow**: open app → pick job → tap photo / note / voice / file → save → done. Optional cloud (Phase 2) must not crowd that path for local-only users.
 
@@ -46,13 +46,30 @@ The core loop stays **shallow**: open app → pick job → tap photo / note / vo
 
 **Phase 2** (second ship) delivers the rest of the **MVP**: an optional **paid subscription** (per team / workspace, not per phone) that unlocks **cloud sync**, the **web dashboard**, **team collaboration** on the same jobs and items, and Pro features (branded PDFs, transcription, etc.). The Phase 1 app is designed so Phase 2 layers on without re-architecting the core data model ([§12](#12-future-proofing-for-phase-2-paid-tier), [§17](#17-phase-2-dashboard-sync-subscription-and-teams)).
 
+### 1.1 Client surfaces
+
+Users interact with Job Site Records through **three main channels**. All three are **first-class** — none is a companion or read-only afterthought. A contractor or office staff member should be able to pick whichever fits the moment and get a **similar user experience**: same jobs and timeline, comparable browse/search/filter, shared captions and tags, annotation where the platform supports it, and the same synced data when cloud is enabled.
+
+| # | Surface | Where | Role |
+| --- | --- | --- | --- |
+| 1 | **Web UI (desktop)** | [app.jobsiterecords.com](https://app.jobsiterecords.com) in a desktop browser | Office review, reports/PDFs (Phase 2), keyboard-heavy edits, large screens |
+| 2 | **Web UI (mobile)** | Same URL in a mobile browser (Safari, Chrome, etc.) | Full product access without installing the app — viable on site or in the truck when the native app is not an option |
+| 3 | **Native mobile app** | Android and iOS (Flutter) | Optimized field capture (camera, mic, offline), plus full browse/edit when synced |
+
+**Parity principles:**
+
+- **Equal viability** — product and engineering decisions must not assume “real work” happens only in the native app or only on desktop. Web-on-phone is a supported daily driver, not a fallback login page.
+- **Similar UX** — layout adapts to screen size and input (touch vs mouse), but flows, labels, timeline grouping, search/filter semantics, and visual language stay aligned across surfaces. Shared design tokens and the same sync/API model ([§17.4](#174-technical-sketch-high-level)), [`web-dashboard-design.md`](web-dashboard-design.md).
+- **Platform-appropriate strengths** — the native app leads on **offline capture** and OS integrations (camera, share sheet, background sync). The web leads on **reports/PDF** and large-screen review. Neither surface owns exclusive access to core job workflows once sync is on.
+- **Phase 1 vs MVP** — Phase 1 ships the **native app only** (local-first, no web). Surface parity applies to the **completed MVP** (Phase 1 app + Phase 2 web dashboard + sync). Until Phase 2 ships, the web dashboard is partial and the app is the sole capture path; the parity target still guides what we build toward.
+
 ---
 
 ## 2. Goals & Non-Goals
 
 ### MVP (product scope)
 
-The **MVP** is the **whole v1 product**: **(1)** the **mobile app** (with a permanent **free, local-only** path) and **(2)** the **paid** **web dashboard** + **cloud sync** + **team** workspaces and related Pro capabilities ([§17](#17-phase-2-dashboard-sync-subscription-and-teams)). We **build and ship** it in **two phases**: **Phase 1** = mobile app; **Phase 2** = dashboard and sync (plus billing, teams, PDFs, transcription, etc.). **We deliberately do not expand into adjacent categories** (scheduling, estimating, full CRM, etc.); out-of-scope lists in [§16](#16-out-of-scope-explicit) and [§17.6](#176-explicitly-still-out-of-scope-for-phase-2-v1-examples) are the default answer.
+The **MVP** is the **whole v1 product**: **(1)** the **mobile app** (with a permanent **free, local-only** path) and **(2)** the **paid** **web dashboard** + **cloud sync** + **team** workspaces and related Pro capabilities ([§17](#17-phase-2-dashboard-sync-subscription-and-teams)). Users reach the synced product through **three equally viable surfaces** — desktop web, mobile web, and the native app — with a **similar experience** on each ([§1.1](#11-client-surfaces)). We **build and ship** it in **two phases**: **Phase 1** = mobile app; **Phase 2** = dashboard and sync (plus billing, teams, PDFs, transcription, etc.). **We deliberately do not expand into adjacent categories** (scheduling, estimating, full CRM, etc.); out-of-scope lists in [§16](#16-out-of-scope-explicit) and [§17.6](#176-explicitly-still-out-of-scope-for-phase-2-v1-examples) are the default answer.
 
 ### Phase 1 goals (mobile app — first delivery)
 
@@ -80,6 +97,7 @@ The **MVP** is the **whole v1 product**: **(1)** the **mobile app** (with a perm
 Phase 2 is **out of scope for the Phase 1 milestone**; it is the next delivery phase once the decision gate in [§14.5](#145-decision-gate) is met. Headline capabilities:
 
 - **Scope discipline:** ship **sync, dashboard, teams, PDF, transcription** — not a general contractor platform. Default answer to new ideas is **no** unless they serve that core; defer rest to [§17.6](#176-explicitly-still-out-of-scope-for-phase-2-v1-examples) / later.
+- **Surface parity:** desktop web ([app.jobsiterecords.com](https://app.jobsiterecords.com)), mobile web (same URL), and the native Android/iOS app are **equally viable** client surfaces with a **similar UX** — responsive web is not a degraded phone experience ([§1.1](#11-client-surfaces)).
 - **Paid subscription** unlocks **cloud sync**, the **web dashboard**, and **team workspaces** (multiple users on one subscription share access to jobs, timeline items, and notes). The **mobile app stays free** for local-only use ([§17](#17-phase-2-dashboard-sync-subscription-and-teams) for full definition).
 - Optional sign-in (only when the user or org opts into Pro): **email + password**, **magic link**, and **Google** today; **Apple** when shipped ([§17.9](#179-authentication-sign-in-methods)).
 - Encrypted cloud backup + multi-device sync for subscribed workspaces.
@@ -585,6 +603,7 @@ Each seeded tag gets its **color** in `tags.color` (UI uses chip styling). User-
 
 - **Say no by default:** if it is not job-centered record capture (photos, voice, text, files, tags), organization per job, or handoff export (Phase 1) / sync + dashboard + PDF + teams (Phase 2), it probably does not ship ([§16](#16-out-of-scope-explicit), [§17.6](#176-explicitly-still-out-of-scope-for-phase-2-v1-examples)).
 - **Plain + shallow:** short labels, **one primary action** per screen where practical, minimal onboarding; failures show **one clear next step** and never block capture on non-critical validation. Phase 2 sign-in and billing stay **off** the free local path ([§17](#17-phase-2-dashboard-sync-subscription-and-teams)).
+- **Surface parity:** treat **desktop web**, **mobile web**, and the **native app** as equally viable — similar flows and semantics on each; do not ship web-only or app-only workflows for core job work without an explicit exception ([§1.1](#11-client-surfaces)).
 
 ### 8.1 Permissions
 Asked **just-in-time**, never up front:
@@ -973,7 +992,7 @@ Users who never create a workspace and never sign in **never pay** and **do not 
 - **API + sync** — single **Go** service (`services/api/`) hosts auth, CRUD, sync, signed URLs, webhooks, and outbound email. REST/JSON with OpenAPI for client generation. Sync is **per-job** with last-writer-wins on `updated_at`, soft delete + 30-day tombstones, and direct-to-S3 blob uploads via signed URLs. Read-only edges when assignment, membership, or subscription lapses. Full protocol: [`web-dashboard-design.md` §15](web-dashboard-design.md#15-sync-api--protocol). **Sync triggering:** mobile `SyncScheduler` (S1) + web cursor polling (S3); `jobs.last_activity_at` + ETag cursor endpoints (S2): [`sync-strategy-plan.md`](sync-strategy-plan.md).
 - **PDF rendering** — separate **Rust** worker (`services/pdf/`) polling a Postgres queue (`reports.status` + `SKIP LOCKED`); only async service in MVP.
 - **Storage** — Postgres (relational + queue) + S3-compatible object store (MinIO in dev). No Redis in MVP.
-- **Dashboard** — `web/` (Next.js + TypeScript) on `app.jobsiterecords.com`; shares types via `shared/` (OpenAPI) when introduced.
+- **Dashboard** — `web/` (Next.js + TypeScript) on **app.jobsiterecords.com** — served to **desktop and mobile browsers** as one of three equally viable client surfaces alongside the native app ([§1.1](#11-client-surfaces)); responsive layout required. Shares types via `shared/` (OpenAPI) when introduced.
 - **Privacy (sync users)** — encryption in transit and at rest; workspace isolation; clear **export and deletion** for workspace data. Messaging: **local-first by default**; cloud sync is **opt-in** and covered in the privacy policy.
 
 ### 17.5 Relationship to Phase 1 code and repo
