@@ -97,6 +97,8 @@ func New(cfg config.Config, pool *pgxpool.Pool) (*Server, error) {
 			protected.Get("/workspaces", wsH.List)
 			protected.Post("/workspaces/{workspaceID}/leave", wsH.Leave)
 			protected.Get("/workspaces/{workspaceID}/jobs", jobsH.ListWorkspaceJobs)
+			protected.Get("/workspaces/{workspaceID}/tags", jobsH.ListWorkspaceTags)
+			protected.Put("/workspaces/{workspaceID}/tags/{tagID}", jobsH.UpsertTag)
 			protected.Get("/workspaces/{workspaceID}/cursor", jobsH.GetWorkspaceCursor)
 			protected.Get("/workspaces/{workspaceID}/assignments", jobsH.AssignedJobIDs)
 			protected.Get("/jobs/{jobID}/cursor", jobsH.GetJobCursor)

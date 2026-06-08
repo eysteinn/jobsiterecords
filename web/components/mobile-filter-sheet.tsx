@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { type ReactNode, useEffect } from "react";
 import styles from "./mobile-filter-sheet.module.css";
 
 type Chip = {
@@ -16,6 +16,7 @@ type Props = {
   activeChipIds: ReadonlySet<string>;
   onToggleChip: (id: string) => void;
   onClear: () => void;
+  extraAction?: ReactNode;
 };
 
 export function MobileFilterSheet({
@@ -26,6 +27,7 @@ export function MobileFilterSheet({
   activeChipIds,
   onToggleChip,
   onClear,
+  extraAction,
 }: Props) {
   useEffect(() => {
     if (!open) return;
@@ -54,6 +56,7 @@ export function MobileFilterSheet({
             ×
           </button>
         </div>
+        {extraAction}
         <div className={styles.chips}>
           {chips.map((chip) => {
             const active = activeChipIds.has(chip.id);

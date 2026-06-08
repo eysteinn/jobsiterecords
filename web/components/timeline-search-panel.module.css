@@ -98,8 +98,13 @@
   text-transform: capitalize;
 }
 
-.chip:hover {
+.chip:hover:not(:disabled) {
   background: #f9fafb;
+}
+
+.chip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .chipActive {

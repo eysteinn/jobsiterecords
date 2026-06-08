@@ -104,6 +104,20 @@ export function filterTimelineItems(
   );
 }
 
+export function tagsUsedInJob(tagsByItem: Map<string, Tag[]>, items: Item[]): Set<string> {
+  const itemIds = new Set(items.map((item) => item.id));
+  const ids = new Set<string>();
+  for (const [itemId, itemTags] of tagsByItem) {
+    if (!itemIds.has(itemId)) continue;
+    for (const tag of itemTags) ids.add(tag.id);
+  }
+  return ids;
+}
+
+export function quickTagsForJob(allTags: Tag[], tagsInJob: ReadonlySet<string>, limit = 6): Tag[] {
+  return allTags.filter((tag) => tagsInJob.has(tag.id)).slice(0, limit);
+}
+
 export function buildActiveFilterLabels(
   query: string,
   kinds: ReadonlySet<ItemKind>,

@@ -3,7 +3,7 @@
 import type { Item, MediaFile, Tag } from "@/lib/api-jobs";
 import { formatDayHeading, formatDuration, formatFileSize, formatTime } from "@/lib/format";
 import { getPhotoMedia, itemThumbUrl } from "@/lib/photo-media";
-import type { ItemKind } from "@/lib/search";
+import { quickTagsForJob, type ItemKind } from "@/lib/search";
 import styles from "./mobile-timeline.module.css";
 
 type KindCounts = Record<ItemKind, number>;
@@ -49,7 +49,9 @@ type ToolbarProps = {
   query: string;
   onQueryChange: (value: string) => void;
   onOpenFilters: () => void;
+  onOpenTagFilter: () => void;
   hasFilters: boolean;
+  hasTagFilter: boolean;
   inputRef?: React.RefObject<HTMLInputElement | null>;
 };
 
@@ -57,7 +59,9 @@ export function MobileTimelineToolbar({
   query,
   onQueryChange,
   onOpenFilters,
+  onOpenTagFilter,
   hasFilters,
+  hasTagFilter,
   inputRef,
 }: ToolbarProps) {
   return (
@@ -70,7 +74,7 @@ export function MobileTimelineToolbar({
           ref={inputRef}
           type="search"
           className={styles.searchInput}
-          placeholder="Search timeline"
+          placeholder="Search captions, notes, tags…"
           value={query}
           onChange={(e) => onQueryChange(e.target.value)}
           aria-label="Search timeline"
@@ -88,13 +92,73 @@ export function MobileTimelineToolbar({
       </div>
       <button
         type="button"
-        className={`${styles.filterBtn} ${hasFilters ? styles.filterBtnActive : ""}`}
+        className={`${styles.filterBtn} ${hasTagFilter ? styles.filterBtnActive : ""}`}
+        onClick={onOpenTagFilter}
+        aria-label="Filter by tag"
+      >
+        <TagIcon />
+        {hasTagFilter && <span className={styles.filterDot} aria-hidden />}
+      </button>
+      <button
+        type="button"
+        className={`${styles.filterBtn} ${hasFilters && !hasTagFilter ? styles.filterBtnActive : ""}`}
         onClick={onOpenFilters}
-        aria-label="Open filters"
+        aria-label="Filter by type"
       >
         <span aria-hidden>☰</span>
-        {hasFilters && <span className={styles.filterDot} aria-hidden />}
+        {hasFilters && !hasTagFilter && <span className={styles.filterDot} aria-hidden />}
       </button>
+    </div>
+  );
+}
+
+type QuickTagRowProps = {
+  allTags: Tag[];
+  tagsInJob: ReadonlySet<string>;
+  tagFilter: ReadonlySet<string>;
+  onToggleTag: (tagId: string) => void;
+  onOpenTagFilter: () => void;
+};
+
+export function MobileQuickTagRow({
+  allTags,
+  tagsInJob,
+  tagFilter,
+  onToggleTag,
+  onOpenTagFilter,
+}: QuickTagRowProps) {
+  const quickTags = quickTagsForJob(allTags, tagsInJob);
+  const moreTagCount = Math.max(0, tagsInJob.size - quickTags.length);
+  if (quickTags.length === 0 && tagFilter.size === 0 && allTags.length === 0) return null;
+
+  return (
+    <div className={styles.quickTagRow} role="group" aria-label="Filter by tag">
+      <button
+        type="button"
+        className={`${styles.quickTagChip} ${tagFilter.size > 0 ? styles.quickTagChipActive : ""}`}
+        onClick={onOpenTagFilter}
+      >
+        {tagFilter.size === 0 ? "Tags" : `Tags (${tagFilter.size})`}
+      </button>
+      {quickTags.map((tag) => {
+        const active = tagFilter.has(tag.id);
+        return (
+          <button
+            key={tag.id}
+            type="button"
+            className={active ? styles.quickTagChipActive : styles.quickTagChip}
+            aria-pressed={active}
+            onClick={() => onToggleTag(tag.id)}
+          >
+            {tag.name}
+          </button>
+        );
+      })}
+      {moreTagCount > 0 && (
+        <button type="button" className={styles.quickTagMore} onClick={onOpenTagFilter}>
+          +{moreTagCount} more
+        </button>
+      )}
     </div>
   );
 }
@@ -105,9 +169,19 @@ type DayTimelineProps = {
   mediaByItem: Map<string, MediaFile[]>;
   tagsByItem: Map<string, Tag[]>;
   onOpenPhoto: (itemId: string, mediaId?: string) => void;
+  onToggleTag?: (tagId: string) => void;
+  tagFilter?: ReadonlySet<string>;
 };
 
-export function MobileDayTimeline({ dayKey, items, mediaByItem, tagsByItem, onOpenPhoto }: DayTimelineProps) {
+export function MobileDayTimeline({
+  dayKey,
+  items,
+  mediaByItem,
+  tagsByItem,
+  onOpenPhoto,
+  onToggleTag,
+  tagFilter,
+}: DayTimelineProps) {
   return (
     <section className={styles.daySection}>
       <h3 className={styles.dayHeading}>{formatDayHeading(dayKey)}</h3>
@@ -119,6 +193,8 @@ export function MobileDayTimeline({ dayKey, items, mediaByItem, tagsByItem, onOp
               media={mediaByItem.get(item.id) ?? []}
               tags={tagsByItem.get(item.id) ?? []}
               onOpenPhoto={onOpenPhoto}
+              onToggleTag={onToggleTag}
+              tagFilter={tagFilter}
             />
           </li>
         ))}
@@ -132,9 +208,11 @@ type CardProps = {
   media: MediaFile[];
   tags: Tag[];
   onOpenPhoto: (itemId: string, mediaId?: string) => void;
+  onToggleTag?: (tagId: string) => void;
+  tagFilter?: ReadonlySet<string>;
 };
 
-function MobileTimelineCard({ item, media, tags, onOpenPhoto }: CardProps) {
+function MobileTimelineCard({ item, media, tags, onOpenPhoto, onToggleTag, tagFilter }: CardProps) {
   const time = formatTime(item.captured_at);
   const kindLabel = item.kind === "voice" ? "Voice note" : item.kind.charAt(0).toUpperCase() + item.kind.slice(1);
 
@@ -158,11 +236,23 @@ function MobileTimelineCard({ item, media, tags, onOpenPhoto }: CardProps) {
           {renderText(item, media)}
           {tags.length > 0 && (
             <div className={styles.tagRow}>
-              {tags.map((tag) => (
-                <span key={tag.id} className={styles.tag}>
-                  {tag.name}
-                </span>
-              ))}
+              {tags.map((tag) =>
+                onToggleTag ? (
+                  <button
+                    key={tag.id}
+                    type="button"
+                    className={`${styles.tag} ${tagFilter?.has(tag.id) ? styles.tagActive : ""}`}
+                    aria-pressed={tagFilter?.has(tag.id)}
+                    onClick={() => onToggleTag(tag.id)}
+                  >
+                    {tag.name}
+                  </button>
+                ) : (
+                  <span key={tag.id} className={styles.tag}>
+                    {tag.name}
+                  </span>
+                ),
+              )}
             </div>
           )}
         </div>
@@ -301,6 +391,15 @@ function FileKindIcon() {
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
       <path d="M14 2v6h6" />
+    </svg>
+  );
+}
+
+function TagIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+      <circle cx="7" cy="7" r="1.5" fill="currentColor" stroke="none" />
     </svg>
   );
 }

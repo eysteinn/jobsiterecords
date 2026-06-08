@@ -1,4 +1,4 @@
-import type { Item, JobBundle, MediaFile } from "@/lib/api-jobs";
+import type { Item, ItemTag, JobBundle, MediaFile, Tag } from "@/lib/api-jobs";
 
 export type CursorPollResult = {
   changed: boolean;
@@ -55,7 +55,15 @@ export function mergeJobBundle(
   items: Item[],
   mediaFiles: MediaFile[],
   delta: JobBundle,
-): { items: Item[]; mediaFiles: MediaFile[]; added: number } {
+  tags: Tag[] = [],
+  itemTags: ItemTag[] = [],
+): {
+  items: Item[];
+  mediaFiles: MediaFile[];
+  tags: Tag[];
+  itemTags: ItemTag[];
+  added: number;
+} {
   const itemMap = new Map(items.map((it) => [it.id, it]));
   let added = 0;
   for (const raw of delta.items ?? []) {
@@ -82,9 +90,27 @@ export function mergeJobBundle(
   const mergedItems = [...itemMap.values()].sort(
     (a, b) => new Date(b.captured_at).getTime() - new Date(a.captured_at).getTime(),
   );
+
+  const tagMap = new Map(tags.map((tag) => [tag.id, tag]));
+  for (const tag of delta.tags ?? []) tagMap.set(tag.id, tag);
+
+  const itemTagMap = new Map(itemTags.map((link) => [`${link.item_id}:${link.tag_id}`, link]));
+  const deltaItemIds = new Set((delta.items ?? []).map((item) => item.id));
+  if (deltaItemIds.size > 0) {
+    for (const key of [...itemTagMap.keys()]) {
+      const itemId = key.split(":")[0];
+      if (deltaItemIds.has(itemId)) itemTagMap.delete(key);
+    }
+  }
+  for (const link of delta.item_tags ?? []) {
+    itemTagMap.set(`${link.item_id}:${link.tag_id}`, link);
+  }
+
   return {
     items: mergedItems,
     mediaFiles: [...mediaMap.values()],
+    tags: [...tagMap.values()].sort((a, b) => a.name.localeCompare(b.name)),
+    itemTags: [...itemTagMap.values()],
     added,
   };
 }

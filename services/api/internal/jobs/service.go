@@ -180,7 +180,63 @@ func (s *Service) UpsertJob(ctx context.Context, userID string, in Job) (Job, er
 	return s.fetchJob(ctx, in.ID)
 }
 
-func (s *Service) UpsertItem(ctx context.Context, userID, jobID string, in Item) (Item, error) {
+func (s *Service) ListWorkspaceTags(ctx context.Context, userID, workspaceID string) ([]Tag, error) {
+	if err := s.requireMember(ctx, userID, workspaceID); err != nil {
+		return nil, err
+	}
+	rows, err := s.pool.Query(ctx, `
+		SELECT id, workspace_id, name
+		FROM tags
+		WHERE workspace_id = $1 AND deleted_at IS NULL
+		ORDER BY sort_order ASC, name ASC
+	`, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var tags []Tag
+	for rows.Next() {
+		var t Tag
+		if err := rows.Scan(&t.ID, &t.WorkspaceID, &t.Name); err != nil {
+			return nil, err
+		}
+		tags = append(tags, t)
+	}
+	if tags == nil {
+		tags = []Tag{}
+	}
+	return tags, rows.Err()
+}
+
+func (s *Service) UpsertTag(ctx context.Context, userID, workspaceID string, in Tag) (Tag, error) {
+	if err := s.requireMember(ctx, userID, workspaceID); err != nil {
+		return Tag{}, err
+	}
+	if in.ID == "" || in.Name == "" {
+		return Tag{}, errors.New("missing required tag fields")
+	}
+	_, err := s.pool.Exec(ctx, `
+		INSERT INTO tags (id, workspace_id, name, updated_at)
+		VALUES ($1, $2, $3, now())
+		ON CONFLICT (id) DO UPDATE SET
+			name = EXCLUDED.name,
+			updated_at = now(),
+			deleted_at = NULL
+		WHERE tags.workspace_id = EXCLUDED.workspace_id
+	`, in.ID, workspaceID, in.Name)
+	if err != nil {
+		return Tag{}, err
+	}
+	var out Tag
+	err = s.pool.QueryRow(ctx, `
+		SELECT id, workspace_id, name
+		FROM tags
+		WHERE id = $1 AND workspace_id = $2 AND deleted_at IS NULL
+	`, in.ID, workspaceID).Scan(&out.ID, &out.WorkspaceID, &out.Name)
+	return out, err
+}
+
+func (s *Service) UpsertItem(ctx context.Context, userID, jobID string, in Item, tagIDs *[]string) (Item, error) {
 	if in.ID == "" || in.JobID == "" || in.Kind == "" {
 		return Item{}, errors.New("missing required item fields")
 	}
@@ -230,10 +286,39 @@ func (s *Service) UpsertItem(ctx context.Context, userID, jobID string, in Item)
 	if err != nil {
 		return Item{}, err
 	}
+	if tagIDs != nil {
+		if err := s.replaceItemTags(ctx, in.ID, *tagIDs); err != nil {
+			return Item{}, err
+		}
+	}
 	if err := s.bumpJobActivity(ctx, jobID, resolved); err != nil {
 		return Item{}, err
 	}
 	return s.fetchItem(ctx, in.ID)
+}
+
+func (s *Service) replaceItemTags(ctx context.Context, itemID string, tagIDs []string) error {
+	_, err := s.pool.Exec(ctx, `
+		UPDATE item_tags SET deleted_at = now()
+		WHERE item_id = $1 AND deleted_at IS NULL
+	`, itemID)
+	if err != nil {
+		return err
+	}
+	for _, tagID := range tagIDs {
+		if tagID == "" {
+			continue
+		}
+		_, err := s.pool.Exec(ctx, `
+			INSERT INTO item_tags (item_id, tag_id, created_at, deleted_at)
+			VALUES ($1, $2, now(), NULL)
+			ON CONFLICT (item_id, tag_id) DO UPDATE SET deleted_at = NULL
+		`, itemID, tagID)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Service) bumpJobActivity(ctx context.Context, jobID string, at time.Time) error {

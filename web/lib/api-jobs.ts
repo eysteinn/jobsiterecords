@@ -95,6 +95,10 @@ export function listJobs(workspaceId: string) {
   return apiFetch<{ jobs: Job[] }>(`/api/v1/workspaces/${workspaceId}/jobs`);
 }
 
+export function listWorkspaceTags(workspaceId: string) {
+  return apiFetch<{ tags: Tag[] }>(`/api/v1/workspaces/${workspaceId}/tags`);
+}
+
 export function getJob(jobId: string, since?: string) {
   const q = since ? `?since=${encodeURIComponent(since)}` : "";
   return apiFetch<JobBundle>(`/api/v1/jobs/${jobId}${q}`);

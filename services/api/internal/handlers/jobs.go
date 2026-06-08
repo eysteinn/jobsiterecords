@@ -77,18 +77,55 @@ func (h *JobsHandler) UpsertJob(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, out)
 }
 
-func (h *JobsHandler) UpsertItem(w http.ResponseWriter, r *http.Request) {
+type upsertItemRequest struct {
+	jobs.Item
+	TagIDs *[]string `json:"tag_ids,omitempty"`
+}
+
+func (h *JobsHandler) ListWorkspaceTags(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.UserID(r.Context())
-	jobID := r.PathValue("jobID")
-	itemID := r.PathValue("itemID")
-	var in jobs.Item
+	workspaceID := r.PathValue("workspaceID")
+	tags, err := h.jobs.ListWorkspaceTags(r.Context(), userID, workspaceID)
+	if err != nil {
+		writeJobsError(w, err)
+		return
+	}
+	if tags == nil {
+		tags = []jobs.Tag{}
+	}
+	httpx.JSON(w, http.StatusOK, map[string]any{"tags": tags})
+}
+
+func (h *JobsHandler) UpsertTag(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.UserID(r.Context())
+	workspaceID := r.PathValue("workspaceID")
+	tagID := r.PathValue("tagID")
+	var in jobs.Tag
 	if err := httpx.DecodeJSON(r, &in); err != nil {
 		httpx.Error(w, http.StatusBadRequest, "invalid_request", "Invalid JSON body", nil)
 		return
 	}
-	in.ID = itemID
-	in.JobID = jobID
-	out, err := h.jobs.UpsertItem(r.Context(), userID, jobID, in)
+	in.ID = tagID
+	out, err := h.jobs.UpsertTag(r.Context(), userID, workspaceID, in)
+	if err != nil {
+		writeJobsError(w, err)
+		return
+	}
+	httpx.JSON(w, http.StatusOK, out)
+}
+
+func (h *JobsHandler) UpsertItem(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.UserID(r.Context())
+	jobID := r.PathValue("jobID")
+	itemID := r.PathValue("itemID")
+	var in upsertItemRequest
+	if err := httpx.DecodeJSON(r, &in); err != nil {
+		httpx.Error(w, http.StatusBadRequest, "invalid_request", "Invalid JSON body", nil)
+		return
+	}
+	in.Item.ID = itemID
+	in.Item.JobID = jobID
+	out, err := h.jobs.UpsertItem(r.Context(), userID, jobID, in.Item, in.TagIDs)
 	if err != nil {
 		writeJobsError(w, err)
 		return
