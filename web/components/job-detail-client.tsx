@@ -29,6 +29,7 @@ import { MobileAddSheet } from "@/components/mobile-add-sheet";
 import { MobileFilterSheet } from "@/components/mobile-filter-sheet";
 import {
   MobileDayTimeline,
+  MobileQuickTagRow,
   MobileSummaryChips,
   MobileTimelineToolbar,
 } from "@/components/mobile-timeline";
@@ -476,15 +477,30 @@ export function JobDetailClient({
           query={query}
           onQueryChange={setQuery}
           onOpenFilters={() => setMobileFilterOpen(true)}
+          onOpenTagFilter={() => setTagFilterOpen(true)}
           hasFilters={hasActiveFilters}
+          hasTagFilter={tagFilter.size > 0}
           inputRef={searchRef}
+        />
+      )}
+      {items.length > 0 && (
+        <MobileQuickTagRow
+          allTags={allTags}
+          tagsInJob={tagsInJob}
+          tagFilter={tagFilter}
+          onToggleTag={toggleTag}
+          onOpenTagFilter={() => setTagFilterOpen(true)}
         />
       )}
       {items.length > 0 && hasActiveFilters && (
         <button
           type="button"
           className={styles.mobileFilterSummary}
-          onClick={() => setMobileFilterOpen(true)}
+          onClick={() => {
+            if (tagFilter.size > 0) setTagFilterOpen(true);
+            else if (kindFilter.size > 0) setMobileFilterOpen(true);
+            else searchRef.current?.focus();
+          }}
         >
           <span>{activeFilterSummary}</span>
           <span
@@ -645,6 +661,7 @@ export function JobDetailClient({
                     tagsByItem={tagsByItem}
                     onOpenPhoto={openPhoto}
                     onToggleTag={toggleTag}
+                    tagFilter={tagFilter}
                   />
                 </div>
                 <section className={`${styles.dayGroup} desktopOnly`}>
@@ -738,16 +755,6 @@ export function JobDetailClient({
       activeChipIds={kindFilter}
       onToggleChip={(id) => toggleKind(id as ItemKind)}
       onClear={() => setKindFilter(new Set())}
-      extraAction={
-        allTags.length > 0 ? (
-          <button type="button" className={styles.mobileTagFilterBtn} onClick={() => {
-            setMobileFilterOpen(false);
-            setTagFilterOpen(true);
-          }}>
-            {tagFilter.size === 0 ? "Filter by tag" : `Tags (${tagFilter.size})`}
-          </button>
-        ) : null
-      }
     />
 
     <TimelineTagFilterSheet

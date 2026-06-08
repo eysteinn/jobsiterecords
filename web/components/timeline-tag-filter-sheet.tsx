@@ -107,7 +107,11 @@ export function TimelineTagFilterSheet({
           aria-label="Search tags"
         />
         <div className={styles.body}>
-          {filtered.length === 0 ? (
+          {allTags.length === 0 ? (
+            <p className={styles.empty}>
+              No tags in this workspace yet. Tags you add in the mobile app will appear here after sync.
+            </p>
+          ) : filtered.length === 0 ? (
             <p className={styles.empty}>No tags match your search.</p>
           ) : (
             <>

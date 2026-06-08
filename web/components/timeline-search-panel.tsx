@@ -138,15 +138,15 @@ export function TimelineSearchPanel({
               );
             })}
 
-            {allTags.length > 0 && (
-              <button
-                type="button"
-                className={`${styles.chip} ${tagFilter.size > 0 ? styles.tagChipActive : ""}`}
-                onClick={onOpenTagFilter}
-              >
-                {tagFilter.size === 0 ? "Tags" : `Tags (${tagFilter.size})`}
-              </button>
-            )}
+            <button
+              type="button"
+              className={`${styles.chip} ${tagFilter.size > 0 ? styles.tagChipActive : ""}`}
+              onClick={onOpenTagFilter}
+              disabled={allTags.length === 0}
+              title={allTags.length === 0 ? "No tags yet — add tags in the mobile app" : undefined}
+            >
+              {tagFilter.size === 0 ? "Tags" : `Tags (${tagFilter.size})`}
+            </button>
 
             {hasFilters && (
               <button type="button" className={`${styles.chip} ${styles.clearChip}`} onClick={onClearFilters}>

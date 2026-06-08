@@ -107,6 +107,46 @@
   background: var(--accent);
 }
 
+.quickTagRow {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+
+.quickTagRow::-webkit-scrollbar {
+  display: none;
+}
+
+.quickTagChip,
+.quickTagChipActive,
+.quickTagMore {
+  flex-shrink: 0;
+  min-height: 36px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.quickTagChipActive {
+  border-color: #f59e0b;
+  background: #fef3c7;
+  color: #92400e;
+  font-weight: 600;
+}
+
+.quickTagMore {
+  border-style: dashed;
+  color: var(--muted);
+}
+
 .daySection {
   margin-bottom: 20px;
 }
@@ -338,4 +378,11 @@
 button.tag {
   font-size: 0.75rem;
   font-weight: 500;
+}
+
+.tagActive {
+  border: 1px solid #f59e0b;
+  background: #fef3c7;
+  color: #92400e;
+  font-weight: 600;
 }
