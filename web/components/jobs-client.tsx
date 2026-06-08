@@ -12,7 +12,7 @@ import { pollWorkspaceCursor } from "@/lib/sync-cursor";
 import { SYNC_POLL } from "@/lib/sync-poll-config";
 import { EmptyState, PageShell } from "@/components/page-shell";
 import { SearchFilterBar } from "@/components/search-filter-bar";
-import { NewJobDrawer } from "@/components/new-job-drawer";
+import { JobFormDrawer } from "@/components/job-form-drawer";
 import { MobileJobCard } from "@/components/mobile-job-card";
 import { MobileStatusFilters } from "@/components/mobile-status-filters";
 import { MobileSyncStatus } from "@/components/mobile-sync-status";
@@ -326,7 +326,7 @@ export function JobsClient({ workspaceId, workspaceName, userEmail, jobs }: Prop
         </PageShell>
       </div>
 
-      {open && <NewJobDrawer workspaceId={workspaceId} onClose={() => setOpen(false)} />}
+      {open && <JobFormDrawer mode="create" workspaceId={workspaceId} onClose={() => setOpen(false)} />}
     </>
   );
 }

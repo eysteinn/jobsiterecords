@@ -18,6 +18,7 @@
   display: grid;
   grid-template-rows: auto 1fr;
   gap: 16px;
+  overflow: hidden;
 }
 
 .drawer header {
@@ -39,8 +40,25 @@
 
 .form {
   display: grid;
+  grid-template-rows: 1fr auto;
+  gap: 16px;
+  min-height: 0;
+}
+
+.formBody {
+  display: grid;
   gap: 14px;
   align-content: start;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.formFooter {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
 }
 
 .form label {
@@ -64,12 +82,26 @@
   gap: 12px;
 }
 
-.primary {
-  border: none;
+.primary,
+.secondary {
   border-radius: 8px;
   padding: 11px 14px;
-  background: var(--accent);
   font-weight: 600;
+}
+
+.primary {
+  border: none;
+  background: var(--accent);
+}
+
+.primary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.secondary {
+  border: 1px solid var(--border);
+  background: var(--surface);
 }
 
 .error {

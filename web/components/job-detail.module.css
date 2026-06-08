@@ -91,7 +91,50 @@
   cursor: default;
 }
 
-.editBtn,
+.jobTitleBtn,
+.jobSubtitleBtn {
+  border: none;
+  background: none;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+
+.jobTitleBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+}
+
+.jobTitleText {
+  min-width: 0;
+}
+
+.jobTitleEditHint {
+  color: var(--muted);
+  font-size: 0.95rem;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.jobTitleBtn:hover .jobTitleEditHint,
+.jobTitleBtn:focus-visible .jobTitleEditHint {
+  opacity: 1;
+}
+
+.jobSubtitleBtn {
+  color: var(--muted);
+}
+
+.jobSubtitleBtn:hover,
+.jobSubtitleBtn:focus-visible {
+  color: #2563eb;
+  text-decoration: underline;
+}
+
 .refreshBtn {
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -106,6 +149,7 @@
   cursor: default;
 }
 
+.toast,
 .updateBanner {
   background: #ecfdf5;
   border: 1px solid #a7f3d0;
@@ -114,6 +158,62 @@
   font-size: 0.875rem;
   margin: 0 0 16px;
   padding: 10px 12px;
+}
+
+.detailsCard {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+
+.detailsCardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.detailsCardHeader h2 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.detailsEditLink {
+  border: none;
+  background: none;
+  color: #2563eb;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0;
+}
+
+.detailsList {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 16px;
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+.detailsList dt {
+  color: var(--muted);
+  margin: 0;
+}
+
+.detailsList dd {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.detailsEmpty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.45;
 }
 
 .backLink {
@@ -688,6 +788,18 @@
   color: var(--text);
 }
 
+.mobileDetailTitleBtn {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
 .mobileDetailTitle {
   margin: 0;
   font-size: 1.625rem;
@@ -742,11 +854,20 @@
   opacity: 0.5;
 }
 
-.mobileDetailLocation {
+.mobileDetailLocation,
+.mobileDetailLocationMuted {
   margin: 0;
   font-size: 0.875rem;
-  color: var(--muted);
   line-height: 1.4;
+}
+
+.mobileDetailLocation {
+  color: var(--muted);
+}
+
+.mobileDetailLocationMuted {
+  color: var(--muted);
+  font-style: italic;
 }
 
 .mobileFilterSummary {

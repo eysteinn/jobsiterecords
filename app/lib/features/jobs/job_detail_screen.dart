@@ -356,6 +356,7 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
               ref.invalidate(jobTimelineProvider((jobId: jobId, query: _query)));
               ref.invalidate(jobSummariesProvider);
             },
+            onEdit: () => context.pushNamed('job-edit', pathParameters: {'id': jobId}),
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -522,6 +523,7 @@ class _Body extends StatelessWidget {
     required this.onToggle,
     required this.onLongPress,
     required this.onRefresh,
+    required this.onEdit,
   });
   final Job job;
   final List<TimelineItem> items;
@@ -545,6 +547,7 @@ class _Body extends StatelessWidget {
   final void Function(String itemId) onToggle;
   final void Function(String itemId) onLongPress;
   final Future<void> Function() onRefresh;
+  final VoidCallback onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -562,7 +565,7 @@ class _Body extends StatelessWidget {
       padding: EdgeInsets.fromLTRB(16, 12, 16, bottomPad),
       physics: const AlwaysScrollableScrollPhysics(),
       children: [
-        _Header(job: job),
+        _Header(job: job, onEdit: onEdit),
         const SizedBox(height: 12),
         _Counts(counts: counts),
         if (!selecting && (filtersExpanded || query.hasFilters)) ...[
@@ -688,21 +691,78 @@ class _Body extends StatelessWidget {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.job});
+  const _Header({required this.job, required this.onEdit});
   final Job job;
+  final VoidCallback onEdit;
+
   @override
   Widget build(BuildContext context) {
     final addr = [job.clientName, job.address].where((s) => (s ?? '').isNotEmpty).join(' · ');
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(job.name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 20, color: AppColors.ink)),
-        if (addr.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Text(addr, style: const TextStyle(color: AppColors.subtle)),
+    final hasExtra = (job.jobNumber ?? '').isNotEmpty ||
+        job.startDate != null ||
+        job.endDate != null ||
+        (job.notes ?? '').isNotEmpty;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onEdit,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      job.name,
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 20, color: AppColors.ink),
+                    ),
+                  ),
+                  const Icon(Icons.edit_outlined, size: 18, color: AppColors.subtle),
+                ],
+              ),
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  addr.isNotEmpty ? addr : 'Tap to add client or address',
+                  style: TextStyle(
+                    color: addr.isNotEmpty ? AppColors.subtle : AppColors.subtle.withValues(alpha: 0.8),
+                    fontStyle: addr.isEmpty ? FontStyle.italic : FontStyle.normal,
+                  ),
+                ),
+              ),
+              if (hasExtra) ...[
+                const SizedBox(height: 8),
+                if ((job.jobNumber ?? '').isNotEmpty)
+                  Text('Job #${job.jobNumber}', style: const TextStyle(color: AppColors.subtle, fontSize: 13)),
+                if (job.startDate != null || job.endDate != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      [
+                        if (job.startDate != null) formatJobDate(job.startDate!),
+                        if (job.endDate != null) formatJobDate(job.endDate!),
+                      ].join(' → '),
+                      style: const TextStyle(color: AppColors.subtle, fontSize: 13),
+                    ),
+                  ),
+                if ((job.notes ?? '').isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      job.notes!,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: AppColors.subtle, fontSize: 13),
+                    ),
+                  ),
+              ],
+            ],
           ),
-      ],
+        ),
+      ),
     );
   }
 }

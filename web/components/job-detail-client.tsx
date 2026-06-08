@@ -16,7 +16,7 @@ import {
 } from "@/lib/search";
 import { buildJobPutPayload } from "@/lib/job-form";
 import { fetchJobDelta, mergeJobBundle, pollJobCursor } from "@/lib/sync-cursor";
-import { EditJobDrawer } from "@/components/edit-job-drawer";
+import { JobFormDrawer } from "@/components/job-form-drawer";
 import { SYNC_POLL } from "@/lib/sync-poll-config";
 import { getPhotoMedia, itemThumbUrl, mediaDownloadUrl } from "@/lib/photo-media";
 import { PhotoAnnotationEditor } from "@/components/photo-annotation/photo-annotation-editor";
@@ -93,7 +93,8 @@ export function JobDetailClient({
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [noteMessage, setNoteMessage] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
   const statusMenuRef = useRef<HTMLDivElement>(null);
   const [fieldUpdateBanner, setFieldUpdateBanner] = useState(false);
   const [lightbox, setLightbox] = useState<{ itemId: string; mediaId?: string } | null>(null);
@@ -165,6 +166,12 @@ export function JobDetailClient({
   useEffect(() => {
     cursorRef.current = jobCursorValue(job.last_activity_at ?? job.updated_at, job.updated_at);
   }, [job.last_activity_at, job.updated_at]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(null), 2500);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
   useEffect(() => {
     if (!statusMenuOpen) return;
@@ -322,7 +329,7 @@ export function JobDetailClient({
   async function addNote() {
     if (!noteBody.trim()) return;
     setSaving(true);
-    setMessage(null);
+    setNoteMessage(null);
     try {
       const id = crypto.randomUUID();
       const now = new Date().toISOString();
@@ -343,10 +350,10 @@ export function JobDetailClient({
       setItems((prev) => [data, ...prev]);
       setNoteBody("");
       setNoteCaption("");
-      setMessage("Saved");
+      setNoteMessage("Saved");
       router.refresh();
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Could not save");
+      setNoteMessage(err instanceof Error ? err.message : "Could not save");
     } finally {
       setSaving(false);
     }
@@ -358,7 +365,7 @@ export function JobDetailClient({
       return;
     }
     setUpdatingStatus(true);
-    setMessage(null);
+    setToast(null);
     try {
       const res = await fetch(`/api/jobs/${job.id}`, {
         method: "PUT",
@@ -369,10 +376,10 @@ export function JobDetailClient({
       if (!res.ok) throw new Error(data.message || "Could not update status");
       setJob(data);
       setStatusMenuOpen(false);
-      setMessage("Status updated");
+      setToast("Status updated");
       router.refresh();
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Could not update status");
+      setToast(err instanceof Error ? err.message : "Could not update status");
     } finally {
       setUpdatingStatus(false);
     }
@@ -412,6 +419,8 @@ export function JobDetailClient({
 
   const annotatingItem = annotatingItemId ? items.find((i) => i.id === annotatingItemId) : null;
   const locationLine = [job.address, job.client_name].filter(Boolean).join(" · ");
+  const subtitle = [job.client_name, job.address].filter(Boolean).join(" · ");
+  const hasExtraDetails = Boolean(job.job_number || job.start_date || job.end_date || job.notes);
 
   function openMobileNoteCompose() {
     setMobileNoteOpen(true);
@@ -440,6 +449,11 @@ export function JobDetailClient({
               <button type="button" onClick={() => { refresh(); setMobileMenuOpen(false); }} disabled={refreshing}>
                 {refreshing ? "Refreshing…" : "Refresh"}
               </button>
+              {!readOnly && (
+                <button type="button" onClick={() => { setEditOpen(true); setMobileMenuOpen(false); }}>
+                  Edit job details
+                </button>
+              )}
               {!readOnly && JOB_STATUSES.map((option) => (
                 <button
                   key={option.value}
@@ -454,8 +468,21 @@ export function JobDetailClient({
           )}
         </div>
       </div>
-      <h1 className={styles.mobileDetailTitle}>{job.name}</h1>
-      {locationLine && <p className={styles.mobileDetailLocation}>{locationLine}</p>}
+      {!readOnly ? (
+        <button type="button" className={styles.mobileDetailTitleBtn} onClick={() => setEditOpen(true)}>
+          <span className={styles.mobileDetailTitle}>{job.name}</span>
+          {locationLine ? (
+            <span className={styles.mobileDetailLocation}>{locationLine}</span>
+          ) : (
+            <span className={styles.mobileDetailLocationMuted}>Add client or address</span>
+          )}
+        </button>
+      ) : (
+        <>
+          <h1 className={styles.mobileDetailTitle}>{job.name}</h1>
+          {locationLine && <p className={styles.mobileDetailLocation}>{locationLine}</p>}
+        </>
+      )}
       <span className={`${styles.mobileDetailStatus} ${styles[`status_${job.status}`]}`}>
         {job.status === "completed" && <span aria-hidden>✓ </span>}
         {job.status.replace(/_/g, " ")}
@@ -517,8 +544,27 @@ export function JobDetailClient({
     <PageShell
       className={styles.detailShell}
       headerClassName="desktopOnly"
-      title={job.name}
-      subtitle={[job.client_name, job.address].filter(Boolean).join(" · ") || "Job timeline"}
+      title={
+        readOnly ? (
+          job.name
+        ) : (
+          <button type="button" className={styles.jobTitleBtn} onClick={() => setEditOpen(true)}>
+            <span className={styles.jobTitleText}>{job.name}</span>
+            <span className={styles.jobTitleEditHint} aria-hidden>
+              ✎
+            </span>
+          </button>
+        )
+      }
+      subtitle={
+        readOnly ? (
+          subtitle || "Job timeline"
+        ) : (
+          <button type="button" className={styles.jobSubtitleBtn} onClick={() => setEditOpen(true)}>
+            {subtitle || "Add client or address"}
+          </button>
+        )
+      }
       action={
         <div className={styles.headerActions}>
           <div className={styles.statusPicker} ref={statusMenuRef}>
@@ -563,11 +609,6 @@ export function JobDetailClient({
               </div>
             )}
           </div>
-          {!readOnly && (
-            <button type="button" className={styles.editBtn} onClick={() => setEditOpen(true)}>
-              Edit job
-            </button>
-          )}
           <button type="button" className={styles.refreshBtn} onClick={refresh} disabled={refreshing}>
             {refreshing ? "Refreshing…" : "Refresh"}
           </button>
@@ -577,6 +618,11 @@ export function JobDetailClient({
         </div>
       }
     >
+      {toast && (
+        <p className={styles.toast} role="status">
+          {toast}
+        </p>
+      )}
       {fieldUpdateBanner && (
         <p className={styles.updateBanner} role="status">
           Updated — new items from the field
@@ -586,6 +632,43 @@ export function JobDetailClient({
         <p className={styles.readOnlyBanner}>
           You&apos;re viewing this job. Ask the owner for assignment to edit.
         </p>
+      )}
+
+      {!readOnly && (
+        <section className={`${styles.detailsCard} desktopOnly`}>
+          <div className={styles.detailsCardHeader}>
+            <h2>Job details</h2>
+            <button type="button" className={styles.detailsEditLink} onClick={() => setEditOpen(true)}>
+              {hasExtraDetails ? "Edit" : "Add details"}
+            </button>
+          </div>
+          {hasExtraDetails ? (
+            <dl className={styles.detailsList}>
+              {job.job_number && (
+                <>
+                  <dt>Job number</dt>
+                  <dd>{job.job_number}</dd>
+                </>
+              )}
+              {(job.start_date || job.end_date) && (
+                <>
+                  <dt>Dates</dt>
+                  <dd>{[job.start_date, job.end_date].filter(Boolean).join(" → ")}</dd>
+                </>
+              )}
+              {job.notes && (
+                <>
+                  <dt>Notes</dt>
+                  <dd>{job.notes}</dd>
+                </>
+              )}
+            </dl>
+          ) : (
+            <p className={styles.detailsEmpty}>
+              Job number, dates, and notes appear here. Click the job name or address above to edit those too.
+            </p>
+          )}
+        </section>
       )}
 
       {items.length > 0 && (
@@ -632,7 +715,7 @@ export function JobDetailClient({
           <button type="button" className={styles.primary} disabled={saving} onClick={addNote}>
             {saving ? "Saving…" : "Add note"}
           </button>
-          {message && <span className={styles.saved}>{message}</span>}
+          {noteMessage && <span className={styles.saved}>{noteMessage}</span>}
         </div>
       </section>
       )}
@@ -728,12 +811,14 @@ export function JobDetailClient({
       )}
 
       {editOpen && !readOnly && (
-        <EditJobDrawer
+        <JobFormDrawer
+          key={job.updated_at}
+          mode="edit"
           job={job}
           onClose={() => setEditOpen(false)}
           onSaved={(updated) => {
             setJob(updated);
-            setMessage("Job updated");
+            setToast("Job details saved");
           }}
         />
       )}

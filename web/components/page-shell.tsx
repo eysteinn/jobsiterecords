@@ -1,8 +1,8 @@
 import styles from "./page-shell.module.css";
 
 type Props = {
-  title: string;
-  subtitle: string;
+  title: React.ReactNode;
+  subtitle?: React.ReactNode;
   action?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
@@ -13,9 +13,9 @@ export function PageShell({ title, subtitle, action, children, className, header
   return (
     <div className={className ? `${styles.page} ${className}` : styles.page}>
       <div className={headerClassName ? `${styles.header} ${headerClassName}` : styles.header}>
-        <div>
+        <div className={styles.headerText}>
           <h1>{title}</h1>
-          <p>{subtitle}</p>
+          {subtitle != null && subtitle !== "" && <p>{subtitle}</p>}
         </div>
         {action}
       </div>
