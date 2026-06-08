@@ -434,6 +434,17 @@ export function JobDetailClient({
         <Link href="/jobs" className={styles.mobileBack} aria-label="Back to jobs">
           ←
         </Link>
+        <div className={styles.mobileNavActions}>
+          {!readOnly && (
+            <button
+              type="button"
+              className={styles.jobSettingsBtn}
+              onClick={() => setEditOpen(true)}
+              aria-label="Job settings"
+            >
+              <JobSettingsIcon />
+            </button>
+          )}
         <div className={styles.mobileDetailMenu} ref={mobileMenuRef}>
           <button
             type="button"
@@ -449,11 +460,6 @@ export function JobDetailClient({
               <button type="button" onClick={() => { refresh(); setMobileMenuOpen(false); }} disabled={refreshing}>
                 {refreshing ? "Refreshing…" : "Refresh"}
               </button>
-              {!readOnly && (
-                <button type="button" onClick={() => { setEditOpen(true); setMobileMenuOpen(false); }}>
-                  Edit job details
-                </button>
-              )}
               {!readOnly && JOB_STATUSES.map((option) => (
                 <button
                   key={option.value}
@@ -467,22 +473,10 @@ export function JobDetailClient({
             </div>
           )}
         </div>
+        </div>
       </div>
-      {!readOnly ? (
-        <button type="button" className={styles.mobileDetailTitleBtn} onClick={() => setEditOpen(true)}>
-          <span className={styles.mobileDetailTitle}>{job.name}</span>
-          {locationLine ? (
-            <span className={styles.mobileDetailLocation}>{locationLine}</span>
-          ) : (
-            <span className={styles.mobileDetailLocationMuted}>Add client or address</span>
-          )}
-        </button>
-      ) : (
-        <>
-          <h1 className={styles.mobileDetailTitle}>{job.name}</h1>
-          {locationLine && <p className={styles.mobileDetailLocation}>{locationLine}</p>}
-        </>
-      )}
+      <h1 className={styles.mobileDetailTitle}>{job.name}</h1>
+      {locationLine && <p className={styles.mobileDetailLocation}>{locationLine}</p>}
       <span className={`${styles.mobileDetailStatus} ${styles[`status_${job.status}`]}`}>
         {job.status === "completed" && <span aria-hidden>✓ </span>}
         {job.status.replace(/_/g, " ")}
@@ -544,29 +538,21 @@ export function JobDetailClient({
     <PageShell
       className={styles.detailShell}
       headerClassName="desktopOnly"
-      title={
-        readOnly ? (
-          job.name
-        ) : (
-          <button type="button" className={styles.jobTitleBtn} onClick={() => setEditOpen(true)}>
-            <span className={styles.jobTitleText}>{job.name}</span>
-            <span className={styles.jobTitleEditHint} aria-hidden>
-              ✎
-            </span>
-          </button>
-        )
-      }
-      subtitle={
-        readOnly ? (
-          subtitle || "Job timeline"
-        ) : (
-          <button type="button" className={styles.jobSubtitleBtn} onClick={() => setEditOpen(true)}>
-            {subtitle || "Add client or address"}
-          </button>
-        )
-      }
+      title={job.name}
+      subtitle={subtitle || "Job timeline"}
       action={
         <div className={styles.headerActions}>
+          {!readOnly && (
+            <button
+              type="button"
+              className={styles.jobSettingsBtn}
+              onClick={() => setEditOpen(true)}
+              aria-label="Job settings"
+              title="Job settings"
+            >
+              <JobSettingsIcon />
+            </button>
+          )}
           <div className={styles.statusPicker} ref={statusMenuRef}>
             {readOnly ? (
               <span className={`${styles.statusPill} ${styles[`status_${job.status}`]}`}>
@@ -636,12 +622,7 @@ export function JobDetailClient({
 
       {!readOnly && (
         <section className={`${styles.detailsCard} desktopOnly`}>
-          <div className={styles.detailsCardHeader}>
-            <h2>Job details</h2>
-            <button type="button" className={styles.detailsEditLink} onClick={() => setEditOpen(true)}>
-              {hasExtraDetails ? "Edit" : "Add details"}
-            </button>
-          </div>
+          <h2 className={styles.detailsCardTitle}>Job details</h2>
           {hasExtraDetails ? (
             <dl className={styles.detailsList}>
               {job.job_number && (
@@ -665,7 +646,7 @@ export function JobDetailClient({
             </dl>
           ) : (
             <p className={styles.detailsEmpty}>
-              Job number, dates, and notes appear here. Click the job name or address above to edit those too.
+              No job number, dates, or notes yet. Use the settings icon above to add them.
             </p>
           )}
         </section>
@@ -1368,4 +1349,13 @@ function groupByDate(items: Item[]) {
     acc[day].push(item);
     return acc;
   }, {});
+}
+
+function JobSettingsIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+    </svg>
+  );
 }

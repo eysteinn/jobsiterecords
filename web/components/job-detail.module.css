@@ -91,48 +91,20 @@
   cursor: default;
 }
 
-.jobTitleBtn,
-.jobSubtitleBtn {
-  border: none;
-  background: none;
-  padding: 0;
-  text-align: left;
+.jobSettingsBtn {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
   cursor: pointer;
-  color: inherit;
-  font: inherit;
 }
 
-.jobTitleBtn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  max-width: 100%;
-}
-
-.jobTitleText {
-  min-width: 0;
-}
-
-.jobTitleEditHint {
-  color: var(--muted);
-  font-size: 0.95rem;
-  opacity: 0;
-  transition: opacity 0.15s ease;
-}
-
-.jobTitleBtn:hover .jobTitleEditHint,
-.jobTitleBtn:focus-visible .jobTitleEditHint {
-  opacity: 1;
-}
-
-.jobSubtitleBtn {
-  color: var(--muted);
-}
-
-.jobSubtitleBtn:hover,
-.jobSubtitleBtn:focus-visible {
-  color: #2563eb;
-  text-decoration: underline;
+.jobSettingsBtn:hover {
+  background: #f9fafb;
 }
 
 .refreshBtn {
@@ -167,28 +139,10 @@
   padding: 14px 16px;
 }
 
-.detailsCardHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 10px;
-}
-
-.detailsCardHeader h2 {
-  margin: 0;
+.detailsCardTitle {
+  margin: 0 0 10px;
   font-size: 0.95rem;
   font-weight: 600;
-}
-
-.detailsEditLink {
-  border: none;
-  background: none;
-  color: #2563eb;
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
-  padding: 0;
 }
 
 .detailsList {
@@ -788,16 +742,11 @@
   color: var(--text);
 }
 
-.mobileDetailTitleBtn {
-  display: grid;
+.mobileNavActions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
   gap: 4px;
-  width: 100%;
-  margin: 0;
-  padding: 0;
-  border: none;
-  background: none;
-  text-align: left;
-  cursor: pointer;
 }
 
 .mobileDetailTitle {
@@ -854,20 +803,11 @@
   opacity: 0.5;
 }
 
-.mobileDetailLocation,
-.mobileDetailLocationMuted {
+.mobileDetailLocation {
   margin: 0;
   font-size: 0.875rem;
+  color: var(--muted);
   line-height: 1.4;
-}
-
-.mobileDetailLocation {
-  color: var(--muted);
-}
-
-.mobileDetailLocationMuted {
-  color: var(--muted);
-  font-style: italic;
 }
 
 .mobileFilterSummary {

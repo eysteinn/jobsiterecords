@@ -151,7 +151,7 @@ export function JobFormDrawer(props: Props) {
         onClick={(e) => e.stopPropagation()}
       >
         <header>
-          <h2 id="job-form-title">{isEdit ? "Edit job details" : "New job"}</h2>
+          <h2 id="job-form-title">{isEdit ? "Job settings" : "New job"}</h2>
           <button type="button" onClick={requestClose} aria-label="Close">
             ×
           </button>
