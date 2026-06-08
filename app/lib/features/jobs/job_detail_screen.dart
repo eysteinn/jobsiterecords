@@ -279,7 +279,8 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                   onPressed: _toggleFiltersExpanded,
                 ),
                 IconButton(
-                  icon: const Icon(Icons.edit_outlined),
+                  icon: const Icon(Icons.settings_outlined),
+                  tooltip: 'Job settings',
                   onPressed: () => context.pushNamed('job-edit', pathParameters: {'id': jobId}),
                 ),
                 PopupMenuButton<String>(
@@ -690,9 +691,14 @@ class _Body extends StatelessWidget {
 class _Header extends StatelessWidget {
   const _Header({required this.job});
   final Job job;
+
   @override
   Widget build(BuildContext context) {
     final addr = [job.clientName, job.address].where((s) => (s ?? '').isNotEmpty).join(' · ');
+    final hasExtra = (job.jobNumber ?? '').isNotEmpty ||
+        job.startDate != null ||
+        job.endDate != null ||
+        (job.notes ?? '').isNotEmpty;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -702,6 +708,32 @@ class _Header extends StatelessWidget {
             padding: const EdgeInsets.only(top: 4),
             child: Text(addr, style: const TextStyle(color: AppColors.subtle)),
           ),
+        if (hasExtra) ...[
+          const SizedBox(height: 8),
+          if ((job.jobNumber ?? '').isNotEmpty)
+            Text('Job #${job.jobNumber}', style: const TextStyle(color: AppColors.subtle, fontSize: 13)),
+          if (job.startDate != null || job.endDate != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                [
+                  if (job.startDate != null) formatJobDate(job.startDate!),
+                  if (job.endDate != null) formatJobDate(job.endDate!),
+                ].join(' → '),
+                style: const TextStyle(color: AppColors.subtle, fontSize: 13),
+              ),
+            ),
+          if ((job.notes ?? '').isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                job.notes!,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: AppColors.subtle, fontSize: 13),
+              ),
+            ),
+        ],
       ],
     );
   }

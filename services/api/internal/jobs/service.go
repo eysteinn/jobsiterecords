@@ -333,7 +333,7 @@ func (s *Service) GetJobCursor(ctx context.Context, userID, jobID string) (time.
 	if err != nil {
 		return time.Time{}, err
 	}
-	return job.LastActivityAt, nil
+	return jobChangeCursor(job.UpdatedAt, job.LastActivityAt), nil
 }
 
 func (s *Service) GetWorkspaceCursor(ctx context.Context, userID, workspaceID string) (time.Time, error) {
@@ -342,11 +342,18 @@ func (s *Service) GetWorkspaceCursor(ctx context.Context, userID, workspaceID st
 	}
 	var cursor time.Time
 	err := s.pool.QueryRow(ctx, `
-		SELECT COALESCE(MAX(last_activity_at), TIMESTAMPTZ '1970-01-01')
+		SELECT COALESCE(MAX(GREATEST(updated_at, last_activity_at)), TIMESTAMPTZ '1970-01-01')
 		FROM jobs
 		WHERE workspace_id = $1 AND deleted_at IS NULL
 	`, workspaceID).Scan(&cursor)
 	return cursor, err
+}
+
+func jobChangeCursor(updatedAt, lastActivityAt time.Time) time.Time {
+	if updatedAt.After(lastActivityAt) {
+		return updatedAt
+	}
+	return lastActivityAt
 }
 
 func (s *Service) ListAssignedJobIDs(ctx context.Context, userID, workspaceID string) ([]string, error) {

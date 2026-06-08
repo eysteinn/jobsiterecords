@@ -1,4 +1,4 @@
-import type { Item, ItemTag, JobBundle, MediaFile, Tag } from "@/lib/api-jobs";
+import type { Item, ItemTag, Job, JobBundle, MediaFile, Tag } from "@/lib/api-jobs";
 
 export type CursorPollResult = {
   changed: boolean;
@@ -62,6 +62,7 @@ export function mergeJobBundle(
   mediaFiles: MediaFile[];
   tags: Tag[];
   itemTags: ItemTag[];
+  job: Job | null;
   added: number;
 } {
   const itemMap = new Map(items.map((it) => [it.id, it]));
@@ -111,6 +112,7 @@ export function mergeJobBundle(
     mediaFiles: [...mediaMap.values()],
     tags: [...tagMap.values()].sort((a, b) => a.name.localeCompare(b.name)),
     itemTags: [...itemTagMap.values()],
+    job: delta.job ?? null,
     added,
   };
 }

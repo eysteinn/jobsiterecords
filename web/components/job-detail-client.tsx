@@ -14,7 +14,10 @@ import {
   tagsUsedInJob,
   type ItemKind,
 } from "@/lib/search";
+import { buildJobPutPayload } from "@/lib/job-form";
 import { fetchJobDelta, mergeJobBundle, pollJobCursor } from "@/lib/sync-cursor";
+import { JobFormDrawer } from "@/components/job-form-drawer";
+import { JobSettingsButton } from "@/components/job-settings-button";
 import { SYNC_POLL } from "@/lib/sync-poll-config";
 import { getPhotoMedia, itemThumbUrl, mediaDownloadUrl } from "@/lib/photo-media";
 import { PhotoAnnotationEditor } from "@/components/photo-annotation/photo-annotation-editor";
@@ -89,8 +92,10 @@ export function JobDetailClient({
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [noteMessage, setNoteMessage] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
   const statusMenuRef = useRef<HTMLDivElement>(null);
   const [fieldUpdateBanner, setFieldUpdateBanner] = useState(false);
   const [lightbox, setLightbox] = useState<{ itemId: string; mediaId?: string } | null>(null);
@@ -117,7 +122,9 @@ export function JobDetailClient({
   const [query, setQuery] = useUrlQueryParam("q");
   const { values: kindFilter, toggle: toggleKind, setValues: setKindFilter } = useUrlSetParam("kind");
   const { values: tagFilter, toggle: toggleTag, setValues: setTagFilter } = useUrlSetParam("tag");
-  const cursorRef = useRef(job.last_activity_at ?? job.updated_at);
+  const cursorRef = useRef(
+    jobCursorValue(job.last_activity_at ?? job.updated_at, job.updated_at),
+  );
   const itemsRef = useRef(items);
   const mediaRef = useRef(mediaFiles);
   const tagsRef = useRef(tags);
@@ -158,8 +165,14 @@ export function JobDetailClient({
   }, [workspaceId]);
 
   useEffect(() => {
-    cursorRef.current = job.last_activity_at ?? job.updated_at;
+    cursorRef.current = jobCursorValue(job.last_activity_at ?? job.updated_at, job.updated_at);
   }, [job.last_activity_at, job.updated_at]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(null), 2500);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
   useEffect(() => {
     if (!statusMenuOpen) return;
@@ -188,13 +201,14 @@ export function JobDetailClient({
       const since = cursorRef.current;
       const nextCursor = result.cursor ?? since;
       const delta = await fetchJobDelta(job.id, since);
-      const hasDelta =
+      const hasItemDelta =
         (delta.items?.length ?? 0) > 0 || (delta.media_files?.length ?? 0) > 0;
 
-      // Cursor moved but delta missed rows (timestamp boundary / clock skew) — full reload.
-      if (!hasDelta && nextCursor !== since) {
+      // Job metadata or timeline changed without item rows in the delta window.
+      if (!hasItemDelta && nextCursor !== since) {
         cursorRef.current = nextCursor;
-        router.refresh();
+        if (delta.job) setJob(delta.job);
+        else router.refresh();
         return;
       }
 
@@ -205,6 +219,9 @@ export function JobDetailClient({
         tagsRef.current,
         itemTagsRef.current,
       );
+      if (merged.job) {
+        setJob(merged.job);
+      }
       if (merged.added > 0) {
         setItems(merged.items);
         setMediaFiles(merged.mediaFiles);
@@ -212,7 +229,7 @@ export function JobDetailClient({
         setItemTags(merged.itemTags);
         setFieldUpdateBanner(true);
         window.setTimeout(() => setFieldUpdateBanner(false), SYNC_POLL.updatedBannerMs);
-      } else if (hasDelta) {
+      } else if (hasItemDelta) {
         setItems(merged.items);
         setMediaFiles(merged.mediaFiles);
         setTags(merged.tags);
@@ -313,7 +330,7 @@ export function JobDetailClient({
   async function addNote() {
     if (!noteBody.trim()) return;
     setSaving(true);
-    setMessage(null);
+    setNoteMessage(null);
     try {
       const id = crypto.randomUUID();
       const now = new Date().toISOString();
@@ -334,10 +351,10 @@ export function JobDetailClient({
       setItems((prev) => [data, ...prev]);
       setNoteBody("");
       setNoteCaption("");
-      setMessage("Saved");
+      setNoteMessage("Saved");
       router.refresh();
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Could not save");
+      setNoteMessage(err instanceof Error ? err.message : "Could not save");
     } finally {
       setSaving(false);
     }
@@ -349,35 +366,21 @@ export function JobDetailClient({
       return;
     }
     setUpdatingStatus(true);
-    setMessage(null);
+    setToast(null);
     try {
-      const now = new Date().toISOString();
       const res = await fetch(`/api/jobs/${job.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          workspace_id: job.workspace_id,
-          name: job.name,
-          client_name: job.client_name,
-          address: job.address,
-          job_number: job.job_number,
-          status: nextStatus,
-          start_date: job.start_date,
-          end_date:
-            nextStatus === "completed" ? (job.end_date ?? now.slice(0, 10)) : job.end_date,
-          notes: job.notes,
-          created_at: job.created_at,
-          updated_at: now,
-        }),
+        body: JSON.stringify(buildJobPutPayload(job, { status: nextStatus })),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Could not update status");
       setJob(data);
       setStatusMenuOpen(false);
-      setMessage("Status updated");
+      setToast("Status updated");
       router.refresh();
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Could not update status");
+      setToast(err instanceof Error ? err.message : "Could not update status");
     } finally {
       setUpdatingStatus(false);
     }
@@ -417,6 +420,8 @@ export function JobDetailClient({
 
   const annotatingItem = annotatingItemId ? items.find((i) => i.id === annotatingItemId) : null;
   const locationLine = [job.address, job.client_name].filter(Boolean).join(" · ");
+  const subtitle = [job.client_name, job.address].filter(Boolean).join(" · ");
+  const hasExtraDetails = Boolean(job.job_number || job.start_date || job.end_date || job.notes);
 
   function openMobileNoteCompose() {
     setMobileNoteOpen(true);
@@ -430,6 +435,7 @@ export function JobDetailClient({
         <Link href="/jobs" className={styles.mobileBack} aria-label="Back to jobs">
           ←
         </Link>
+        <div className={styles.mobileNavActions}>
         <div className={styles.mobileDetailMenu} ref={mobileMenuRef}>
           <button
             type="button"
@@ -458,8 +464,12 @@ export function JobDetailClient({
             </div>
           )}
         </div>
+        </div>
       </div>
-      <h1 className={styles.mobileDetailTitle}>{job.name}</h1>
+      <div className={styles.mobileTitleRow}>
+        <h1 className={styles.mobileDetailTitle}>{job.name}</h1>
+        {!readOnly && <JobSettingsButton onClick={() => setEditOpen(true)} />}
+      </div>
       {locationLine && <p className={styles.mobileDetailLocation}>{locationLine}</p>}
       <span className={`${styles.mobileDetailStatus} ${styles[`status_${job.status}`]}`}>
         {job.status === "completed" && <span aria-hidden>✓ </span>}
@@ -523,7 +533,10 @@ export function JobDetailClient({
       className={styles.detailShell}
       headerClassName="desktopOnly"
       title={job.name}
-      subtitle={[job.client_name, job.address].filter(Boolean).join(" · ") || "Job timeline"}
+      titleAccessory={
+        !readOnly ? <JobSettingsButton onClick={() => setEditOpen(true)} /> : undefined
+      }
+      subtitle={subtitle || "Job timeline"}
       action={
         <div className={styles.headerActions}>
           <div className={styles.statusPicker} ref={statusMenuRef}>
@@ -577,6 +590,11 @@ export function JobDetailClient({
         </div>
       }
     >
+      {toast && (
+        <p className={styles.toast} role="status">
+          {toast}
+        </p>
+      )}
       {fieldUpdateBanner && (
         <p className={styles.updateBanner} role="status">
           Updated — new items from the field
@@ -586,6 +604,38 @@ export function JobDetailClient({
         <p className={styles.readOnlyBanner}>
           You&apos;re viewing this job. Ask the owner for assignment to edit.
         </p>
+      )}
+
+      {!readOnly && (
+        <section className={`${styles.detailsCard} desktopOnly`}>
+          <h2 className={styles.detailsCardTitle}>Job details</h2>
+          {hasExtraDetails ? (
+            <dl className={styles.detailsList}>
+              {job.job_number && (
+                <>
+                  <dt>Job number</dt>
+                  <dd>{job.job_number}</dd>
+                </>
+              )}
+              {(job.start_date || job.end_date) && (
+                <>
+                  <dt>Dates</dt>
+                  <dd>{[job.start_date, job.end_date].filter(Boolean).join(" → ")}</dd>
+                </>
+              )}
+              {job.notes && (
+                <>
+                  <dt>Notes</dt>
+                  <dd>{job.notes}</dd>
+                </>
+              )}
+            </dl>
+          ) : (
+            <p className={styles.detailsEmpty}>
+              No job number, dates, or notes yet. Use the settings icon next to the job name to add them.
+            </p>
+          )}
+        </section>
       )}
 
       {items.length > 0 && (
@@ -632,7 +682,7 @@ export function JobDetailClient({
           <button type="button" className={styles.primary} disabled={saving} onClick={addNote}>
             {saving ? "Saving…" : "Add note"}
           </button>
-          {message && <span className={styles.saved}>{message}</span>}
+          {noteMessage && <span className={styles.saved}>{noteMessage}</span>}
         </div>
       </section>
       )}
@@ -726,6 +776,19 @@ export function JobDetailClient({
           onSaved={(updated) => handleAnnotationSaved(annotatingItem.id, updated)}
         />
       )}
+
+      {editOpen && !readOnly && (
+        <JobFormDrawer
+          key={job.updated_at}
+          mode="edit"
+          job={job}
+          onClose={() => setEditOpen(false)}
+          onSaved={(updated) => {
+            setJob(updated);
+            setToast("Job details saved");
+          }}
+        />
+      )}
     </PageShell>
 
     {!readOnly && (
@@ -767,6 +830,10 @@ export function JobDetailClient({
     />
     </>
   );
+}
+
+function jobCursorValue(lastActivityAt: string, updatedAt: string): string {
+  return new Date(updatedAt) > new Date(lastActivityAt) ? updatedAt : lastActivityAt;
 }
 
 function PhotoGrid({
@@ -1269,3 +1336,4 @@ function groupByDate(items: Item[]) {
     return acc;
   }, {});
 }
+

@@ -10,6 +10,22 @@
   gap: 16px;
 }
 
+.headerText {
+  min-width: 0;
+}
+
+.titleRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+
+.titleRow h1 {
+  flex: 1;
+  min-width: 0;
+}
+
 .header h1 {
   margin: 0;
   font-size: 1.75rem;
@@ -41,7 +57,6 @@
 @media (max-width: 767px) {
   .header h1 {
     font-size: 1.75rem;
-    padding-right: 48px;
   }
 
   .header p {
