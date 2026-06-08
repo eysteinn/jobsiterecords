@@ -1009,9 +1009,21 @@ To avoid scope creep in the **first** cloud release: real-time co-editing presen
 
 **Media formats:** JPEG/PNG/HEIC photos, **PDF**, and other imported files already on the job timeline ([§6.6a](#66a-capture-file--pdf-upload)). Same items the crew already captures — no separate “accounting upload” flow.
 
+**OCR activation (decided):**
+
+- **Tag required for automatic OCR.** Untagged permits, quotes, inspection reports, and site photos are **not** sent to OCR — controls cost, noise, and privacy. The field habit is already there: one tap **`Receipt`** or **`Material`** at capture ([§6.6a](#66a-capture-file--pdf-upload)).
+- **Trigger tags:**
+  - **`Receipt`** → expense extraction (vendor, date, totals); feeds the **Expenses** roll-up.
+  - **`Material`** → line-item extraction (qty, description, SKU when present); feeds the **Inventory / materials** roll-up.
+  - An item may carry **both** tags (e.g. a buy order with a total and line items); one extraction can populate both panels when the document supports it.
+- **Automatic on sync:** when tagged document media lands in object storage, enqueue OCR without a separate “Scan” button.
+- **Escape hatch:** dashboard **“Scan for accounting”** on an untagged file — user-initiated, one-off (same as **re-run** on tagged items). Does not auto-tag the timeline item unless the user confirms.
+- **Explicitly not planned:** OCR on every synced file/PDF; OCR-only workflow with no tag (too easy to forget and too noisy for the accounting view).
+- **Later (optional):** after OCR, suggest adding **`Receipt`** / **`Material`** when the doc looks financial — never auto-tag without user confirmation.
+
 **OCR / extraction (provider TBD):**
 
-- Run automatically when tagged document media lands in object storage (user may **re-run** or **correct** on the dashboard).
+- Runs per the activation rules above when eligible media syncs (user may **re-run** or **correct** on the dashboard).
 - Candidate backends: **vision-capable LLM** (e.g. **OpenAI** GPT-4o / Responses API with image or PDF input), dedicated document APIs (Azure Document Intelligence, Google Document AI), or a hybrid — choose on cost, accuracy on crumpled field receipts, and privacy review.
 - Typical extracted fields: document type (receipt / PO / invoice), vendor, transaction date, subtotal, tax, total, currency, **line items** (description, quantity, unit, unit price, line total), confidence scores, raw text. User edits override extracted values.
 
