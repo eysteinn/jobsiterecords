@@ -35,10 +35,29 @@
   padding: 10px 12px;
   border-radius: 8px;
   font-size: 0.9375rem;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.list li:hover {
+.list li:hover,
+.itemActive {
   background: #f9fafb;
+}
+
+.itemLabel {
+  font-weight: 500;
+}
+
+.itemHint {
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.empty {
+  color: var(--muted);
+  cursor: default;
 }
 
 .hint {

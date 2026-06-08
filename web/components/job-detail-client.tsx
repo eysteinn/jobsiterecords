@@ -1,17 +1,27 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Item, Job, MediaFile } from "@/lib/api-jobs";
 import { useSyncPoll } from "@/hooks/use-sync-poll";
+import { useUrlQueryParam, useUrlSetParam } from "@/hooks/use-url-filter-state";
 import { formatDate, formatDayKey, formatTime } from "@/lib/format";
+import { filterTimelineItems, type ItemKind } from "@/lib/search";
 import { fetchJobDelta, mergeJobBundle, pollJobCursor } from "@/lib/sync-cursor";
 import { SYNC_POLL } from "@/lib/sync-poll-config";
 import { getPhotoMedia, itemThumbUrl, mediaDownloadUrl } from "@/lib/photo-media";
 import { PhotoAnnotationEditor } from "@/components/photo-annotation/photo-annotation-editor";
 import { PageShell } from "@/components/page-shell";
+import { SearchFilterBar } from "@/components/search-filter-bar";
 import styles from "./job-detail.module.css";
+
+const KIND_CHIPS: { id: ItemKind; label: string }[] = [
+  { id: "photo", label: "Photos" },
+  { id: "voice", label: "Voice" },
+  { id: "note", label: "Notes" },
+  { id: "file", label: "Files" },
+];
 
 type Props = {
   job: Job;
@@ -37,6 +47,15 @@ export function JobDetailClient({ job, items: initialItems, mediaFiles: initialM
   const [fieldUpdateBanner, setFieldUpdateBanner] = useState(false);
   const [lightbox, setLightbox] = useState<{ itemId: string; mediaId?: string } | null>(null);
   const [annotatingItemId, setAnnotatingItemId] = useState<string | null>(null);
+  const searchParams = useSearchParams();
+  const [detailed, setDetailed] = useState(() => searchParams.has("kind"));
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (searchParams.has("kind")) setDetailed(true);
+  }, [searchParams]);
+  const [query, setQuery] = useUrlQueryParam("q");
+  const { values: kindFilter, toggle: toggleKind } = useUrlSetParam("kind");
   const cursorRef = useRef(job.last_activity_at ?? job.updated_at);
   const itemsRef = useRef(items);
   const mediaRef = useRef(mediaFiles);
@@ -111,13 +130,27 @@ export function JobDetailClient({ job, items: initialItems, mediaFiles: initialM
     return map;
   }, [mediaFiles]);
 
-  const photoItems = useMemo(() => photoItemsInJob(items), [items]);
+  const filteredItems = useMemo(
+    () =>
+      filterTimelineItems(
+        items,
+        mediaByItem,
+        query,
+        kindFilter.size > 0 ? (kindFilter as ReadonlySet<ItemKind>) : undefined,
+      ),
+    [items, mediaByItem, query, kindFilter],
+  );
 
-  const grouped = useMemo(() => groupByDate(items), [items]);
+  const photoItems = useMemo(() => photoItemsInJob(filteredItems), [filteredItems]);
+
+  const grouped = useMemo(() => groupByDate(filteredItems), [filteredItems]);
   const sortedDays = useMemo(
     () => Object.entries(grouped).sort(([a], [b]) => b.localeCompare(a)),
     [grouped],
   );
+
+  const hasActiveFilters =
+    query.trim().length > 0 || kindFilter.size > 0;
 
   async function addNote() {
     if (!noteBody.trim()) return;
@@ -212,6 +245,22 @@ export function JobDetailClient({ job, items: initialItems, mediaFiles: initialM
         </p>
       )}
 
+      {items.length > 0 && (
+        <SearchFilterBar
+          query={query}
+          onQueryChange={setQuery}
+          placeholder="Search caption, note text, or filename…"
+          detailed={detailed}
+          onDetailedChange={setDetailed}
+          chips={KIND_CHIPS}
+          activeChipIds={kindFilter}
+          onToggleChip={toggleKind}
+          shownCount={filteredItems.length}
+          totalCount={items.length}
+          inputRef={searchRef}
+        />
+      )}
+
       {!readOnly && (
       <section className={styles.compose}>
         <h2>Add text note</h2>
@@ -237,6 +286,10 @@ export function JobDetailClient({ job, items: initialItems, mediaFiles: initialM
 
       {items.length === 0 ? (
         <p className={styles.empty}>No timeline items yet.</p>
+      ) : filteredItems.length === 0 ? (
+        <p className={styles.empty}>
+          {hasActiveFilters ? "No items match your search or filters." : "No timeline items yet."}
+        </p>
       ) : (
         sortedDays.map(([dayKey, dayItems]) => (
           <section key={dayKey} className={styles.dayGroup}>
@@ -265,7 +318,7 @@ export function JobDetailClient({ job, items: initialItems, mediaFiles: initialM
 
       {lightbox && (
         <PhotoLightbox
-          items={items}
+          items={filteredItems}
           photoItems={photoItems}
           mediaByItem={mediaByItem}
           lightbox={lightbox}
