@@ -24,6 +24,9 @@ type Props = {
   shownCount: number;
   totalCount: number;
   inputRef?: RefObject<HTMLInputElement | null>;
+  selecting?: boolean;
+  onSelectToggle?: () => void;
+  readOnly?: boolean;
 };
 
 export function TimelineSearchPanel({
@@ -42,6 +45,9 @@ export function TimelineSearchPanel({
   shownCount,
   totalCount,
   inputRef,
+  selecting = false,
+  onSelectToggle,
+  readOnly = false,
 }: Props) {
   const internalRef = useRef<HTMLInputElement>(null);
   const resolvedRef = inputRef ?? internalRef;
@@ -74,11 +80,23 @@ export function TimelineSearchPanel({
           {hasFilters && !expanded && <span className={styles.badge} aria-hidden />}
           {expanded ? "Close search" : "Search & filter"}
         </button>
-        {hasFilters && (
-          <span className={styles.timelineCount}>
-            {shownCount} of {totalCount}
-          </span>
-        )}
+        <div className={styles.toolbarRight}>
+          {hasFilters && (
+            <span className={styles.timelineCount}>
+              {shownCount} of {totalCount}
+            </span>
+          )}
+          {!readOnly && onSelectToggle && (
+            <button
+              type="button"
+              className={selecting ? `${styles.selectBtn} ${styles.selectBtnActive}` : styles.selectBtn}
+              onClick={onSelectToggle}
+              aria-pressed={selecting}
+            >
+              {selecting ? "Cancel" : "Select"}
+            </button>
+          )}
+        </div>
       </div>
 
       {!expanded && hasFilters && (

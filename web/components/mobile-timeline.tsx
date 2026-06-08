@@ -54,6 +54,9 @@ type ToolbarProps = {
   hasFilters: boolean;
   hasTagFilter: boolean;
   inputRef?: React.RefObject<HTMLInputElement | null>;
+  selecting?: boolean;
+  onSelectToggle?: () => void;
+  readOnly?: boolean;
 };
 
 export function MobileTimelineToolbar({
@@ -64,6 +67,9 @@ export function MobileTimelineToolbar({
   hasFilters,
   hasTagFilter,
   inputRef,
+  selecting = false,
+  onSelectToggle,
+  readOnly = false,
 }: ToolbarProps) {
   return (
     <div className={styles.toolbar}>
@@ -109,6 +115,16 @@ export function MobileTimelineToolbar({
         <span aria-hidden>☰</span>
         {hasFilters && !hasTagFilter && <span className={styles.filterDot} aria-hidden />}
       </button>
+      {!readOnly && onSelectToggle && (
+        <button
+          type="button"
+          className={selecting ? `${styles.selectBtn} ${styles.selectBtnActive}` : styles.selectBtn}
+          onClick={onSelectToggle}
+          aria-pressed={selecting}
+        >
+          {selecting ? "Cancel" : "Select"}
+        </button>
+      )}
     </div>
   );
 }
@@ -177,6 +193,7 @@ type DayTimelineProps = {
   onToggleSelect?: (itemId: string) => void;
   onLongPressSelect?: (itemId: string) => void;
   onDeleteItem?: (itemId: string) => void;
+  onEditItem?: (itemId: string) => void;
   readOnly?: boolean;
 };
 
@@ -193,6 +210,7 @@ export function MobileDayTimeline({
   onToggleSelect,
   onLongPressSelect,
   onDeleteItem,
+  onEditItem,
   readOnly = false,
 }: DayTimelineProps) {
   return (
@@ -213,6 +231,7 @@ export function MobileDayTimeline({
               onToggleSelect={onToggleSelect}
               onLongPressSelect={onLongPressSelect}
               onDeleteItem={onDeleteItem}
+              onEditItem={onEditItem}
               readOnly={readOnly}
             />
           </li>
@@ -234,6 +253,7 @@ type CardProps = {
   onToggleSelect?: (itemId: string) => void;
   onLongPressSelect?: (itemId: string) => void;
   onDeleteItem?: (itemId: string) => void;
+  onEditItem?: (itemId: string) => void;
   readOnly?: boolean;
 };
 
@@ -249,6 +269,7 @@ function MobileTimelineCard({
   onToggleSelect,
   onLongPressSelect,
   onDeleteItem,
+  onEditItem,
   readOnly = false,
 }: CardProps) {
   const time = formatTime(item.captured_at);
@@ -315,15 +336,17 @@ function MobileTimelineCard({
             </button>
             {menuOpen && (
               <div className={styles.cardMenuDropdown}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onLongPressSelect?.(item.id);
-                    setMenuOpen(false);
-                  }}
-                >
-                  Select…
-                </button>
+                {onEditItem && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onEditItem(item.id);
+                      setMenuOpen(false);
+                    }}
+                  >
+                    Edit
+                  </button>
+                )}
                 <button
                   type="button"
                   className={styles.cardMenuDanger}

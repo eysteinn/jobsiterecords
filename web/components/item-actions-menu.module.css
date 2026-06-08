@@ -1,0 +1,64 @@
+.wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.trigger {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: var(--muted, #6b7280);
+  font-size: 1.125rem;
+  border-radius: 6px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.trigger:hover {
+  background: #f3f4f6;
+  color: var(--text, #111827);
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 30;
+  min-width: 140px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  padding: 4px;
+  display: grid;
+  gap: 2px;
+}
+
+.menuLeft {
+  right: auto;
+  left: 0;
+}
+
+.menu button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  padding: 8px 10px;
+  text-align: left;
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.menu button:hover {
+  background: #f3f4f6;
+}
+
+.danger {
+  color: #dc2626;
+}

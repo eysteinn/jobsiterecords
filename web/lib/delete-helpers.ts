@@ -1,5 +1,41 @@
 import type { Item, Job } from "@/lib/api-jobs";
 
+export function itemKindLabel(kind: Item["kind"], plural = false): string {
+  if (plural) return "photos/notes/files";
+  return (
+    {
+      photo: "photo",
+      voice: "voice note",
+      note: "note",
+      file: "file",
+    } as const
+  )[kind];
+}
+
+export function singleItemDeleteCopy(item: Item) {
+  return {
+    title: "Delete this item?",
+    message: `This will remove the ${itemKindLabel(item.kind)} from this job.`,
+    confirmLabel: "Delete",
+  };
+}
+
+export function bulkItemDeleteCopy(count: number) {
+  return {
+    title: `Delete ${count} selected item${count === 1 ? "" : "s"}?`,
+    message: "This will remove the selected photos/notes/files from this job.",
+    confirmLabel: count === 1 ? "Delete item" : `Delete ${count} items`,
+  };
+}
+
+export function jobDeleteCopy(jobName: string) {
+  return {
+    title: `Delete job “${jobName}”?`,
+    message: "This will delete all photos, notes, files, and voice notes in this job.",
+    confirmLabel: "Delete job",
+  };
+}
+
 export function filterActiveItems<T extends { deleted_at?: string | null }>(items: T[]): T[] {
   return items.filter((item) => !item.deleted_at);
 }

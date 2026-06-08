@@ -23,7 +23,6 @@ type EditProps = {
   job: Job;
   onClose: () => void;
   onSaved: (job: Job) => void;
-  onDelete?: () => void;
 };
 
 type Props = CreateProps | EditProps;
@@ -223,22 +222,6 @@ export function JobFormDrawer(props: Props) {
               />
             </label>
             {error && <p className={styles.error}>{error}</p>}
-            {isEdit && props.onDelete && (
-              <div className={styles.dangerZone}>
-                <p className={styles.dangerLabel}>Danger zone</p>
-                <button
-                  type="button"
-                  className={styles.deleteJobBtn}
-                  disabled={saving}
-                  onClick={() => {
-                    props.onClose();
-                    props.onDelete?.();
-                  }}
-                >
-                  Delete job
-                </button>
-              </div>
-            )}
           </div>
           <div className={styles.formFooter}>
             <button type="button" className={styles.secondary} onClick={requestClose} disabled={saving}>

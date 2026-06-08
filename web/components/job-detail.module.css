@@ -240,6 +240,7 @@
 }
 
 .photoCellWrap {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -901,7 +902,6 @@
   z-index: 25;
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
   padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0));
   background: var(--surface);
@@ -909,31 +909,161 @@
   box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.06);
 }
 
+.selectionCancelBtn {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
 .selectionBarCount {
+  flex: 1;
   font-size: 0.9375rem;
   font-weight: 600;
 }
 
 .selectionBarActions {
   display: flex;
+  align-items: center;
   gap: 8px;
 }
 
-.selectionDeleteBtn {
-  border: 1px solid #dc2626;
+.selectionOutlineBtn {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: var(--surface);
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.selectionDeleteSolid {
+  border: none;
   border-radius: 8px;
   padding: 8px 14px;
-  background: transparent;
-  color: #dc2626;
+  background: #dc2626;
+  color: #fff;
   font: inherit;
   font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
 }
 
-.selectionDeleteBtn:disabled {
-  opacity: 0.5;
+.selectionDeleteSolid:disabled {
+  opacity: 0.6;
   cursor: default;
+}
+
+.jobMenuWrap {
+  position: relative;
+}
+
+.jobMenuBtn {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 1.125rem;
+  cursor: pointer;
+}
+
+.jobMenuDropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  min-width: 180px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  padding: 4px;
+  display: grid;
+  gap: 2px;
+}
+
+.jobMenuDropdown button {
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  padding: 8px 10px;
+  text-align: left;
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.jobMenuDropdown button:hover {
+  background: #f3f4f6;
+}
+
+.jobMenuDanger {
+  color: #dc2626;
+}
+
+.photoCellMenu {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 2;
+}
+
+.timelineRowMenu {
+  margin-left: auto;
+  align-self: flex-start;
+}
+
+.noteEditBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.noteEditDialog {
+  width: min(100%, 480px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  display: grid;
+  gap: 12px;
+}
+
+.noteEditDialog h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.noteEditLabel {
+  display: grid;
+  gap: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.noteEditLabel input,
+.noteEditLabel textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font: inherit;
+}
+
+.noteEditActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .selectCheckbox {
@@ -960,29 +1090,6 @@
 .photoCellSelected .photoCell,
 .timelineRowSelected .timelineRowMain {
   outline: 2px solid var(--accent);
-}
-
-.rowDeleteBtn {
-  align-self: flex-start;
-  border: none;
-  background: transparent;
-  color: #dc2626;
-  font: inherit;
-  font-size: 0.8125rem;
-  cursor: pointer;
-  padding: 4px 0;
-  white-space: nowrap;
-}
-
-.lightboxDeleteBtn {
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  border-radius: 8px;
-  padding: 6px 12px;
-  background: rgba(0, 0, 0, 0.35);
-  color: #fecaca;
-  font: inherit;
-  font-size: 0.8125rem;
-  cursor: pointer;
 }
 
 .mobileMenuDanger {
