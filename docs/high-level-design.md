@@ -186,6 +186,7 @@ Aligned with Phase 1 mobile scope ([§13](#13-phasing--milestones)). “Must-hav
 - Advanced CRM features (scheduling, payments, client portal)
 - Visible timestamp/job overlays on photos (nice future; timeline + metadata suffice for MVP)
 - Formal daily-report templates
+- **Document OCR + per-job accounting view** — server-side reading of receipts, buy orders, and similar photos/PDFs into structured expenses and inventory roll-ups on the dashboard ([§17.8](#178-document-ocr--per-job-accounting-post-mvp--not-required-for-mvp))
 
 ---
 
@@ -412,7 +413,7 @@ Keep the toolbox shallow on purpose. **Still not planned:** blur / redact, crop,
 - Photos of paper receipts (camera or gallery — same tag, no special item kind)
 - Imported receipt images (`.jpg` / `.png` via file picker)
 
-**Future (post-MVP dashboard):** OCR on **`Receipt`** items rolls up job costs and exports to CSV/Excel — see [§17.8](#178-receipt-ocr--job-expenses-post-mvp-dashboard).
+**Future (post-MVP dashboard):** OCR on tagged receipts, buy orders, and similar documents (photos, PDFs) feeds a simple per-job **expenses + inventory** view on the dashboard — see [§17.8](#178-document-ocr--per-job-accounting-post-mvp--not-required-for-mvp).
 
 ### 6.7 Item Detail
 - Large media area (photo, audio player, file type icon + filename, or note body).
@@ -952,7 +953,7 @@ Billing is anchored to a **workspace** (synonyms: team, company account) — one
 1. **Cloud sync** — jobs, items, media metadata, and blobs sync across **members' devices** that join the workspace. Conflict handling builds on Phase 1 IDs and timestamps ([§7](#7-data-model), [§12](#12-future-proofing-for-phase-2-paid-tier)).
 2. **Web dashboard** — sign in on the web to browse the same jobs, filter exports, manage **branded PDF reports**, and (later) org-wide settings. Heavier than the phone by necessity, but still **narrow**: jobs, exports, reports — not a generic PM product.
 3. **Team access** — every invited **member** sees the **workspace's jobs** (subject to role). "Share access to notes" means shared **Job** and **Item** timelines and text notes—not a separate siloed note product: the collaboration surface is the same entities as the app today, backed by sync.
-4. **Pro pipeline features** — voice **transcription** (recordings → readable text notes; see [§17.7](#177-voice-transcription-as-readable-notes-phase-2)), **AI summaries**, advanced templates, audit-friendly exports — only where they clearly support evidence + handoff; no feature sprawl.
+4. **Pro pipeline features** — voice **transcription** (recordings → readable text notes; see [§17.7](#177-voice-transcription-as-readable-notes-phase-2)), **AI summaries**, advanced templates, audit-friendly exports — only where they clearly support evidence + handoff; no feature sprawl. **Post-MVP:** document OCR and a simple per-job expenses/inventory view ([§17.8](#178-document-ocr--per-job-accounting-post-mvp--not-required-for-mvp)) — not required for MVP.
 
 Users who never create a workspace and never sign in **never pay** and **do not upload job content to our servers** (local-only use only).
 
@@ -981,7 +982,7 @@ Phase 2 **extends** the monorepo: `services/api/` (Go), `services/pdf/` (Rust), 
 
 ### 17.6 Explicitly still out of scope for Phase 2 v1 (examples)
 
-To avoid scope creep in the **first** cloud release: real-time co-editing presence, comments threads on items, arbitrary external sharing links with ACLs, enterprise SSO, multi-region data residency, and **receipt OCR / expense spreadsheet export** can wait until **Phase 2+** unless a customer pulls us there.
+To avoid scope creep in the **first** cloud release: real-time co-editing presence, comments threads on items, arbitrary external sharing links with ACLs, enterprise SSO, multi-region data residency, and **document OCR / per-job expenses & inventory view** ([§17.8](#178-document-ocr--per-job-accounting-post-mvp--not-required-for-mvp)) can wait until **Phase 2+** unless a customer pulls us there.
 
 ### 17.7 Voice transcription as readable notes
 
@@ -989,11 +990,41 @@ To avoid scope creep in the **first** cloud release: real-time co-editing presen
 - **Phase 1 (*implemented*):** voice notes are **audio only** (plus caption/tags). No transcript column in local SQLite, no transcript UI, no platform speech APIs in the app. Users who want readable spoken text on the phone add a **text note** (OS keyboard dictation is fine).
 - **Phase 2 (paid / cloud):** optional **“Transcribe”** (or auto-transcribe on upload) in the **dashboard**, backed by `services/transcribe/`. Transcript text is stored in the **server** data model (e.g. a `voice_transcripts` or workspace-scoped annotation table keyed by synced `item_id`) — **not** by adding `items.transcript` to the Phase 1 mobile schema. Search, edit, and PDF blocks use that cloud copy. The mobile app may **display** synced transcript later if we choose, but it does not own transcription or reserve a local column for it. The **audio file remains the source of truth**; transcript is derived data the user may **fix** on the dashboard (trade terms, names, mumbling).
 
-### 17.8 Receipt OCR & job expenses (post-MVP dashboard)
+### 17.8 Document OCR & per-job accounting (post-MVP — not required for MVP)
 
-- **Goal:** on the **web dashboard**, turn **`Receipt`-tagged** timeline items into a **reviewable expense roll-up** for a job — vendor, date, totals — without retyping paper slips. Export **CSV / Excel** for bookkeeping handoff. **Not** invoicing, estimating, or a full accounting integration ([§17.6](#176-explicitly-still-out-of-scope-for-phase-2-v1-examples)).
-- **Phase 1 (*target*):** contractors tag receipts on the phone ([§6.6a](#66a-capture-file--pdf-upload), [§7](#7-data-model)); timeline filter + zip export carry those items to the office manually.
-- **Post-MVP (paid / cloud):** after sync, a server worker OCRs receipt photos/PDFs; structured fields stored server-side (e.g. `receipt_extractions` keyed by synced `item_id`) — **not** new columns in the Phase 1 mobile schema. Dashboard **Expenses** view on job detail; user may correct extracted values; export spreadsheet. Detail: [`web-dashboard-design.md` §8.2](web-dashboard-design.md#82-receipt-ocr--job-expenses).
+**Not in MVP.** Nice-to-have after the core dashboard, sync, teams, PDF, and transcription ship. Default answer remains **no** until demand justifies it ([§17.6](#176-explicitly-still-out-of-scope-for-phase-2-v1-examples)).
+
+- **Goal:** on the **web dashboard**, turn captured **financial and procurement documents** into a **simple accounting-style view per job** — expenses and material/inventory — without retyping slips or buy orders. Export **CSV / Excel** for bookkeeping handoff. **Not** invoicing, estimating, general ledger, or a full accounting integration.
+- **Phase 1 (*implemented / target*):** contractors photograph or import documents on the phone ([§6.6a](#66a-capture-file--pdf-upload)), tag them (**`Receipt`**, **`Material`**, etc. — [§7](#7-data-model)), and filter the timeline or zip export. No OCR on device; no expense totals in the app.
+- **Post-MVP (paid / cloud):** after sync, a **background worker** reads document media and writes structured fields **server-side** (e.g. `document_extractions` keyed by synced `item_id`, scoped by `workspace_id`) — **not** new columns in the Phase 1 mobile schema.
+
+**Input documents (examples):**
+
+| Type | Typical capture | Tags |
+| --- | --- | --- |
+| Store / fuel receipts | Photo or PDF | `Receipt` |
+| Supplier invoices | PDF or photo | `Receipt` |
+| Purchase / buy orders | PDF, email export, photo | `Receipt` and/or `Material` |
+| Delivery tickets, packing slips | Photo or PDF | `Material` |
+
+**Media formats:** JPEG/PNG/HEIC photos, **PDF**, and other imported files already on the job timeline ([§6.6a](#66a-capture-file--pdf-upload)). Same items the crew already captures — no separate “accounting upload” flow.
+
+**OCR / extraction (provider TBD):**
+
+- Run automatically when tagged document media lands in object storage (user may **re-run** or **correct** on the dashboard).
+- Candidate backends: **vision-capable LLM** (e.g. **OpenAI** GPT-4o / Responses API with image or PDF input), dedicated document APIs (Azure Document Intelligence, Google Document AI), or a hybrid — choose on cost, accuracy on crumpled field receipts, and privacy review.
+- Typical extracted fields: document type (receipt / PO / invoice), vendor, transaction date, subtotal, tax, total, currency, **line items** (description, quantity, unit, unit price, line total), confidence scores, raw text. User edits override extracted values.
+
+**Dashboard — simple per-job accounting view:**
+
+- **Job detail → Accounting** (or **Expenses & inventory**) panel with two linked roll-ups sourced from extractions:
+  - **Expenses** — table of receipt/invoice/PO items with vendor, date, and amounts; **job subtotals** (optionally by date range); each row links back to the timeline item / lightbox.
+  - **Inventory / materials** — line items from buy orders and material receipts (quantity, description, SKU when present); optional running totals for “what we bought for this job” without building a warehouse system.
+- Filter, search, and manual corrections like the timeline. Mobile may show read-only totals later; extraction originates server-side.
+
+**Export:** downloadable **CSV** and **Excel (`.xlsx`)** — expense summary (one row per document; optional line-item sheet) and/or materials list for handoff to QuickBooks, spreadsheets, or an accountant.
+
+Complements field capture: crew tags documents in the app; the office gets structured costs and material lists without retyping. Detail: [`web-dashboard-design.md` §8.2](web-dashboard-design.md#82-receipt-ocr--job-expenses) (to be broadened when that spec is next edited).
 
 ### 17.9 Authentication (sign-in methods)
 
