@@ -21,3 +21,23 @@ export async function GET(
   const data = await res.json();
   return NextResponse.json(data, { status: res.status });
 }
+
+export async function PUT(
+  request: Request,
+  context: { params: Promise<{ jobId: string }> },
+) {
+  const { jobId } = await context.params;
+  const token = (await cookies()).get(ACCESS_COOKIE)?.value;
+  const body = await request.text();
+  const res = await fetch(`${apiBaseUrl()}/api/v1/jobs/${jobId}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body,
+    cache: "no-store",
+  });
+  const data = await res.json();
+  return NextResponse.json(data, { status: res.status });
+}

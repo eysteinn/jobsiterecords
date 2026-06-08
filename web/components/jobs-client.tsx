@@ -92,7 +92,9 @@ export function JobsClient({ workspaceId, jobs }: Props) {
                       </td>
                       <td>{job.client_name || "—"}</td>
                       <td>
-                        <span className={styles.pill}>{job.status.replace("_", " ")}</span>
+                        <span className={`${styles.pill} ${styles[`status_${job.status}`]}`}>
+                          {job.status.replace(/_/g, " ")}
+                        </span>
                       </td>
                       <td>{formatDateTime(job.last_activity_at ?? job.updated_at)}</td>
                     </tr>
