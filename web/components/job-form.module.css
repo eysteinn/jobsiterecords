@@ -51,10 +51,17 @@
 }
 
 .form input,
-.form textarea {
+.form textarea,
+.form select {
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 10px 12px;
+}
+
+.dateRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
 }
 
 .primary {

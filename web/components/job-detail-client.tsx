@@ -14,7 +14,9 @@ import {
   tagsUsedInJob,
   type ItemKind,
 } from "@/lib/search";
+import { buildJobPutPayload } from "@/lib/job-form";
 import { fetchJobDelta, mergeJobBundle, pollJobCursor } from "@/lib/sync-cursor";
+import { EditJobDrawer } from "@/components/edit-job-drawer";
 import { SYNC_POLL } from "@/lib/sync-poll-config";
 import { getPhotoMedia, itemThumbUrl, mediaDownloadUrl } from "@/lib/photo-media";
 import { PhotoAnnotationEditor } from "@/components/photo-annotation/photo-annotation-editor";
@@ -89,6 +91,7 @@ export function JobDetailClient({
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const statusMenuRef = useRef<HTMLDivElement>(null);
@@ -117,7 +120,9 @@ export function JobDetailClient({
   const [query, setQuery] = useUrlQueryParam("q");
   const { values: kindFilter, toggle: toggleKind, setValues: setKindFilter } = useUrlSetParam("kind");
   const { values: tagFilter, toggle: toggleTag, setValues: setTagFilter } = useUrlSetParam("tag");
-  const cursorRef = useRef(job.last_activity_at ?? job.updated_at);
+  const cursorRef = useRef(
+    jobCursorValue(job.last_activity_at ?? job.updated_at, job.updated_at),
+  );
   const itemsRef = useRef(items);
   const mediaRef = useRef(mediaFiles);
   const tagsRef = useRef(tags);
@@ -158,7 +163,7 @@ export function JobDetailClient({
   }, [workspaceId]);
 
   useEffect(() => {
-    cursorRef.current = job.last_activity_at ?? job.updated_at;
+    cursorRef.current = jobCursorValue(job.last_activity_at ?? job.updated_at, job.updated_at);
   }, [job.last_activity_at, job.updated_at]);
 
   useEffect(() => {
@@ -188,13 +193,14 @@ export function JobDetailClient({
       const since = cursorRef.current;
       const nextCursor = result.cursor ?? since;
       const delta = await fetchJobDelta(job.id, since);
-      const hasDelta =
+      const hasItemDelta =
         (delta.items?.length ?? 0) > 0 || (delta.media_files?.length ?? 0) > 0;
 
-      // Cursor moved but delta missed rows (timestamp boundary / clock skew) — full reload.
-      if (!hasDelta && nextCursor !== since) {
+      // Job metadata or timeline changed without item rows in the delta window.
+      if (!hasItemDelta && nextCursor !== since) {
         cursorRef.current = nextCursor;
-        router.refresh();
+        if (delta.job) setJob(delta.job);
+        else router.refresh();
         return;
       }
 
@@ -205,6 +211,9 @@ export function JobDetailClient({
         tagsRef.current,
         itemTagsRef.current,
       );
+      if (merged.job) {
+        setJob(merged.job);
+      }
       if (merged.added > 0) {
         setItems(merged.items);
         setMediaFiles(merged.mediaFiles);
@@ -212,7 +221,7 @@ export function JobDetailClient({
         setItemTags(merged.itemTags);
         setFieldUpdateBanner(true);
         window.setTimeout(() => setFieldUpdateBanner(false), SYNC_POLL.updatedBannerMs);
-      } else if (hasDelta) {
+      } else if (hasItemDelta) {
         setItems(merged.items);
         setMediaFiles(merged.mediaFiles);
         setTags(merged.tags);
@@ -351,24 +360,10 @@ export function JobDetailClient({
     setUpdatingStatus(true);
     setMessage(null);
     try {
-      const now = new Date().toISOString();
       const res = await fetch(`/api/jobs/${job.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          workspace_id: job.workspace_id,
-          name: job.name,
-          client_name: job.client_name,
-          address: job.address,
-          job_number: job.job_number,
-          status: nextStatus,
-          start_date: job.start_date,
-          end_date:
-            nextStatus === "completed" ? (job.end_date ?? now.slice(0, 10)) : job.end_date,
-          notes: job.notes,
-          created_at: job.created_at,
-          updated_at: now,
-        }),
+        body: JSON.stringify(buildJobPutPayload(job, { status: nextStatus })),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Could not update status");
@@ -568,6 +563,11 @@ export function JobDetailClient({
               </div>
             )}
           </div>
+          {!readOnly && (
+            <button type="button" className={styles.editBtn} onClick={() => setEditOpen(true)}>
+              Edit job
+            </button>
+          )}
           <button type="button" className={styles.refreshBtn} onClick={refresh} disabled={refreshing}>
             {refreshing ? "Refreshing…" : "Refresh"}
           </button>
@@ -726,6 +726,17 @@ export function JobDetailClient({
           onSaved={(updated) => handleAnnotationSaved(annotatingItem.id, updated)}
         />
       )}
+
+      {editOpen && !readOnly && (
+        <EditJobDrawer
+          job={job}
+          onClose={() => setEditOpen(false)}
+          onSaved={(updated) => {
+            setJob(updated);
+            setMessage("Job updated");
+          }}
+        />
+      )}
     </PageShell>
 
     {!readOnly && (
@@ -767,6 +778,10 @@ export function JobDetailClient({
     />
     </>
   );
+}
+
+function jobCursorValue(lastActivityAt: string, updatedAt: string): string {
+  return new Date(updatedAt) > new Date(lastActivityAt) ? updatedAt : lastActivityAt;
 }
 
 function PhotoGrid({
