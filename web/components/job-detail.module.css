@@ -713,6 +713,14 @@
 }
 
 /* Mobile job detail */
+.jobDetailRoot {
+  min-width: 0;
+}
+
+.mobileJobDetail {
+  min-width: 0;
+}
+
 .mobileDetailHeader {
   display: grid;
   gap: 12px;

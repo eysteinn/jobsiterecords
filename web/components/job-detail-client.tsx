@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Item, ItemTag, Job, MediaFile, Tag } from "@/lib/api-jobs";
 import {
@@ -87,7 +87,10 @@ export function JobDetailClient({
   readOnly = false,
 }: Props) {
   const router = useRouter();
+  const pathname = usePathname();
+  const [mobileChromeReady, setMobileChromeReady] = useState(false);
   const [job, setJob] = useState(initialJob);
+  const isActiveJobRoute = pathname === `/jobs/${job.id}`;
   const [items, setItems] = useState(initialItems ?? []);
   const [mediaFiles, setMediaFiles] = useState(initialMediaFiles ?? []);
   const [noteBody, setNoteBody] = useState("");
@@ -224,15 +227,27 @@ export function JobDetailClient({
   }, [jobMenuOpen]);
 
   useEffect(() => {
-    if (selecting) {
-      document.body.dataset.selectionMode = "true";
-    } else {
-      delete document.body.dataset.selectionMode;
+    setMobileChromeReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isActiveJobRoute) {
+      setAddSheetOpen(false);
+      setMobileFilterOpen(false);
+      setTagFilterOpen(false);
     }
+  }, [isActiveJobRoute]);
+
+  useEffect(() => {
+    if (!isActiveJobRoute || !selecting) {
+      delete document.body.dataset.selectionMode;
+      return;
+    }
+    document.body.dataset.selectionMode = "true";
     return () => {
       delete document.body.dataset.selectionMode;
     };
-  }, [selecting]);
+  }, [isActiveJobRoute, selecting]);
 
   const onJobChanged = useCallback(
     async (result: { cursor: string | null }) => {
@@ -703,9 +718,13 @@ export function JobDetailClient({
     window.requestAnimationFrame(() => noteBodyRef.current?.focus());
   }
 
+  const showMobileAddFab =
+    mobileChromeReady && isActiveJobRoute && !readOnly && !selecting && items.length > 0;
+
   return (
-    <>
-    <header className={`${styles.mobileDetailHeader} mobileOnly`}>
+    <div className={styles.jobDetailRoot}>
+    <div className={`${styles.mobileJobDetail} mobileOnly`}>
+    <header className={styles.mobileDetailHeader}>
       {selecting ? (
         <div className={styles.mobileSelectionHeader}>
           <button type="button" className={styles.mobileSelectionCancel} onClick={exitSelection}>
@@ -818,6 +837,49 @@ export function JobDetailClient({
         </button>
       )}
     </header>
+
+    {showMobileAddFab && (
+      <button
+        type="button"
+        className={styles.mobileAddFab}
+        onClick={() => setAddSheetOpen(true)}
+        aria-label="Add to job"
+      >
+        + Add to job
+      </button>
+    )}
+
+    {mobileChromeReady && isActiveJobRoute && selecting && !readOnly && (
+      <div className={styles.mobileSelectionBar}>
+        <div className={styles.selectionBarActions}>
+          <button
+            type="button"
+            className={styles.selectionOutlineBtn}
+            onClick={() => setToast("Tag assignment is available in the mobile app")}
+            disabled={selected.size === 0}
+          >
+            Tag
+          </button>
+          <button
+            type="button"
+            className={styles.selectionOutlineBtn}
+            onClick={() => setToast("Export is available in the mobile app")}
+            disabled={selected.size === 0}
+          >
+            Export
+          </button>
+          <button
+            type="button"
+            className={styles.selectionDeleteSolid}
+            disabled={deleting || selected.size === 0}
+            onClick={() => requestDeleteItems([...selected])}
+          >
+            {deleting ? "Deleting…" : "Delete"}
+          </button>
+        </div>
+      </div>
+    )}
+    </div>
 
     <PageShell
       className={`${styles.detailShell} ${selecting ? styles.detailShellSelecting : ""}`}
@@ -1146,17 +1208,6 @@ export function JobDetailClient({
       )}
     </PageShell>
 
-    {!readOnly && !selecting && items.length > 0 && (
-      <button
-        type="button"
-        className={`${styles.mobileAddFab} mobileOnly`}
-        onClick={() => setAddSheetOpen(true)}
-        aria-label="Add to job"
-      >
-        + Add to job
-      </button>
-    )}
-
     {selecting && !readOnly && selected.size > 0 && (
       <div className={`${styles.selectionBar} desktopOnly`}>
         <button type="button" className={styles.selectionCancelBtn} onClick={exitSelection} aria-label="Cancel selection">
@@ -1192,37 +1243,6 @@ export function JobDetailClient({
       </div>
     )}
 
-    {selecting && !readOnly && (
-      <div className={`${styles.mobileSelectionBar} mobileOnly`}>
-        <div className={styles.selectionBarActions}>
-          <button
-            type="button"
-            className={styles.selectionOutlineBtn}
-            onClick={() => setToast("Tag assignment is available in the mobile app")}
-            disabled={selected.size === 0}
-          >
-            Tag
-          </button>
-          <button
-            type="button"
-            className={styles.selectionOutlineBtn}
-            onClick={() => setToast("Export is available in the mobile app")}
-            disabled={selected.size === 0}
-          >
-            Export
-          </button>
-          <button
-            type="button"
-            className={styles.selectionDeleteSolid}
-            disabled={deleting || selected.size === 0}
-            onClick={() => requestDeleteItems([...selected])}
-          >
-            {deleting ? "Deleting…" : "Delete"}
-          </button>
-        </div>
-      </div>
-    )}
-
     <ConfirmDialog
       open={confirmAction != null && confirmCopy != null}
       title={confirmCopy?.title ?? ""}
@@ -1242,7 +1262,7 @@ export function JobDetailClient({
     )}
 
     <MobileAddSheet
-      open={addSheetOpen}
+      open={addSheetOpen && isActiveJobRoute}
       onClose={() => setAddSheetOpen(false)}
       jobName={job.name}
       readOnly={readOnly}
@@ -1250,7 +1270,7 @@ export function JobDetailClient({
     />
 
     <MobileTimelineFilterSheet
-      open={mobileFilterOpen}
+      open={mobileFilterOpen && isActiveJobRoute}
       onClose={() => setMobileFilterOpen(false)}
       kindFilter={kindFilter as ReadonlySet<ItemKind>}
       onToggleKind={(kind) => toggleKind(kind)}
@@ -1278,7 +1298,7 @@ export function JobDetailClient({
       selectedTagIds={tagFilter}
       onApply={applyTagFilter}
     />
-    </>
+    </div>
   );
 }
 
