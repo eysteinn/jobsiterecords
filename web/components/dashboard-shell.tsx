@@ -6,13 +6,21 @@ import { useEffect, useState } from "react";
 import type { Session } from "@/lib/types";
 import { CommandPalette } from "./command-palette";
 import { MobileBottomNav } from "./mobile-bottom-nav";
+import {
+  ChevronLeftIcon,
+  JobsNavIcon,
+  ReportsNavIcon,
+  SearchIcon,
+  SettingsNavIcon,
+  TeamNavIcon,
+} from "./nav-icons";
 import styles from "./dashboard-shell.module.css";
 
 const nav = [
-  { href: "/jobs", label: "Jobs" },
-  { href: "/reports", label: "Reports" },
-  { href: "/team", label: "Team" },
-  { href: "/settings", label: "Settings" },
+  { href: "/jobs", label: "Jobs", Icon: JobsNavIcon },
+  { href: "/reports", label: "Reports", Icon: ReportsNavIcon },
+  { href: "/team", label: "Team", Icon: TeamNavIcon },
+  { href: "/settings", label: "Settings", Icon: SettingsNavIcon },
 ];
 
 type Props = {
@@ -20,14 +28,25 @@ type Props = {
   children: React.ReactNode;
 };
 
+function initialsFromEmail(email: string): string {
+  const local = email.split("@")[0] ?? "";
+  const parts = local.split(/[._-]/).filter(Boolean);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return local.slice(0, 2).toUpperCase();
+}
+
 export function DashboardShell({ session, children }: Props) {
   const pathname = usePathname();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const workspace = session.workspaces[0];
   const isJobsList = pathname === "/jobs";
   const isJobDetail = /^\/jobs\/[^/]+$/.test(pathname);
+  const userInitials = initialsFromEmail(session.user.email);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -47,26 +66,41 @@ export function DashboardShell({ session, children }: Props) {
   }
 
   return (
-    <div className={styles.shell}>
+    <div
+      className={`${styles.shell} ${sidebarCollapsed ? styles.shellCollapsed : ""}`}
+      data-sidebar-collapsed={sidebarCollapsed ? "true" : undefined}
+    >
       <aside className={`${styles.sidebar} desktopOnly`}>
         <div className={styles.sidebarBrand}>
           <span className={styles.logoMark} aria-hidden />
-          <span>Job Site Records</span>
+          {!sidebarCollapsed && <span>Job Site Records</span>}
         </div>
-        <nav className={styles.nav}>
+        <nav className={styles.nav} aria-label="Sidebar">
           {nav.map((item) => {
             const active = pathname.startsWith(item.href);
+            const Icon = item.Icon;
             return (
               <Link
                 key={item.href}
                 href={item.href}
                 className={active ? styles.navActive : styles.navItem}
+                title={sidebarCollapsed ? item.label : undefined}
               >
-                {item.label}
+                <Icon />
+                {!sidebarCollapsed && <span>{item.label}</span>}
               </Link>
             );
           })}
         </nav>
+        <button
+          type="button"
+          className={styles.collapseBtn}
+          onClick={() => setSidebarCollapsed((v) => !v)}
+          aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          <ChevronLeftIcon />
+          {!sidebarCollapsed && <span>Collapse</span>}
+        </button>
       </aside>
 
       <div className={styles.main}>
@@ -75,7 +109,12 @@ export function DashboardShell({ session, children }: Props) {
             {workspace ? (
               <div className={styles.workspaceSwitcher}>
                 <span className={styles.workspaceLabel}>Workspace</span>
-                <strong>{workspace.name}</strong>
+                <button type="button" className={styles.workspaceName}>
+                  <strong>{workspace.name}</strong>
+                  <span className={styles.workspaceCaret} aria-hidden>
+                    ▾
+                  </span>
+                </button>
               </div>
             ) : (
               <span className={styles.muted}>No workspace</span>
@@ -84,10 +123,13 @@ export function DashboardShell({ session, children }: Props) {
           <div className={styles.headerRight}>
             <button
               type="button"
-              className={styles.paletteButton}
+              className={styles.searchField}
               onClick={() => setPaletteOpen(true)}
+              aria-label="Open search"
             >
-              Search <kbd>⌘K</kbd>
+              <SearchIcon />
+              <span className={styles.searchPlaceholder}>Search</span>
+              <kbd>⌘K</kbd>
             </button>
             <div className={styles.userMenu}>
               <button
@@ -96,7 +138,13 @@ export function DashboardShell({ session, children }: Props) {
                 onClick={() => setMenuOpen((v) => !v)}
                 aria-expanded={menuOpen}
               >
-                Signed in as {session.user.email}
+                <span className={styles.userAvatar} aria-hidden>
+                  {userInitials}
+                </span>
+                <span className={styles.userEmail}>{session.user.email}</span>
+                <span className={styles.userCaret} aria-hidden>
+                  ▾
+                </span>
               </button>
               {menuOpen && (
                 <div className={styles.userDropdown}>

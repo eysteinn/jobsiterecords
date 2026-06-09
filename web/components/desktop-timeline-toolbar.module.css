@@ -1,0 +1,86 @@
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.searchWrap {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.searchIcon {
+  position: absolute;
+  left: 14px;
+  color: var(--muted-light);
+  pointer-events: none;
+  display: grid;
+  place-items: center;
+}
+
+.searchInput {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 36px 12px 44px;
+  font-size: 0.9375rem;
+  background: var(--surface);
+}
+
+.searchInput:focus {
+  outline: 2px solid var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.clearBtn {
+  position: absolute;
+  right: 8px;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 1.25rem;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.filterBtn,
+.selectBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  min-height: 48px;
+  padding: 0 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+  position: relative;
+}
+
+.filterBtn:hover,
+.selectBtn:hover {
+  background: #f9fafb;
+}
+
+.filterBtnActive,
+.selectBtnActive {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.filterDot {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--accent);
+}
