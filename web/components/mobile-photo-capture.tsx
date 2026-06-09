@@ -169,7 +169,9 @@ export function MobilePhotoCapture({ open, jobId, onClose, onSaved }: Props) {
     return (
       <div className={styles.overlay} role="dialog" aria-modal="true" aria-label="Review photo">
         <div className={styles.review}>
-          <img src={previewUrl} alt="Captured photo preview" className={styles.stillPreview} />
+          <div className={styles.previewFrame}>
+            <img src={previewUrl} alt="Captured photo preview" className={styles.stillPreview} />
+          </div>
           <div className={styles.reviewForm}>
             <label>
               Caption (optional)
