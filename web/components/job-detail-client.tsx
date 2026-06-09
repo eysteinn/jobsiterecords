@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Item, ItemTag, Job, MediaFile, Tag } from "@/lib/api-jobs";
 import {
@@ -37,21 +37,16 @@ import {
 } from "@/components/timeline-search-panel";
 import { TimelineTagFilterSheet } from "@/components/timeline-tag-filter-sheet";
 import { MobileAddSheet } from "@/components/mobile-add-sheet";
-import { MobileFilterSheet } from "@/components/mobile-filter-sheet";
+import {
+  MobileTimelineFilterSheet,
+  type TimelineSortOrder,
+} from "@/components/mobile-timeline-filter-sheet";
 import {
   MobileDayTimeline,
-  MobileQuickTagRow,
   MobileSummaryChips,
   MobileTimelineToolbar,
 } from "@/components/mobile-timeline";
 import styles from "./job-detail.module.css";
-
-const TIMELINE_KIND_CHIPS: { id: ItemKind; label: string }[] = [
-  { id: "photo", label: "Photos" },
-  { id: "voice", label: "Voice" },
-  { id: "note", label: "Notes" },
-  { id: "file", label: "Files" },
-];
 
 type Props = {
   job: Job;
@@ -92,7 +87,10 @@ export function JobDetailClient({
   readOnly = false,
 }: Props) {
   const router = useRouter();
+  const pathname = usePathname();
+  const [mobileChromeReady, setMobileChromeReady] = useState(false);
   const [job, setJob] = useState(initialJob);
+  const isActiveJobRoute = pathname === `/jobs/${job.id}`;
   const [items, setItems] = useState(initialItems ?? []);
   const [mediaFiles, setMediaFiles] = useState(initialMediaFiles ?? []);
   const [noteBody, setNoteBody] = useState("");
@@ -139,6 +137,10 @@ export function JobDetailClient({
   const [query, setQuery] = useUrlQueryParam("q");
   const { values: kindFilter, toggle: toggleKind, setValues: setKindFilter } = useUrlSetParam("kind");
   const { values: tagFilter, toggle: toggleTag, setValues: setTagFilter } = useUrlSetParam("tag");
+  const [dateFrom, setDateFrom] = useUrlQueryParam("from");
+  const [dateTo, setDateTo] = useUrlQueryParam("to");
+  const [sortOrder, setSortOrder] = useUrlQueryParam("sort");
+  const timelineSort: TimelineSortOrder = sortOrder === "oldest" ? "oldest" : "newest";
   const cursorRef = useRef(
     jobCursorValue(job.last_activity_at ?? job.updated_at, job.updated_at),
   );
@@ -223,6 +225,29 @@ export function JobDetailClient({
     document.addEventListener("pointerdown", onPointerDown);
     return () => document.removeEventListener("pointerdown", onPointerDown);
   }, [jobMenuOpen]);
+
+  useEffect(() => {
+    setMobileChromeReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isActiveJobRoute) {
+      setAddSheetOpen(false);
+      setMobileFilterOpen(false);
+      setTagFilterOpen(false);
+    }
+  }, [isActiveJobRoute]);
+
+  useEffect(() => {
+    if (!isActiveJobRoute || !selecting) {
+      delete document.body.dataset.selectionMode;
+      return;
+    }
+    document.body.dataset.selectionMode = "true";
+    return () => {
+      delete document.body.dataset.selectionMode;
+    };
+  }, [isActiveJobRoute, selecting]);
 
   const onJobChanged = useCallback(
     async (result: { cursor: string | null }) => {
@@ -313,29 +338,48 @@ export function JobDetailClient({
   const tagsByItem = useMemo(() => buildTagsByItem(allTags, itemTags), [allTags, itemTags]);
   const tagsInJob = useMemo(() => tagsUsedInJob(tagsByItem, items), [tagsByItem, items]);
 
-  const filteredItems = useMemo(
-    () =>
-      filterTimelineItems(
-        items,
-        mediaByItem,
-        tagsByItem,
-        query,
-        kindFilter.size > 0 ? (kindFilter as ReadonlySet<ItemKind>) : undefined,
-        tagFilter.size > 0 ? tagFilter : undefined,
-      ),
-    [items, mediaByItem, tagsByItem, query, kindFilter, tagFilter],
-  );
+  const filteredItems = useMemo(() => {
+    let result = filterTimelineItems(
+      items,
+      mediaByItem,
+      tagsByItem,
+      query,
+      kindFilter.size > 0 ? (kindFilter as ReadonlySet<ItemKind>) : undefined,
+      tagFilter.size > 0 ? tagFilter : undefined,
+    );
+    if (dateFrom.trim()) {
+      result = result.filter((item) => formatDayKey(item.captured_at) >= dateFrom.trim());
+    }
+    if (dateTo.trim()) {
+      result = result.filter((item) => formatDayKey(item.captured_at) <= dateTo.trim());
+    }
+    return result;
+  }, [items, mediaByItem, tagsByItem, query, kindFilter, tagFilter, dateFrom, dateTo]);
 
   const photoItems = useMemo(() => photoItemsInJob(filteredItems), [filteredItems]);
 
   const grouped = useMemo(() => groupByDate(filteredItems), [filteredItems]);
-  const sortedDays = useMemo(
-    () => Object.entries(grouped).sort(([a], [b]) => b.localeCompare(a)),
-    [grouped],
-  );
+  const sortedDays = useMemo(() => {
+    const entries = Object.entries(grouped).map(([dayKey, dayItems]) => {
+      const sorted = [...dayItems].sort((a, b) => {
+        const ta = new Date(a.captured_at).getTime();
+        const tb = new Date(b.captured_at).getTime();
+        return timelineSort === "oldest" ? ta - tb : tb - ta;
+      });
+      return [dayKey, sorted] as const;
+    });
+    return entries.sort(([a], [b]) =>
+      timelineSort === "oldest" ? a.localeCompare(b) : b.localeCompare(a),
+    );
+  }, [grouped, timelineSort]);
 
   const hasActiveFilters =
-    query.trim().length > 0 || kindFilter.size > 0 || tagFilter.size > 0;
+    query.trim().length > 0 ||
+    kindFilter.size > 0 ||
+    tagFilter.size > 0 ||
+    dateFrom.trim().length > 0 ||
+    dateTo.trim().length > 0 ||
+    timelineSort === "oldest";
 
   const kindCounts = useMemo(() => {
     const counts = { photo: 0, voice: 0, note: 0, file: 0 };
@@ -349,7 +393,22 @@ export function JobDetailClient({
     setQuery("");
     setKindFilter(new Set());
     setTagFilter(new Set());
+    setDateFrom("");
+    setDateTo("");
+    setSortOrder("");
     setFiltersExpanded(false);
+  }
+
+  function selectKindChip(kind: ItemKind) {
+    if (kindFilter.size === 1 && kindFilter.has(kind)) {
+      setKindFilter(new Set());
+      return;
+    }
+    setKindFilter(new Set([kind]));
+  }
+
+  function setTimelineSort(order: TimelineSortOrder) {
+    setSortOrder(order === "newest" ? "" : order);
   }
 
   function applyTagFilter(next: Set<string>) {
@@ -475,10 +534,6 @@ export function JobDetailClient({
     });
   }
 
-  function selectAllVisible() {
-    setSelected(new Set(filteredItems.map((item) => item.id)));
-  }
-
   function requestDeleteItems(itemIds: string[]) {
     if (itemIds.length === 0 || readOnly) return;
     setConfirmAction({ type: "items", itemIds });
@@ -599,14 +654,34 @@ export function JobDetailClient({
     router.refresh();
   }
 
-  function handleArchiveJob() {
+  function handleToggleJobStatus() {
     setJobMenuOpen(false);
     setMobileMenuOpen(false);
-    if (job.status !== "completed") {
-      void updateJobStatus("completed");
+    if (job.status === "completed") {
+      void updateJobStatus("in_progress");
       return;
     }
-    setToast("Job is already archived");
+    void updateJobStatus("completed");
+  }
+
+  function handleViewItem(itemId: string) {
+    const item = items.find((entry) => entry.id === itemId);
+    if (!item) return;
+    if (item.kind === "photo") {
+      openPhoto(itemId);
+      return;
+    }
+    if (item.kind === "note") {
+      setEditingNote(item);
+    }
+  }
+
+  function handleShareItem() {
+    setToast("Share is available in the mobile app");
+  }
+
+  function handleAnnotateItem(itemId: string) {
+    setAnnotatingItemId(itemId);
   }
 
   function handleExportJob() {
@@ -635,7 +710,6 @@ export function JobDetailClient({
   }
 
   const annotatingItem = annotatingItemId ? items.find((i) => i.id === annotatingItemId) : null;
-  const locationLine = [job.address, job.client_name].filter(Boolean).join(" · ");
   const subtitle = [job.client_name, job.address].filter(Boolean).join(" · ");
   const hasExtraDetails = Boolean(job.job_number || job.start_date || job.end_date || job.notes);
 
@@ -644,107 +718,108 @@ export function JobDetailClient({
     window.requestAnimationFrame(() => noteBodyRef.current?.focus());
   }
 
+  const showMobileAddFab =
+    mobileChromeReady && isActiveJobRoute && !readOnly && !selecting && items.length > 0;
+
   return (
-    <>
-    <header className={`${styles.mobileDetailHeader} mobileOnly`}>
-      <div className={styles.mobileNavRow}>
-        {selecting ? (
-          <>
-            <button type="button" className={styles.mobileBack} onClick={exitSelection} aria-label="Cancel selection">
-              ×
-            </button>
-            <span className={styles.selectionBarCount}>
-              {selected.size === 0 ? "Select items" : `${selected.size} selected`}
-            </span>
-            <button type="button" className={styles.selectBtn} onClick={selectAllVisible} disabled={deleting}>
-              All
-            </button>
-          </>
-        ) : (
-          <Link href="/jobs" className={styles.mobileBack} aria-label="Back to jobs">
-            ←
-          </Link>
-        )}
-      </div>
-      <div className={styles.mobileTitleRow}>
-        <h1 className={styles.mobileDetailTitle}>{job.name}</h1>
-        {!readOnly && !selecting && (
-          <div className={styles.mobileTitleActions}>
-            <div className={styles.mobileDetailMenu} ref={mobileMenuRef}>
-              <button
-                type="button"
-                className={styles.mobileMenuBtn}
-                onClick={() => setMobileMenuOpen((v) => !v)}
-                aria-expanded={mobileMenuOpen}
-                aria-label="Job menu"
-              >
-                ⋮
-              </button>
-              {mobileMenuOpen && (
-                <div className={styles.mobileMenuDropdown}>
-                  <button type="button" onClick={() => { setEditOpen(true); setMobileMenuOpen(false); }}>
-                    Edit job
-                  </button>
-                  <button type="button" onClick={handleExportJob}>
-                    Export job
-                  </button>
-                  <button type="button" onClick={handleArchiveJob}>
-                    Archive job
-                  </button>
-                  <hr />
-                  <button type="button" className={styles.mobileMenuDanger} onClick={requestDeleteJob}>
-                    Delete job
-                  </button>
-                </div>
-              )}
-            </div>
+    <div className={styles.jobDetailRoot}>
+    <div className={`${styles.mobileJobDetail} mobileOnly`}>
+    <header className={styles.mobileDetailHeader}>
+      {selecting ? (
+        <div className={styles.mobileSelectionHeader}>
+          <button type="button" className={styles.mobileSelectionCancel} onClick={exitSelection}>
+            Cancel
+          </button>
+          <span className={styles.mobileSelectionCount}>
+            {selected.size === 0 ? "Select items" : `${selected.size} selected`}
+          </span>
+        </div>
+      ) : (
+        <>
+          <div className={styles.mobileTopRow}>
+            <Link href="/jobs" className={styles.mobileBack} aria-label="Back to jobs">
+              ←
+            </Link>
+            <h1 className={styles.mobileDetailTitle}>{job.name}</h1>
+            {!readOnly && (
+              <div className={styles.mobileDetailMenu} ref={mobileMenuRef}>
+                <button
+                  type="button"
+                  className={styles.mobileMenuBtn}
+                  onClick={() => setMobileMenuOpen((v) => !v)}
+                  aria-expanded={mobileMenuOpen}
+                  aria-label="Job menu"
+                >
+                  ⋮
+                </button>
+                {mobileMenuOpen && (
+                  <div className={styles.mobileMenuDropdown}>
+                    <button type="button" onClick={() => { setEditOpen(true); setMobileMenuOpen(false); }}>
+                      Edit job
+                    </button>
+                    <button type="button" onClick={handleExportJob}>
+                      Export job
+                    </button>
+                    <button type="button" onClick={() => { enterSelection(); setMobileMenuOpen(false); }}>
+                      Select items
+                    </button>
+                    <button type="button" onClick={handleToggleJobStatus}>
+                      {job.status === "completed" ? "Reopen job" : "Mark completed"}
+                    </button>
+                    <hr />
+                    <button type="button" className={styles.mobileMenuDanger} onClick={requestDeleteJob}>
+                      Delete job
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-        )}
-      </div>
-      {locationLine && <p className={styles.mobileDetailLocation}>{locationLine}</p>}
-      <span className={`${styles.mobileDetailStatus} ${styles[`status_${job.status}`]}`}>
-        {job.status === "completed" && <span aria-hidden>✓ </span>}
-        {job.status.replace(/_/g, " ")}
-      </span>
-      {items.length > 0 && (
+          {job.address && (
+            <p className={styles.mobileDetailLocation}>
+              <LocationIcon />
+              {job.address}
+            </p>
+          )}
+          {job.client_name && !job.address && (
+            <p className={styles.mobileDetailLocation}>{job.client_name}</p>
+          )}
+          {job.client_name && job.address && (
+            <p className={styles.mobileDetailClient}>{job.client_name}</p>
+          )}
+          <span className={`${styles.mobileDetailStatus} ${styles[`status_${job.status}`]}`}>
+            {job.status === "completed" && <span aria-hidden>✓ </span>}
+            {job.status === "completed"
+              ? "Completed"
+              : job.status === "in_progress"
+                ? "In progress"
+                : "Planning"}
+          </span>
+        </>
+      )}
+      {!selecting && items.length > 0 && (
         <MobileSummaryChips
+          totalCount={items.length}
           counts={kindCounts}
           kindFilter={kindFilter as ReadonlySet<ItemKind>}
-          onToggleKind={(kind) => toggleKind(kind)}
+          onSelectAll={() => setKindFilter(new Set())}
+          onSelectKind={selectKindChip}
         />
       )}
-      {items.length > 0 && (
+      {!selecting && items.length > 0 && (
         <MobileTimelineToolbar
           query={query}
           onQueryChange={setQuery}
           onOpenFilters={() => setMobileFilterOpen(true)}
-          onOpenTagFilter={() => setTagFilterOpen(true)}
           hasFilters={hasActiveFilters}
-          hasTagFilter={tagFilter.size > 0}
           inputRef={searchRef}
-          selecting={selecting}
-          onSelectToggle={() => (selecting ? exitSelection() : enterSelection())}
-          readOnly={readOnly}
         />
       )}
-      {items.length > 0 && (
-        <MobileQuickTagRow
-          allTags={allTags}
-          tagsInJob={tagsInJob}
-          tagFilter={tagFilter}
-          onToggleTag={toggleTag}
-          onOpenTagFilter={() => setTagFilterOpen(true)}
-        />
-      )}
-      {items.length > 0 && hasActiveFilters && (
+      {!selecting && items.length > 0 && hasActiveFilters && (
         <button
           type="button"
           className={styles.mobileFilterSummary}
-          onClick={() => {
-            if (tagFilter.size > 0) setTagFilterOpen(true);
-            else if (kindFilter.size > 0) setMobileFilterOpen(true);
-            else searchRef.current?.focus();
-          }}
+          onClick={() => setMobileFilterOpen(true)}
         >
           <span>{activeFilterSummary}</span>
           <span
@@ -763,8 +838,51 @@ export function JobDetailClient({
       )}
     </header>
 
+    {showMobileAddFab && (
+      <button
+        type="button"
+        className={styles.mobileAddFab}
+        onClick={() => setAddSheetOpen(true)}
+        aria-label="Add to job"
+      >
+        + Add to job
+      </button>
+    )}
+
+    {mobileChromeReady && isActiveJobRoute && selecting && !readOnly && (
+      <div className={styles.mobileSelectionBar}>
+        <div className={styles.selectionBarActions}>
+          <button
+            type="button"
+            className={styles.selectionOutlineBtn}
+            onClick={() => setToast("Tag assignment is available in the mobile app")}
+            disabled={selected.size === 0}
+          >
+            Tag
+          </button>
+          <button
+            type="button"
+            className={styles.selectionOutlineBtn}
+            onClick={() => setToast("Export is available in the mobile app")}
+            disabled={selected.size === 0}
+          >
+            Export
+          </button>
+          <button
+            type="button"
+            className={styles.selectionDeleteSolid}
+            disabled={deleting || selected.size === 0}
+            onClick={() => requestDeleteItems([...selected])}
+          >
+            {deleting ? "Deleting…" : "Delete"}
+          </button>
+        </div>
+      </div>
+    )}
+    </div>
+
     <PageShell
-      className={`${styles.detailShell} ${selecting && selected.size > 0 ? styles.detailShellSelecting : ""}`}
+      className={`${styles.detailShell} ${selecting ? styles.detailShellSelecting : ""}`}
       headerClassName="desktopOnly"
       title={job.name}
       subtitle={subtitle || "Job timeline"}
@@ -834,8 +952,8 @@ export function JobDetailClient({
                   <button type="button" onClick={handleExportJob}>
                     Export job
                   </button>
-                  <button type="button" onClick={handleArchiveJob}>
-                    Archive job
+                  <button type="button" onClick={handleToggleJobStatus}>
+                    {job.status === "completed" ? "Reopen job" : "Mark completed"}
                   </button>
                   <button type="button" className={styles.jobMenuDanger} onClick={requestDeleteJob}>
                     Delete job
@@ -951,7 +1069,19 @@ export function JobDetailClient({
       )}
 
       {items.length === 0 ? (
-        <p className={styles.empty}>No timeline items yet.</p>
+        <div className={`${styles.mobileEmptyState} mobileOnly`}>
+          <h2>No records yet</h2>
+          <p>Add photos, notes, voice notes, or files to build a job timeline.</p>
+          {!readOnly && (
+            <button type="button" className={styles.mobileEmptyCta} onClick={() => setAddSheetOpen(true)}>
+              + Add to job
+            </button>
+          )}
+        </div>
+      ) : null}
+
+      {items.length === 0 ? (
+        <p className={`${styles.empty} desktopOnly`}>No timeline items yet.</p>
       ) : (
         <>
           <div className="desktopOnly">
@@ -981,6 +1111,9 @@ export function JobDetailClient({
                     onLongPressSelect={enterSelection}
                     onDeleteItem={(itemId) => requestDeleteItems([itemId])}
                     onEditItem={handleEditItem}
+                    onViewItem={handleViewItem}
+                    onShareItem={handleShareItem}
+                    onAnnotateItem={handleAnnotateItem}
                     readOnly={readOnly}
                   />
                 </div>
@@ -1075,19 +1208,8 @@ export function JobDetailClient({
       )}
     </PageShell>
 
-    {!readOnly && !selecting && (
-      <button
-        type="button"
-        className={`${styles.mobileAddFab} mobileOnly`}
-        onClick={() => setAddSheetOpen(true)}
-        aria-label="Add"
-      >
-        + Add
-      </button>
-    )}
-
     {selecting && !readOnly && selected.size > 0 && (
-      <div className={styles.selectionBar}>
+      <div className={`${styles.selectionBar} desktopOnly`}>
         <button type="button" className={styles.selectionCancelBtn} onClick={exitSelection} aria-label="Cancel selection">
           ×
         </button>
@@ -1140,21 +1262,32 @@ export function JobDetailClient({
     )}
 
     <MobileAddSheet
-      open={addSheetOpen}
+      open={addSheetOpen && isActiveJobRoute}
       onClose={() => setAddSheetOpen(false)}
       jobName={job.name}
       readOnly={readOnly}
       onAddNote={openMobileNoteCompose}
     />
 
-    <MobileFilterSheet
-      open={mobileFilterOpen}
+    <MobileTimelineFilterSheet
+      open={mobileFilterOpen && isActiveJobRoute}
       onClose={() => setMobileFilterOpen(false)}
-      title="Filter timeline"
-      chips={TIMELINE_KIND_CHIPS}
-      activeChipIds={kindFilter}
-      onToggleChip={(id) => toggleKind(id as ItemKind)}
-      onClear={() => setKindFilter(new Set())}
+      kindFilter={kindFilter as ReadonlySet<ItemKind>}
+      onToggleKind={(kind) => toggleKind(kind)}
+      onClearKinds={() => setKindFilter(new Set())}
+      allTags={allTags}
+      tagsInJob={tagsInJob}
+      tagFilter={tagFilter}
+      onToggleTag={toggleTag}
+      onClearTags={() => setTagFilter(new Set())}
+      dateFrom={dateFrom}
+      dateTo={dateTo}
+      onDateFromChange={setDateFrom}
+      onDateToChange={setDateTo}
+      sortOrder={timelineSort}
+      onSortOrderChange={setTimelineSort}
+      onClearAll={clearFilters}
+      hasActiveFilters={hasActiveFilters}
     />
 
     <TimelineTagFilterSheet
@@ -1165,7 +1298,7 @@ export function JobDetailClient({
       selectedTagIds={tagFilter}
       onApply={applyTagFilter}
     />
-    </>
+    </div>
   );
 }
 
@@ -1768,6 +1901,15 @@ function NoteEditModal({
         </div>
       </div>
     </div>
+  );
+}
+
+function LocationIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+      <circle cx="12" cy="10" r="3" />
+    </svg>
   );
 }
 

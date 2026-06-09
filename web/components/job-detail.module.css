@@ -25,8 +25,8 @@
 }
 
 .status_completed {
-  background: #d1fae5;
-  color: #065f46;
+  background: var(--success-soft);
+  color: var(--success);
 }
 
 .statusPicker {
@@ -713,22 +713,29 @@
 }
 
 /* Mobile job detail */
+.jobDetailRoot {
+  min-width: 0;
+}
+
+.mobileJobDetail {
+  min-width: 0;
+}
+
 .mobileDetailHeader {
   display: grid;
-  gap: 10px;
+  gap: 12px;
   margin: calc(-1 * var(--mobile-page-padding));
   margin-bottom: 0;
   padding: var(--mobile-page-padding);
-  padding-top: calc(var(--mobile-page-padding) + env(safe-area-inset-top, 0));
-  /* Reserve space for the fixed account button in the dashboard shell */
-  padding-right: calc(var(--mobile-page-padding) + 44px);
+  padding-top: calc(12px + env(safe-area-inset-top, 0));
   background: var(--bg);
 }
 
-.mobileNavRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.mobileTopRow {
+  display: grid;
+  grid-template-columns: 44px 1fr 44px;
+  align-items: start;
+  gap: 4px;
 }
 
 .mobileBack {
@@ -737,30 +744,41 @@
   place-items: center;
   width: 44px;
   height: 44px;
-  font-size: 1.25rem;
+  margin-left: -8px;
+  font-size: 1.375rem;
   color: var(--text);
 }
 
-.mobileTitleRow {
-  display: flex;
-  align-items: flex-start;
-  gap: 4px;
+.mobileDetailTitle {
+  margin: 0;
+  padding-top: 4px;
+  font-size: clamp(1.75rem, 8vw, 2.25rem);
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--text);
   min-width: 0;
 }
 
-.mobileTitleActions {
+.mobileSelectionHeader {
   display: flex;
   align-items: center;
-  flex-shrink: 0;
+  justify-content: space-between;
+  min-height: 44px;
 }
 
-.mobileDetailTitle {
-  flex: 1;
-  min-width: 0;
-  margin: 0;
-  font-size: 1.625rem;
-  font-weight: 700;
-  line-height: 1.25;
+.mobileSelectionCancel {
+  border: none;
+  background: none;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--text);
+  padding: 10px 0;
+  min-height: 44px;
+}
+
+.mobileSelectionCount {
+  font-size: 1rem;
+  font-weight: 600;
   color: var(--text);
 }
 
@@ -811,9 +829,25 @@
 }
 
 .mobileDetailLocation {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
   margin: 0;
-  font-size: 0.875rem;
+  font-size: 0.9375rem;
   color: var(--muted);
+  line-height: 1.4;
+}
+
+.mobileDetailLocation svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--muted-light);
+}
+
+.mobileDetailClient {
+  margin: -4px 0 0;
+  font-size: 0.875rem;
+  color: var(--muted-light);
   line-height: 1.4;
 }
 
@@ -862,16 +896,46 @@
   align-items: center;
   gap: 4px;
   width: fit-content;
-  padding: 5px 12px;
+  padding: 6px 14px;
   border-radius: 999px;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   font-weight: 600;
-  text-transform: capitalize;
+}
+
+.mobileEmptyState {
+  text-align: center;
+  padding: 48px 8px 120px;
+}
+
+.mobileEmptyState h2 {
+  margin: 0 0 10px;
+  font-size: 1.375rem;
+  font-weight: 700;
+}
+
+.mobileEmptyState p {
+  margin: 0 auto 24px;
+  max-width: 280px;
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.mobileEmptyCta {
+  border: none;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #111827;
+  font-weight: 700;
+  font-size: 1rem;
+  min-height: 52px;
+  padding: 14px 28px;
+  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.35);
 }
 
 .mobileAddFab {
   position: fixed;
-  bottom: calc(var(--bottom-nav-height) + 12px + env(safe-area-inset-bottom, 0));
+  bottom: calc(var(--bottom-nav-height) + 16px + env(safe-area-inset-bottom, 0));
   left: 50%;
   transform: translateX(-50%);
   z-index: 20;
@@ -880,11 +944,38 @@
   background: var(--accent);
   color: #111827;
   font-weight: 700;
-  font-size: 1rem;
-  min-height: 48px;
-  padding: 12px 24px;
-  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.4);
+  font-size: 1.0625rem;
+  min-height: 52px;
+  padding: 14px 28px;
+  box-shadow: 0 4px 20px rgba(245, 158, 11, 0.45);
   white-space: nowrap;
+}
+
+.mobileSelectionBar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 35;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px var(--mobile-page-padding) calc(12px + env(safe-area-inset-bottom, 0));
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.06);
+}
+
+.mobileSelectionBar .selectionBarActions {
+  width: 100%;
+  justify-content: space-between;
+}
+
+.mobileSelectionBar .selectionOutlineBtn,
+.mobileSelectionBar .selectionDeleteSolid {
+  flex: 1;
+  min-height: 48px;
+  text-align: center;
 }
 
 .selectBtn {
@@ -986,8 +1077,7 @@
 
 @media (max-width: 767px) {
   .detailShellSelecting {
-    /* Room for the selection bar stacked above bottom nav */
-    padding-bottom: 64px;
+    padding-bottom: 80px;
   }
 }
 

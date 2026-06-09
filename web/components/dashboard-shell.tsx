@@ -27,6 +27,7 @@ export function DashboardShell({ session, children }: Props) {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const workspace = session.workspaces[0];
   const isJobsList = pathname === "/jobs";
+  const isJobDetail = /^\/jobs\/[^/]+$/.test(pathname);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -111,7 +112,7 @@ export function DashboardShell({ session, children }: Props) {
           </div>
         </header>
 
-        {!isJobsList && (
+        {!isJobsList && !isJobDetail && (
           <div className={`${styles.mobileAccountBar} mobileOnly`}>
             <div className={styles.userMenu}>
               <button

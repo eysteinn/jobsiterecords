@@ -1,43 +1,62 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactElement } from "react";
 import type { Item, MediaFile, Tag } from "@/lib/api-jobs";
 import { formatDayHeading, formatDuration, formatFileSize, formatTime } from "@/lib/format";
 import { getPhotoMedia, itemThumbUrl } from "@/lib/photo-media";
-import { quickTagsForJob, type ItemKind } from "@/lib/search";
+import { kindLabel, type ItemKind } from "@/lib/search";
 import styles from "./mobile-timeline.module.css";
 
 type KindCounts = Record<ItemKind, number>;
 
 type SummaryChipsProps = {
+  totalCount: number;
   counts: KindCounts;
   kindFilter: ReadonlySet<ItemKind>;
-  onToggleKind: (kind: ItemKind) => void;
+  onSelectAll: () => void;
+  onSelectKind: (kind: ItemKind) => void;
 };
 
-const KIND_META: { kind: ItemKind; label: string; icon: string }[] = [
-  { kind: "photo", label: "Photos", icon: "🖼" },
-  { kind: "note", label: "Notes", icon: "📝" },
-  { kind: "voice", label: "Voice", icon: "🎙" },
-  { kind: "file", label: "Files", icon: "📄" },
+const KIND_META: { kind: ItemKind; label: string; Icon: () => ReactElement }[] = [
+  { kind: "photo", label: "Photos", Icon: PhotoChipIcon },
+  { kind: "note", label: "Notes", Icon: NoteChipIcon },
+  { kind: "voice", label: "Voice", Icon: VoiceChipIcon },
+  { kind: "file", label: "Files", Icon: FileChipIcon },
 ];
 
-export function MobileSummaryChips({ counts, kindFilter, onToggleKind }: SummaryChipsProps) {
+export function MobileSummaryChips({
+  totalCount,
+  counts,
+  kindFilter,
+  onSelectAll,
+  onSelectKind,
+}: SummaryChipsProps) {
+  const allActive = kindFilter.size === 0;
+
   return (
     <div className={styles.summaryRow} role="group" aria-label="Filter by item type">
-      {KIND_META.map(({ kind, label, icon }) => {
+      <button
+        type="button"
+        className={allActive ? styles.summaryChipActive : styles.summaryChip}
+        aria-pressed={allActive}
+        onClick={onSelectAll}
+      >
+        <AllChipIcon />
+        All {totalCount}
+      </button>
+      {KIND_META.map(({ kind, label, Icon }) => {
         const count = counts[kind];
         if (count === 0) return null;
-        const active = kindFilter.has(kind);
+        const active = kindFilter.size === 1 && kindFilter.has(kind);
         return (
           <button
             key={kind}
             type="button"
             className={active ? styles.summaryChipActive : styles.summaryChip}
             aria-pressed={active}
-            onClick={() => onToggleKind(kind)}
+            onClick={() => onSelectKind(kind)}
           >
-            <span aria-hidden>{icon}</span>
+            <Icon />
             {label} {count}
           </button>
         );
@@ -50,38 +69,28 @@ type ToolbarProps = {
   query: string;
   onQueryChange: (value: string) => void;
   onOpenFilters: () => void;
-  onOpenTagFilter: () => void;
   hasFilters: boolean;
-  hasTagFilter: boolean;
   inputRef?: React.RefObject<HTMLInputElement | null>;
-  selecting?: boolean;
-  onSelectToggle?: () => void;
-  readOnly?: boolean;
 };
 
 export function MobileTimelineToolbar({
   query,
   onQueryChange,
   onOpenFilters,
-  onOpenTagFilter,
   hasFilters,
-  hasTagFilter,
   inputRef,
-  selecting = false,
-  onSelectToggle,
-  readOnly = false,
 }: ToolbarProps) {
   return (
     <div className={styles.toolbar}>
       <div className={styles.searchWrap}>
         <span className={styles.searchIcon} aria-hidden>
-          🔍
+          <SearchIcon />
         </span>
         <input
           ref={inputRef}
           type="search"
           className={styles.searchInput}
-          placeholder="Search captions, notes, tags…"
+          placeholder="Search timeline"
           value={query}
           onChange={(e) => onQueryChange(e.target.value)}
           aria-label="Search timeline"
@@ -99,83 +108,13 @@ export function MobileTimelineToolbar({
       </div>
       <button
         type="button"
-        className={`${styles.filterBtn} ${hasTagFilter ? styles.filterBtnActive : ""}`}
-        onClick={onOpenTagFilter}
-        aria-label="Filter by tag"
-      >
-        <TagIcon />
-        {hasTagFilter && <span className={styles.filterDot} aria-hidden />}
-      </button>
-      <button
-        type="button"
-        className={`${styles.filterBtn} ${hasFilters && !hasTagFilter ? styles.filterBtnActive : ""}`}
+        className={`${styles.filterBtn} ${hasFilters ? styles.filterBtnActive : ""}`}
         onClick={onOpenFilters}
-        aria-label="Filter by type"
+        aria-label="Open filters"
       >
-        <span aria-hidden>☰</span>
-        {hasFilters && !hasTagFilter && <span className={styles.filterDot} aria-hidden />}
+        <FilterIcon />
+        {hasFilters && <span className={styles.filterDot} aria-hidden />}
       </button>
-      {!readOnly && onSelectToggle && (
-        <button
-          type="button"
-          className={selecting ? `${styles.selectBtn} ${styles.selectBtnActive}` : styles.selectBtn}
-          onClick={onSelectToggle}
-          aria-pressed={selecting}
-        >
-          {selecting ? "Cancel" : "Select"}
-        </button>
-      )}
-    </div>
-  );
-}
-
-type QuickTagRowProps = {
-  allTags: Tag[];
-  tagsInJob: ReadonlySet<string>;
-  tagFilter: ReadonlySet<string>;
-  onToggleTag: (tagId: string) => void;
-  onOpenTagFilter: () => void;
-};
-
-export function MobileQuickTagRow({
-  allTags,
-  tagsInJob,
-  tagFilter,
-  onToggleTag,
-  onOpenTagFilter,
-}: QuickTagRowProps) {
-  const quickTags = quickTagsForJob(allTags, tagsInJob);
-  const moreTagCount = Math.max(0, tagsInJob.size - quickTags.length);
-  if (quickTags.length === 0 && tagFilter.size === 0 && allTags.length === 0) return null;
-
-  return (
-    <div className={styles.quickTagRow} role="group" aria-label="Filter by tag">
-      <button
-        type="button"
-        className={`${styles.quickTagChip} ${tagFilter.size > 0 ? styles.quickTagChipActive : ""}`}
-        onClick={onOpenTagFilter}
-      >
-        {tagFilter.size === 0 ? "Tags" : `Tags (${tagFilter.size})`}
-      </button>
-      {quickTags.map((tag) => {
-        const active = tagFilter.has(tag.id);
-        return (
-          <button
-            key={tag.id}
-            type="button"
-            className={active ? styles.quickTagChipActive : styles.quickTagChip}
-            aria-pressed={active}
-            onClick={() => onToggleTag(tag.id)}
-          >
-            {tag.name}
-          </button>
-        );
-      })}
-      {moreTagCount > 0 && (
-        <button type="button" className={styles.quickTagMore} onClick={onOpenTagFilter}>
-          +{moreTagCount} more
-        </button>
-      )}
     </div>
   );
 }
@@ -194,6 +133,9 @@ type DayTimelineProps = {
   onLongPressSelect?: (itemId: string) => void;
   onDeleteItem?: (itemId: string) => void;
   onEditItem?: (itemId: string) => void;
+  onViewItem?: (itemId: string) => void;
+  onShareItem?: (itemId: string) => void;
+  onAnnotateItem?: (itemId: string) => void;
   readOnly?: boolean;
 };
 
@@ -211,6 +153,9 @@ export function MobileDayTimeline({
   onLongPressSelect,
   onDeleteItem,
   onEditItem,
+  onViewItem,
+  onShareItem,
+  onAnnotateItem,
   readOnly = false,
 }: DayTimelineProps) {
   return (
@@ -232,6 +177,9 @@ export function MobileDayTimeline({
               onLongPressSelect={onLongPressSelect}
               onDeleteItem={onDeleteItem}
               onEditItem={onEditItem}
+              onViewItem={onViewItem}
+              onShareItem={onShareItem}
+              onAnnotateItem={onAnnotateItem}
               readOnly={readOnly}
             />
           </li>
@@ -254,6 +202,9 @@ type CardProps = {
   onLongPressSelect?: (itemId: string) => void;
   onDeleteItem?: (itemId: string) => void;
   onEditItem?: (itemId: string) => void;
+  onViewItem?: (itemId: string) => void;
+  onShareItem?: (itemId: string) => void;
+  onAnnotateItem?: (itemId: string) => void;
   readOnly?: boolean;
 };
 
@@ -270,10 +221,14 @@ function MobileTimelineCard({
   onLongPressSelect,
   onDeleteItem,
   onEditItem,
+  onViewItem,
+  onShareItem,
+  onAnnotateItem,
   readOnly = false,
 }: CardProps) {
   const time = formatTime(item.captured_at);
-  const kindLabel = item.kind === "voice" ? "Voice note" : item.kind.charAt(0).toUpperCase() + item.kind.slice(1);
+  const kindShortLabel =
+    item.kind === "voice" ? "Voice" : item.kind.charAt(0).toUpperCase() + item.kind.slice(1);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const longPressRef = useRef<number | null>(null);
@@ -305,6 +260,17 @@ function MobileTimelineCard({
     }, 500);
   }
 
+  function handleCardClick() {
+    if (selecting) {
+      onToggleSelect?.(item.id);
+      return;
+    }
+    if (item.kind === "photo") {
+      const { display } = getPhotoMedia(media);
+      onOpenPhoto(item.id, display?.id);
+    }
+  }
+
   return (
     <article
       className={`${styles.card} ${selecting ? styles.cardSelecting : ""} ${isSelected ? styles.cardSelected : ""}`}
@@ -312,69 +278,111 @@ function MobileTimelineCard({
       onPointerUp={clearLongPress}
       onPointerLeave={clearLongPress}
       onPointerCancel={clearLongPress}
+      onClick={selecting ? () => onToggleSelect?.(item.id) : undefined}
     >
-      {selecting ? (
+      {selecting && (
         <input
           type="checkbox"
           className={styles.cardCheckbox}
           checked={isSelected}
           onChange={() => onToggleSelect?.(item.id)}
-          aria-label={`Select ${kindLabel}`}
+          aria-label={`Select ${kindShortLabel}`}
         />
-      ) : (
-        !readOnly &&
-        onDeleteItem && (
-          <div className={styles.cardMenuWrap} ref={menuRef}>
-            <button
-              type="button"
-              className={styles.cardMenu}
-              aria-label="More options"
-              aria-expanded={menuOpen}
-              onClick={() => setMenuOpen((open) => !open)}
-            >
-              ⋮
-            </button>
-            {menuOpen && (
-              <div className={styles.cardMenuDropdown}>
-                {onEditItem && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onEditItem(item.id);
-                      setMenuOpen(false);
-                    }}
-                  >
-                    Edit
-                  </button>
-                )}
-                <button
-                  type="button"
-                  className={styles.cardMenuDanger}
-                  onClick={() => {
-                    onDeleteItem(item.id);
-                    setMenuOpen(false);
-                  }}
-                >
-                  Delete
-                </button>
-              </div>
-            )}
-          </div>
-        )
       )}
       <div className={styles.cardBody}>
-        <div className={styles.cardMedia}>{renderMedia(item, media, onOpenPhoto)}</div>
+        <div className={styles.cardMedia}>{renderMedia(item, media, onOpenPhoto, selecting)}</div>
         <div className={styles.cardContent}>
-          <div className={styles.cardMeta}>
-            <span className={`${styles.kindBadge} ${styles[`kind_${item.kind}`]}`}>
-              <KindIcon kind={item.kind} />
-              {kindLabel}
+          <div className={styles.cardHeaderRow}>
+            <span className={`${styles.kindPill} ${styles[`kind_${item.kind}`]}`}>
+              {kindShortLabel}
             </span>
             <time dateTime={item.captured_at} className={styles.cardTime}>
               {time}
             </time>
+            {!selecting && !readOnly && onDeleteItem && (
+              <div className={styles.cardMenuWrap} ref={menuRef}>
+                <button
+                  type="button"
+                  className={styles.cardMenu}
+                  aria-label="More options"
+                  aria-expanded={menuOpen}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMenuOpen((open) => !open);
+                  }}
+                >
+                  ⋮
+                </button>
+                {menuOpen && (
+                  <div className={styles.cardMenuDropdown}>
+                    {onViewItem && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onViewItem(item.id);
+                          setMenuOpen(false);
+                        }}
+                      >
+                        View
+                      </button>
+                    )}
+                    {onEditItem && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onEditItem(item.id);
+                          setMenuOpen(false);
+                        }}
+                      >
+                        Edit
+                      </button>
+                    )}
+                    {item.kind === "photo" && onAnnotateItem && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onAnnotateItem(item.id);
+                          setMenuOpen(false);
+                        }}
+                      >
+                        Annotate
+                      </button>
+                    )}
+                    {onShareItem && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onShareItem(item.id);
+                          setMenuOpen(false);
+                        }}
+                      >
+                        Share
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className={styles.cardMenuDanger}
+                      onClick={() => {
+                        onDeleteItem(item.id);
+                        setMenuOpen(false);
+                      }}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-          {renderText(item, media)}
+          <div
+            className={styles.cardTextArea}
+            onClick={!selecting && item.kind === "photo" ? handleCardClick : undefined}
+            onKeyDown={undefined}
+            role={!selecting && item.kind === "photo" ? "button" : undefined}
+            tabIndex={!selecting && item.kind === "photo" ? 0 : undefined}
+          >
+            {renderText(item, media)}
+          </div>
           {tags.length > 0 && (
             <div className={styles.tagRow}>
               {tags.map((tag) =>
@@ -384,7 +392,10 @@ function MobileTimelineCard({
                     type="button"
                     className={`${styles.tag} ${tagFilter?.has(tag.id) ? styles.tagActive : ""}`}
                     aria-pressed={tagFilter?.has(tag.id)}
-                    onClick={() => onToggleTag(tag.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleTag(tag.id);
+                    }}
                   >
                     {tag.name}
                   </button>
@@ -402,7 +413,12 @@ function MobileTimelineCard({
   );
 }
 
-function renderMedia(item: Item, media: MediaFile[], onOpenPhoto: (id: string, mediaId?: string) => void) {
+function renderMedia(
+  item: Item,
+  media: MediaFile[],
+  onOpenPhoto: (id: string, mediaId?: string) => void,
+  selecting: boolean,
+) {
   if (item.kind === "photo") {
     const { display } = getPhotoMedia(media);
     if (!display) {
@@ -414,6 +430,7 @@ function renderMedia(item: Item, media: MediaFile[], onOpenPhoto: (id: string, m
         className={styles.photoThumb}
         onClick={() => onOpenPhoto(item.id, display.id)}
         aria-label={`Photo, ${item.caption || "no caption"}`}
+        disabled={selecting}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={itemThumbUrl(item.id, display, 192)} alt="" loading="lazy" />
@@ -493,16 +510,34 @@ function renderText(item: Item, media: MediaFile[]) {
   );
 }
 
-function KindIcon({ kind }: { kind: Item["kind"] }) {
-  if (kind === "photo") return <PhotoKindIcon />;
-  if (kind === "voice") return <VoiceKindIcon />;
-  if (kind === "note") return <NoteKindIcon />;
-  return <FileKindIcon />;
+function SearchIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <circle cx="11" cy="11" r="8" />
+      <path d="M21 21l-4.35-4.35" />
+    </svg>
+  );
 }
 
-function PhotoKindIcon() {
+function FilterIcon() {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M4 6h16M7 12h10M10 18h4" />
+    </svg>
+  );
+}
+
+function AllChipIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M4 6h16M4 12h16M4 18h16" />
+    </svg>
+  );
+}
+
+function PhotoChipIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
       <rect x="3" y="3" width="18" height="18" rx="2" />
       <circle cx="8.5" cy="8.5" r="1.5" />
       <path d="M21 15l-5-5L5 21" />
@@ -510,37 +545,28 @@ function PhotoKindIcon() {
   );
 }
 
-function VoiceKindIcon() {
+function NoteChipIcon() {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <path d="M14 2v6h6M8 13h8M8 17h5" />
+    </svg>
+  );
+}
+
+function VoiceChipIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
       <path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3z" />
     </svg>
   );
 }
 
-function NoteKindIcon() {
+function FileChipIcon() {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
       <path d="M14 2v6h6" />
-    </svg>
-  );
-}
-
-function FileKindIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-      <path d="M14 2v6h6" />
-    </svg>
-  );
-}
-
-function TagIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-      <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
-      <circle cx="7" cy="7" r="1.5" fill="currentColor" stroke="none" />
     </svg>
   );
 }
