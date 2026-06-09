@@ -1,0 +1,178 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgba(15, 23, 42, 0.4);
+  display: flex;
+  align-items: flex-end;
+}
+
+.sheet {
+  width: 100%;
+  max-height: 88vh;
+  overflow-y: auto;
+  padding: 8px var(--mobile-page-padding) calc(var(--mobile-page-padding) + env(safe-area-inset-bottom, 0));
+  background: var(--surface);
+  border-radius: 20px 20px 0 0;
+  display: grid;
+  gap: 20px;
+}
+
+.handle {
+  width: 36px;
+  height: 4px;
+  margin: 0 auto 4px;
+  border-radius: 999px;
+  background: var(--border);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.header h2 {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+
+.closeBtn {
+  width: 44px;
+  height: 44px;
+  border: none;
+  background: none;
+  font-size: 1.5rem;
+  color: var(--muted);
+  border-radius: 8px;
+}
+
+.section {
+  display: grid;
+  gap: 10px;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.chip,
+.chipActive {
+  min-height: 44px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 0.9375rem;
+  cursor: pointer;
+}
+
+.chipActive {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  font-weight: 600;
+}
+
+.sectionClear {
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 0.875rem;
+  padding: 4px 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tagSearch {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 0.9375rem;
+  background: var(--bg);
+}
+
+.emptyHint {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+.dateRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.dateField {
+  display: grid;
+  gap: 6px;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.dateField input {
+  min-height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 0.9375rem;
+  background: var(--surface);
+}
+
+.sortRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.sortBtn,
+.sortActive {
+  min-height: 48px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  font-size: 0.9375rem;
+  cursor: pointer;
+}
+
+.sortActive {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  font-weight: 600;
+}
+
+.clearAllBtn {
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 0.9375rem;
+  padding: 8px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.doneBtn {
+  min-height: 52px;
+  border: none;
+  border-radius: 999px;
+  background: var(--accent);
+  font-size: 1rem;
+  font-weight: 600;
+  color: #111827;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+}

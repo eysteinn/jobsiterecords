@@ -37,15 +37,29 @@ export function MobileAddSheet({ open, onClose, jobName, onAddNote, readOnly = f
         <p className={styles.subtitle}>Capture and store records</p>
 
         <button type="button" className={styles.option} disabled aria-disabled="true">
-          <span className={styles.optionIcon} aria-hidden>📷</span>
+          <span className={styles.optionIcon} aria-hidden>
+            <PhotoOptionIcon />
+          </span>
           <span className={styles.optionBody}>
             <strong>Photo</strong>
             <span>Upload or take a photo — use the mobile app</span>
           </span>
         </button>
 
+        <button type="button" className={styles.option} disabled aria-disabled="true">
+          <span className={styles.optionIcon} aria-hidden>
+            <VoiceOptionIcon />
+          </span>
+          <span className={styles.optionBody}>
+            <strong>Voice note</strong>
+            <span>Record on site — use the mobile app</span>
+          </span>
+        </button>
+
         <button type="button" className={styles.option} onClick={() => { onAddNote(); onClose(); }}>
-          <span className={styles.optionIcon} aria-hidden>📝</span>
+          <span className={styles.optionIcon} aria-hidden>
+            <NoteOptionIcon />
+          </span>
           <span className={styles.optionBody}>
             <strong>Text note</strong>
             <span>Write a quick note</span>
@@ -53,18 +67,12 @@ export function MobileAddSheet({ open, onClose, jobName, onAddNote, readOnly = f
         </button>
 
         <button type="button" className={styles.option} disabled aria-disabled="true">
-          <span className={styles.optionIcon} aria-hidden>📄</span>
+          <span className={styles.optionIcon} aria-hidden>
+            <FileOptionIcon />
+          </span>
           <span className={styles.optionBody}>
             <strong>File / PDF</strong>
             <span>Upload a file — coming soon on web</span>
-          </span>
-        </button>
-
-        <button type="button" className={styles.option} disabled aria-disabled="true">
-          <span className={styles.optionIcon} aria-hidden>🎙</span>
-          <span className={styles.optionBody}>
-            <strong>Voice note</strong>
-            <span>Upload or record — use the mobile app</span>
           </span>
         </button>
 
@@ -73,5 +81,42 @@ export function MobileAddSheet({ open, onClose, jobName, onAddNote, readOnly = f
         </button>
       </div>
     </div>
+  );
+}
+
+function PhotoOptionIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <circle cx="8.5" cy="8.5" r="1.5" />
+      <path d="M21 15l-5-5L5 21" />
+    </svg>
+  );
+}
+
+function VoiceOptionIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3z" />
+      <path d="M19 11v1a7 7 0 0 1-14 0v-1" />
+    </svg>
+  );
+}
+
+function NoteOptionIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <path d="M8 13h8M8 17h5" />
+    </svg>
+  );
+}
+
+function FileOptionIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <path d="M14 2v6h6" />
+    </svg>
   );
 }

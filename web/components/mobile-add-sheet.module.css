@@ -60,8 +60,11 @@
 }
 
 .optionIcon {
-  font-size: 1.5rem;
-  line-height: 1;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  color: var(--text);
 }
 
 .optionBody {

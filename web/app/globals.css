@@ -1,19 +1,24 @@
 :root {
-  --bg: #f3f4f6;
+  --bg: #f8f8f6;
   --surface: #ffffff;
   --text: #111827;
   --muted: #6b7280;
+  --muted-light: #9ca3af;
   --border: #e5e7eb;
   --accent: #f59e0b;
   --accent-hover: #d97706;
   --accent-soft: #fef3c7;
+  --success: #16a34a;
+  --success-soft: #dcfce7;
   --danger: #dc2626;
   --sidebar-width: 240px;
   --header-height: 56px;
   --bottom-nav-height: 64px;
-  --mobile-page-padding: 16px;
+  --mobile-page-padding: 20px;
+  --card-radius: 18px;
   --radius: 10px;
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --shadow-elevated: 0 4px 16px rgba(0, 0, 0, 0.08);
 }
 
 * {
@@ -69,6 +74,10 @@ button {
   .mobileOnly {
     display: none !important;
   }
+}
+
+body[data-selection-mode="true"] nav[aria-label="Main navigation"] {
+  display: none !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
