@@ -120,6 +120,7 @@ export function MobileTimelineToolbar({
 }
 
 type DayTimelineProps = {
+  variant?: "mobile" | "desktop";
   dayKey: string;
   items: Item[];
   mediaByItem: Map<string, MediaFile[]>;
@@ -140,6 +141,7 @@ type DayTimelineProps = {
 };
 
 export function MobileDayTimeline({
+  variant = "mobile",
   dayKey,
   items,
   mediaByItem,
@@ -158,13 +160,19 @@ export function MobileDayTimeline({
   onAnnotateItem,
   readOnly = false,
 }: DayTimelineProps) {
+  const sectionClass =
+    variant === "desktop" ? `${styles.daySection} ${styles.daySectionDesktop}` : styles.daySection;
+  const listClass =
+    variant === "desktop" ? `${styles.timelineList} ${styles.timelineListDesktop}` : styles.timelineList;
+
   return (
-    <section className={styles.daySection}>
+    <section className={sectionClass}>
       <h3 className={styles.dayHeading}>{formatDayHeading(dayKey)}</h3>
-      <ol className={styles.timelineList}>
+      <ol className={listClass}>
         {items.map((item) => (
           <li key={item.id} className={styles.timelineItem}>
             <MobileTimelineCard
+              variant={variant}
               item={item}
               media={mediaByItem.get(item.id) ?? []}
               tags={tagsByItem.get(item.id) ?? []}
@@ -190,6 +198,7 @@ export function MobileDayTimeline({
 }
 
 type CardProps = {
+  variant?: "mobile" | "desktop";
   item: Item;
   media: MediaFile[];
   tags: Tag[];
@@ -209,6 +218,7 @@ type CardProps = {
 };
 
 function MobileTimelineCard({
+  variant = "mobile",
   item,
   media,
   tags,
@@ -271,9 +281,18 @@ function MobileTimelineCard({
     }
   }
 
+  const cardClass = [
+    styles.card,
+    variant === "desktop" ? styles.cardDesktop : "",
+    selecting ? styles.cardSelecting : "",
+    isSelected ? styles.cardSelected : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
     <article
-      className={`${styles.card} ${selecting ? styles.cardSelecting : ""} ${isSelected ? styles.cardSelected : ""}`}
+      className={cardClass}
       onPointerDown={handlePointerDown}
       onPointerUp={clearLongPress}
       onPointerLeave={clearLongPress}
@@ -290,7 +309,9 @@ function MobileTimelineCard({
         />
       )}
       <div className={styles.cardBody}>
-        <div className={styles.cardMedia}>{renderMedia(item, media, onOpenPhoto, selecting)}</div>
+        <div className={styles.cardMedia}>
+          {renderMedia(item, media, onOpenPhoto, selecting, variant)}
+        </div>
         <div className={styles.cardContent}>
           <div className={styles.cardHeaderRow}>
             <span className={`${styles.kindPill} ${styles[`kind_${item.kind}`]}`}>
@@ -418,16 +439,19 @@ function renderMedia(
   media: MediaFile[],
   onOpenPhoto: (id: string, mediaId?: string) => void,
   selecting: boolean,
+  variant: "mobile" | "desktop" = "mobile",
 ) {
   if (item.kind === "photo") {
     const { display } = getPhotoMedia(media);
     if (!display) {
       return <div className={`${styles.mediaIcon} ${styles.kind_photo}`}>🖼</div>;
     }
+    const thumbClass =
+      variant === "desktop" ? `${styles.photoThumb} ${styles.photoThumbDesktop}` : styles.photoThumb;
     return (
       <button
         type="button"
-        className={styles.photoThumb}
+        className={thumbClass}
         onClick={() => onOpenPhoto(item.id, display.id)}
         aria-label={`Photo, ${item.caption || "no caption"}`}
         disabled={selecting}

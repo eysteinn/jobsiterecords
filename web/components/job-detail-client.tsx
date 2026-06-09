@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Item, ItemTag, Job, MediaFile, Tag } from "@/lib/api-jobs";
 import {
@@ -30,13 +30,14 @@ import { SYNC_POLL } from "@/lib/sync-poll-config";
 import { getPhotoMedia, itemThumbUrl, mediaDownloadUrl } from "@/lib/photo-media";
 import { PhotoAnnotationEditor } from "@/components/photo-annotation/photo-annotation-editor";
 import { PageShell } from "@/components/page-shell";
-import {
-  TimelineFilteredEmpty,
-  TimelineSearchPanel,
-  TimelineSectionHeader,
-} from "@/components/timeline-search-panel";
+import { TimelineFilteredEmpty } from "@/components/timeline-search-panel";
 import { TimelineTagFilterSheet } from "@/components/timeline-tag-filter-sheet";
 import { MobileAddSheet } from "@/components/mobile-add-sheet";
+import { DesktopAddMenu } from "@/components/desktop-add-menu";
+import { AddNoteModal } from "@/components/add-note-modal";
+import { ExportJobModal } from "@/components/export-job-modal";
+import { DesktopTimelineToolbar } from "@/components/desktop-timeline-toolbar";
+import { ExportIcon, LocationIcon, RefreshIcon } from "@/components/nav-icons";
 import {
   MobileTimelineFilterSheet,
   type TimelineSortOrder,
@@ -64,10 +65,6 @@ async function fetchWorkspaceTags(workspaceId: string): Promise<Tag[]> {
   if (!res.ok) return [];
   return (data.tags as Tag[] | undefined) ?? [];
 }
-
-type TimelineSegment =
-  | { type: "photos"; items: Item[] }
-  | { type: "row"; item: Item };
 
 type JobStatus = Job["status"];
 
@@ -107,6 +104,10 @@ export function JobDetailClient({
   const [lightbox, setLightbox] = useState<{ itemId: string; mediaId?: string } | null>(null);
   const [annotatingItemId, setAnnotatingItemId] = useState<string | null>(null);
   const [addSheetOpen, setAddSheetOpen] = useState(false);
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const [noteModalOpen, setNoteModalOpen] = useState(false);
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [desktopFilterOpen, setDesktopFilterOpen] = useState(false);
   const [mobileNoteOpen, setMobileNoteOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [jobMenuOpen, setJobMenuOpen] = useState(false);
@@ -116,11 +117,8 @@ export function JobDetailClient({
   const [workspaceTags, setWorkspaceTags] = useState<Tag[]>(initialTags);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
   const jobMenuRef = useRef<HTMLDivElement>(null);
+  const addMenuRef = useRef<HTMLDivElement>(null);
   const noteBodyRef = useRef<HTMLTextAreaElement>(null);
-  const searchParams = useSearchParams();
-  const [filtersExpanded, setFiltersExpanded] = useState(
-    () => searchParams.has("kind") || searchParams.has("tag"),
-  );
   const searchRef = useRef<HTMLInputElement>(null);
   const [tags, setTags] = useState(initialTags);
   const [itemTags, setItemTags] = useState(initialItemTags);
@@ -131,9 +129,6 @@ export function JobDetailClient({
     { type: "items"; itemIds: string[] } | { type: "job" } | null
   >(null);
 
-  useEffect(() => {
-    if (searchParams.has("kind") || searchParams.has("tag")) setFiltersExpanded(true);
-  }, [searchParams]);
   const [query, setQuery] = useUrlQueryParam("q");
   const { values: kindFilter, toggle: toggleKind, setValues: setKindFilter } = useUrlSetParam("kind");
   const { values: tagFilter, toggle: toggleTag, setValues: setTagFilter } = useUrlSetParam("tag");
@@ -248,6 +243,26 @@ export function JobDetailClient({
       delete document.body.dataset.selectionMode;
     };
   }, [isActiveJobRoute, selecting]);
+
+  useEffect(() => {
+    if (!selecting) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") exitSelection();
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [selecting]);
+
+  useEffect(() => {
+    if (!addMenuOpen) return;
+    function onPointerDown(event: PointerEvent) {
+      if (addMenuRef.current && !addMenuRef.current.contains(event.target as Node)) {
+        setAddMenuOpen(false);
+      }
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [addMenuOpen]);
 
   const onJobChanged = useCallback(
     async (result: { cursor: string | null }) => {
@@ -396,7 +411,6 @@ export function JobDetailClient({
     setDateFrom("");
     setDateTo("");
     setSortOrder("");
-    setFiltersExpanded(false);
   }
 
   function selectKindChip(kind: ItemKind) {
@@ -413,7 +427,6 @@ export function JobDetailClient({
 
   function applyTagFilter(next: Set<string>) {
     setTagFilter(next);
-    if (next.size > 0) setFiltersExpanded(true);
   }
 
   const activeFilterSummary = buildActiveFilterLabels(
@@ -448,6 +461,8 @@ export function JobDetailClient({
       setNoteBody("");
       setNoteCaption("");
       setNoteMessage("Saved");
+      setNoteModalOpen(false);
+      setMobileNoteOpen(false);
       router.refresh();
     } catch (err) {
       setNoteMessage(err instanceof Error ? err.message : "Could not save");
@@ -687,7 +702,18 @@ export function JobDetailClient({
   function handleExportJob() {
     setJobMenuOpen(false);
     setMobileMenuOpen(false);
+    setExportModalOpen(true);
+  }
+
+  function handleExportDownload() {
     setToast("Export is available in the mobile app");
+  }
+
+  function openDesktopNoteModal() {
+    setNoteModalOpen(true);
+    setNoteBody("");
+    setNoteCaption("");
+    setNoteMessage(null);
   }
 
   const confirmCopy = useMemo(() => {
@@ -883,91 +909,250 @@ export function JobDetailClient({
 
     <PageShell
       className={`${styles.detailShell} ${selecting ? styles.detailShellSelecting : ""}`}
-      headerClassName="desktopOnly"
+      headerClassName={`${styles.pageShellHeaderHidden} desktopOnly`}
       title={job.name}
       subtitle={subtitle || "Job timeline"}
-      action={
-        <div className={styles.headerActions}>
-          <div className={styles.statusPicker} ref={statusMenuRef}>
-            {readOnly ? (
-              <span className={`${styles.statusPill} ${styles[`status_${job.status}`]}`}>
-                {job.status.replace(/_/g, " ")}
-              </span>
-            ) : (
-              <button
-                type="button"
-                className={`${styles.statusPill} ${styles.statusPillBtn} ${styles[`status_${job.status}`]}`}
-                onClick={() => setStatusMenuOpen((open) => !open)}
-                disabled={updatingStatus}
-                aria-haspopup="listbox"
-                aria-expanded={statusMenuOpen}
-              >
-                {job.status.replace(/_/g, " ")}
-                <span className={styles.statusChevron} aria-hidden>
-                  ▾
-                </span>
-              </button>
-            )}
-            {statusMenuOpen && !readOnly && (
-              <div className={styles.statusMenu} role="listbox" aria-label="Job status">
-                {JOB_STATUSES.map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    role="option"
-                    aria-selected={job.status === option.value}
-                    className={
-                      job.status === option.value
-                        ? `${styles.statusOption} ${styles.statusOptionActive}`
-                        : styles.statusOption
-                    }
-                    onClick={() => updateJobStatus(option.value)}
-                    disabled={updatingStatus}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          <button type="button" className={styles.refreshBtn} onClick={refresh} disabled={refreshing}>
-            {refreshing ? "Refreshing…" : "Refresh"}
-          </button>
-          {!readOnly && (
-            <div className={styles.jobMenuWrap} ref={jobMenuRef}>
-              <button
-                type="button"
-                className={styles.jobMenuBtn}
-                onClick={() => setJobMenuOpen((open) => !open)}
-                aria-expanded={jobMenuOpen}
-                aria-label="Job actions"
-              >
-                ⋮
-              </button>
-              {jobMenuOpen && (
-                <div className={styles.jobMenuDropdown}>
-                  <button type="button" onClick={() => { setEditOpen(true); setJobMenuOpen(false); }}>
-                    Edit job
-                  </button>
-                  <button type="button" onClick={handleExportJob}>
-                    Export job
-                  </button>
-                  <button type="button" onClick={handleToggleJobStatus}>
-                    {job.status === "completed" ? "Reopen job" : "Mark completed"}
-                  </button>
-                  <button type="button" className={styles.jobMenuDanger} onClick={requestDeleteJob}>
-                    Delete job
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-          <Link href="/jobs" className={styles.backLink}>
-            ← All jobs
-          </Link>
-        </div>
-      }
     >
+      <header className={`${styles.desktopJobHeader} desktopOnly`}>
+        {selecting ? (
+          <div className={styles.desktopSelectionHeader}>
+            <span className={styles.desktopSelectionCount}>
+              {selected.size === 0 ? "Select items" : `${selected.size} selected`}
+            </span>
+            <div className={styles.desktopSelectionActions}>
+              <button
+                type="button"
+                className={styles.selectionOutlineBtn}
+                onClick={() => setToast("Tag assignment is available in the mobile app")}
+                disabled={selected.size === 0}
+              >
+                Tag
+              </button>
+              <button
+                type="button"
+                className={styles.selectionOutlineBtn}
+                onClick={() => {
+                  setExportModalOpen(true);
+                }}
+                disabled={selected.size === 0}
+              >
+                Export
+              </button>
+              <button
+                type="button"
+                className={styles.selectionDeleteSolid}
+                disabled={deleting || selected.size === 0}
+                onClick={() => requestDeleteItems([...selected])}
+              >
+                {deleting ? "Deleting…" : "Delete"}
+              </button>
+              <button type="button" className={styles.desktopSelectionCancel} onClick={exitSelection}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className={styles.desktopHeaderRow}>
+              <div className={styles.desktopHeaderInfo}>
+                <h1 className={styles.desktopJobTitle}>{job.name}</h1>
+                {job.address && (
+                  <p className={styles.desktopJobAddress}>
+                    <LocationIcon />
+                    {job.address}
+                  </p>
+                )}
+                {job.client_name && !job.address && (
+                  <p className={styles.desktopJobAddress}>{job.client_name}</p>
+                )}
+                <div className={styles.statusPicker} ref={statusMenuRef}>
+                  {readOnly ? (
+                    <span className={`${styles.desktopStatusPill} ${styles[`status_${job.status}`]}`}>
+                      {job.status === "completed" && <span aria-hidden>✓ </span>}
+                      {job.status === "completed"
+                        ? "Completed"
+                        : job.status === "in_progress"
+                          ? "In progress"
+                          : "Planning"}
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      className={`${styles.desktopStatusPill} ${styles.statusPillBtn} ${styles[`status_${job.status}`]}`}
+                      onClick={() => setStatusMenuOpen((open) => !open)}
+                      disabled={updatingStatus}
+                      aria-haspopup="listbox"
+                      aria-expanded={statusMenuOpen}
+                    >
+                      {job.status === "completed" && <span aria-hidden>✓ </span>}
+                      {job.status === "completed"
+                        ? "Completed"
+                        : job.status === "in_progress"
+                          ? "In progress"
+                          : "Planning"}
+                      <span className={styles.statusChevron} aria-hidden>
+                        ▾
+                      </span>
+                    </button>
+                  )}
+                  {statusMenuOpen && !readOnly && (
+                    <div className={styles.statusMenu} role="listbox" aria-label="Job status">
+                      {JOB_STATUSES.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          role="option"
+                          aria-selected={job.status === option.value}
+                          className={
+                            job.status === option.value
+                              ? `${styles.statusOption} ${styles.statusOptionActive}`
+                              : styles.statusOption
+                          }
+                          onClick={() => updateJobStatus(option.value)}
+                          disabled={updatingStatus}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className={styles.desktopHeaderActions}>
+                <button
+                  type="button"
+                  className={styles.desktopGhostBtn}
+                  onClick={refresh}
+                  disabled={refreshing}
+                >
+                  <RefreshIcon />
+                  {refreshing ? "Refreshing…" : "Refresh"}
+                </button>
+                <button type="button" className={styles.desktopGhostBtn} onClick={handleExportJob}>
+                  <ExportIcon />
+                  Export
+                </button>
+                {!readOnly && (
+                  <div className={styles.jobMenuWrap} ref={jobMenuRef}>
+                    <button
+                      type="button"
+                      className={styles.desktopGhostBtnIcon}
+                      onClick={() => setJobMenuOpen((open) => !open)}
+                      aria-expanded={jobMenuOpen}
+                      aria-label="Job actions"
+                    >
+                      ⋮
+                    </button>
+                    {jobMenuOpen && (
+                      <div className={styles.jobMenuDropdown}>
+                        <button type="button" onClick={() => { setEditOpen(true); setJobMenuOpen(false); }}>
+                          Edit job
+                        </button>
+                        <button type="button" onClick={handleExportJob}>
+                          Export job
+                        </button>
+                        <button type="button" onClick={handleToggleJobStatus}>
+                          {job.status === "completed" ? "Reopen job" : "Mark completed"}
+                        </button>
+                        <button type="button" className={styles.jobMenuDanger} onClick={requestDeleteJob}>
+                          Delete job
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {!readOnly && (
+                  <div className={styles.addToJobWrap} ref={addMenuRef}>
+                    <button
+                      type="button"
+                      className={styles.addToJobBtn}
+                      onClick={() => setAddMenuOpen((open) => !open)}
+                      aria-expanded={addMenuOpen}
+                      aria-haspopup="menu"
+                    >
+                      + Add to job
+                    </button>
+                    <DesktopAddMenu
+                      open={addMenuOpen}
+                      onClose={() => setAddMenuOpen(false)}
+                      onAddNote={openDesktopNoteModal}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {hasExtraDetails && (
+              <details className={styles.jobDetailsCollapsible}>
+                <summary>Job details</summary>
+                <dl className={styles.detailsList}>
+                  {job.job_number && (
+                    <>
+                      <dt>Job number</dt>
+                      <dd>{job.job_number}</dd>
+                    </>
+                  )}
+                  {(job.start_date || job.end_date) && (
+                    <>
+                      <dt>Dates</dt>
+                      <dd>{[job.start_date, job.end_date].filter(Boolean).join(" → ")}</dd>
+                    </>
+                  )}
+                  {job.notes && (
+                    <>
+                      <dt>Notes</dt>
+                      <dd>{job.notes}</dd>
+                    </>
+                  )}
+                </dl>
+              </details>
+            )}
+
+            {items.length > 0 && (
+              <>
+                <MobileSummaryChips
+                  totalCount={items.length}
+                  counts={kindCounts}
+                  kindFilter={kindFilter as ReadonlySet<ItemKind>}
+                  onSelectAll={() => setKindFilter(new Set())}
+                  onSelectKind={selectKindChip}
+                />
+                <DesktopTimelineToolbar
+                  query={query}
+                  onQueryChange={setQuery}
+                  onOpenFilters={() => setDesktopFilterOpen(true)}
+                  hasFilters={hasActiveFilters}
+                  selecting={selecting}
+                  onSelectToggle={() => (selecting ? exitSelection() : enterSelection())}
+                  readOnly={readOnly}
+                  inputRef={searchRef}
+                />
+                {hasActiveFilters && (
+                  <button
+                    type="button"
+                    className={styles.desktopFilterSummary}
+                    onClick={() => setDesktopFilterOpen(true)}
+                  >
+                    <span>{activeFilterSummary}</span>
+                    <span
+                      className={styles.desktopFilterSummaryClear}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        clearFilters();
+                      }}
+                      role="button"
+                      tabIndex={0}
+                      aria-label="Clear filters"
+                    >
+                      ×
+                    </span>
+                  </button>
+                )}
+              </>
+            )}
+          </>
+        )}
+      </header>
       {toast && (
         <p className={styles.toast} role="status">
           {toast}
@@ -985,65 +1170,8 @@ export function JobDetailClient({
       )}
 
       {!readOnly && (
-        <section className={`${styles.detailsCard} desktopOnly`}>
-          <h2 className={styles.detailsCardTitle}>Job details</h2>
-          {hasExtraDetails ? (
-            <dl className={styles.detailsList}>
-              {job.job_number && (
-                <>
-                  <dt>Job number</dt>
-                  <dd>{job.job_number}</dd>
-                </>
-              )}
-              {(job.start_date || job.end_date) && (
-                <>
-                  <dt>Dates</dt>
-                  <dd>{[job.start_date, job.end_date].filter(Boolean).join(" → ")}</dd>
-                </>
-              )}
-              {job.notes && (
-                <>
-                  <dt>Notes</dt>
-                  <dd>{job.notes}</dd>
-                </>
-              )}
-            </dl>
-          ) : (
-            <p className={styles.detailsEmpty}>
-              No job number, dates, or notes yet. Use the job menu (⋮) to edit and add them.
-            </p>
-          )}
-        </section>
-      )}
-
-      {items.length > 0 && (
-        <div className="desktopOnly">
-          <TimelineSearchPanel
-            query={query}
-            onQueryChange={setQuery}
-            kindFilter={kindFilter as ReadonlySet<ItemKind>}
-            onToggleKind={(kind) => toggleKind(kind)}
-            tagFilter={tagFilter}
-            onToggleTag={toggleTag}
-            onOpenTagFilter={() => setTagFilterOpen(true)}
-            allTags={allTags}
-            tagsInJob={tagsInJob}
-            expanded={filtersExpanded}
-            onExpandedChange={setFiltersExpanded}
-            onClearFilters={clearFilters}
-            shownCount={filteredItems.length}
-            totalCount={items.length}
-            inputRef={searchRef}
-            selecting={selecting}
-            onSelectToggle={() => (selecting ? exitSelection() : enterSelection())}
-            readOnly={readOnly}
-          />
-        </div>
-      )}
-
-      {!readOnly && (
       <section
-        className={mobileNoteOpen ? `${styles.compose} ${styles.composeMobileOpen}` : styles.compose}
+        className={`${mobileNoteOpen ? `${styles.compose} ${styles.composeMobileOpen}` : styles.compose} mobileOnly`}
         id="note-compose"
       >
         <h2>Add text note</h2>
@@ -1081,16 +1209,17 @@ export function JobDetailClient({
       ) : null}
 
       {items.length === 0 ? (
-        <p className={`${styles.empty} desktopOnly`}>No timeline items yet.</p>
+        <div className={`${styles.desktopEmptyState} desktopOnly`}>
+          <h2>No records yet</h2>
+          <p>Add photos, notes, voice notes, or files to build a job timeline.</p>
+          {!readOnly && (
+            <button type="button" className={styles.addToJobBtn} onClick={() => setAddMenuOpen(true)}>
+              + Add to job
+            </button>
+          )}
+        </div>
       ) : (
         <>
-          <div className="desktopOnly">
-            <TimelineSectionHeader
-              shownCount={filteredItems.length}
-              totalCount={items.length}
-              hasFilters={hasActiveFilters}
-            />
-          </div>
           {filteredItems.length === 0 ? (
             <TimelineFilteredEmpty onClear={clearFilters} />
           ) : (
@@ -1098,6 +1227,7 @@ export function JobDetailClient({
               <div key={dayKey}>
                 <div className="mobileOnly">
                   <MobileDayTimeline
+                    variant="mobile"
                     dayKey={dayKey}
                     items={dayItems}
                     mediaByItem={mediaByItem}
@@ -1117,48 +1247,27 @@ export function JobDetailClient({
                     readOnly={readOnly}
                   />
                 </div>
-                <section className={`${styles.dayGroup} desktopOnly`}>
-                  <h3>{formatDate(`${dayKey}T12:00:00.000Z`)}</h3>
-                  <div className={styles.dayContent}>
-                    {segmentDayItems(dayItems).map((seg, i) =>
-                      seg.type === "photos" ? (
-                        <PhotoGrid
-                          key={`g-${dayKey}-${i}`}
-                          items={seg.items}
-                          mediaByItem={mediaByItem}
-                          tagsByItem={tagsByItem}
-                          tagFilter={tagFilter}
-                          onOpen={openPhoto}
-                          onToggleTag={toggleTag}
-                          selecting={selecting}
-                          selected={selected}
-                          onToggleSelect={toggleSelected}
-                          onEditItem={handleEditItem}
-                          onDeleteItem={(itemId) => requestDeleteItems([itemId])}
-                          readOnly={readOnly}
-                        />
-                      ) : (
-                        <ul key={`r-${seg.item.id}`} className={styles.timelineRows}>
-                          <li>
-                            <TimelineRow
-                              item={seg.item}
-                              media={mediaByItem.get(seg.item.id) ?? []}
-                              tags={tagsByItem.get(seg.item.id) ?? []}
-                              tagFilter={tagFilter}
-                              onToggleTag={toggleTag}
-                              selecting={selecting}
-                              selected={selected.has(seg.item.id)}
-                              onToggleSelect={() => toggleSelected(seg.item.id)}
-                              onEdit={() => handleEditItem(seg.item.id)}
-                              onDelete={() => requestDeleteItems([seg.item.id])}
-                              readOnly={readOnly}
-                            />
-                          </li>
-                        </ul>
-                      ),
-                    )}
-                  </div>
-                </section>
+                <div className="desktopOnly">
+                  <MobileDayTimeline
+                    variant="desktop"
+                    dayKey={dayKey}
+                    items={dayItems}
+                    mediaByItem={mediaByItem}
+                    tagsByItem={tagsByItem}
+                    onOpenPhoto={openPhoto}
+                    onToggleTag={toggleTag}
+                    tagFilter={tagFilter}
+                    selecting={selecting}
+                    selected={selected}
+                    onToggleSelect={toggleSelected}
+                    onDeleteItem={(itemId) => requestDeleteItems([itemId])}
+                    onEditItem={handleEditItem}
+                    onViewItem={handleViewItem}
+                    onShareItem={handleShareItem}
+                    onAnnotateItem={handleAnnotateItem}
+                    readOnly={readOnly}
+                  />
+                </div>
               </div>
             ))
           )}
@@ -1208,40 +1317,6 @@ export function JobDetailClient({
       )}
     </PageShell>
 
-    {selecting && !readOnly && selected.size > 0 && (
-      <div className={`${styles.selectionBar} desktopOnly`}>
-        <button type="button" className={styles.selectionCancelBtn} onClick={exitSelection} aria-label="Cancel selection">
-          ×
-        </button>
-        <span className={styles.selectionBarCount}>
-          {selected.size} item{selected.size === 1 ? "" : "s"} selected
-        </span>
-        <div className={styles.selectionBarActions}>
-          <button
-            type="button"
-            className={styles.selectionOutlineBtn}
-            onClick={() => setToast("Download is available in the mobile app")}
-          >
-            Download
-          </button>
-          <button
-            type="button"
-            className={styles.selectionOutlineBtn}
-            onClick={() => setToast("Export is available in the mobile app")}
-          >
-            Export
-          </button>
-          <button
-            type="button"
-            className={styles.selectionDeleteSolid}
-            disabled={deleting}
-            onClick={() => requestDeleteItems([...selected])}
-          >
-            {deleting ? "Deleting…" : "Delete"}
-          </button>
-        </div>
-      </div>
-    )}
 
     <ConfirmDialog
       open={confirmAction != null && confirmCopy != null}
@@ -1269,9 +1344,33 @@ export function JobDetailClient({
       onAddNote={openMobileNoteCompose}
     />
 
+    <AddNoteModal
+      open={noteModalOpen}
+      onClose={() => setNoteModalOpen(false)}
+      caption={noteCaption}
+      body={noteBody}
+      onCaptionChange={setNoteCaption}
+      onBodyChange={setNoteBody}
+      onSave={addNote}
+      saving={saving}
+      error={noteMessage && noteMessage !== "Saved" ? noteMessage : null}
+    />
+
+    <ExportJobModal
+      open={exportModalOpen}
+      onClose={() => setExportModalOpen(false)}
+      jobName={job.name}
+      items={items}
+      initialSelectedIds={selecting && selected.size > 0 ? selected : undefined}
+      onExport={handleExportDownload}
+    />
+
     <MobileTimelineFilterSheet
-      open={mobileFilterOpen && isActiveJobRoute}
-      onClose={() => setMobileFilterOpen(false)}
+      open={(mobileFilterOpen || desktopFilterOpen) && isActiveJobRoute}
+      onClose={() => {
+        setMobileFilterOpen(false);
+        setDesktopFilterOpen(false);
+      }}
       kindFilter={kindFilter as ReadonlySet<ItemKind>}
       onToggleKind={(kind) => toggleKind(kind)}
       onClearKinds={() => setKindFilter(new Set())}
@@ -1304,281 +1403,6 @@ export function JobDetailClient({
 
 function jobCursorValue(lastActivityAt: string, updatedAt: string): string {
   return new Date(updatedAt) > new Date(lastActivityAt) ? updatedAt : lastActivityAt;
-}
-
-function PhotoGrid({
-  items,
-  mediaByItem,
-  tagsByItem,
-  tagFilter,
-  onOpen,
-  onToggleTag,
-  selecting = false,
-  selected,
-  onToggleSelect,
-  onEditItem,
-  onDeleteItem,
-  readOnly = false,
-}: {
-  items: Item[];
-  mediaByItem: Map<string, MediaFile[]>;
-  tagsByItem: Map<string, Tag[]>;
-  tagFilter: ReadonlySet<string>;
-  onOpen: (itemId: string, mediaId?: string) => void;
-  onToggleTag: (tagId: string) => void;
-  selecting?: boolean;
-  selected?: Set<string>;
-  onToggleSelect?: (itemId: string) => void;
-  onEditItem?: (itemId: string) => void;
-  onDeleteItem?: (itemId: string) => void;
-  readOnly?: boolean;
-}) {
-  return (
-    <div className={styles.photoGrid} role="group" aria-label="Photos">
-      {items.map((item) => (
-        <PhotoCell
-          key={item.id}
-          item={item}
-          media={mediaByItem.get(item.id) ?? []}
-          tags={tagsByItem.get(item.id) ?? []}
-          tagFilter={tagFilter}
-          onOpen={onOpen}
-          onToggleTag={onToggleTag}
-          selecting={selecting}
-          isSelected={selected?.has(item.id) ?? false}
-          onToggleSelect={onToggleSelect}
-          onEdit={onEditItem ? () => onEditItem(item.id) : undefined}
-          onDelete={onDeleteItem ? () => onDeleteItem(item.id) : undefined}
-          readOnly={readOnly}
-        />
-      ))}
-    </div>
-  );
-}
-
-function TagRow({
-  tags,
-  tagFilter,
-  onToggleTag,
-}: {
-  tags: Tag[];
-  tagFilter: ReadonlySet<string>;
-  onToggleTag: (tagId: string) => void;
-}) {
-  if (tags.length === 0) return null;
-  return (
-    <div className={styles.itemTagRow}>
-      {tags.map((tag) => (
-        <button
-          key={tag.id}
-          type="button"
-          className={`${styles.itemTag} ${tagFilter.has(tag.id) ? styles.itemTagActive : ""}`}
-          aria-pressed={tagFilter.has(tag.id)}
-          onClick={() => onToggleTag(tag.id)}
-        >
-          {tag.name}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function PhotoCell({
-  item,
-  media,
-  tags,
-  tagFilter,
-  onOpen,
-  onToggleTag,
-  selecting = false,
-  isSelected = false,
-  onToggleSelect,
-  onEdit,
-  onDelete,
-  readOnly = false,
-}: {
-  item: Item;
-  media: MediaFile[];
-  tags: Tag[];
-  tagFilter: ReadonlySet<string>;
-  onOpen: (itemId: string, mediaId?: string) => void;
-  onToggleTag: (tagId: string) => void;
-  selecting?: boolean;
-  isSelected?: boolean;
-  onToggleSelect?: (itemId: string) => void;
-  onEdit?: () => void;
-  onDelete?: () => void;
-  readOnly?: boolean;
-}) {
-  const { display, hasAnnotations } = getPhotoMedia(media);
-  const time = formatTime(item.captured_at);
-  const label = `Photo, ${time}, ${item.caption || "no caption"}${hasAnnotations ? ", annotated" : ""}`;
-
-  if (!display) {
-    return (
-      <div className={styles.photoCellPending} aria-label={`${label}, uploading`}>
-        Uploading…
-      </div>
-    );
-  }
-
-  return (
-    <div
-      className={`${styles.photoCellWrap} ${selecting ? styles.photoCellWrapSelecting : ""} ${
-        isSelected ? styles.photoCellSelected : ""
-      }`}
-    >
-      <button
-        type="button"
-        className={styles.photoCell}
-        onClick={() => onOpen(item.id, display.id)}
-        aria-label={label}
-      >
-        <span className={styles.photoThumbWrap}>
-          <span className={styles.photoThumbClip}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              key={display.updated_at}
-              src={itemThumbUrl(item.id, display, 384)}
-              alt=""
-              className={styles.photoThumb}
-              loading="lazy"
-            />
-            {hasAnnotations && (
-              <span className={styles.photoAnnotatedBadge} aria-hidden>
-                ✎
-              </span>
-            )}
-            <span className={styles.photoTime}>{time}</span>
-          </span>
-          {selecting ? (
-            <input
-              type="checkbox"
-              className={styles.photoThumbCheckbox}
-              checked={isSelected}
-              onChange={() => onToggleSelect?.(item.id)}
-              onClick={(e) => e.stopPropagation()}
-              aria-label={`Select photo ${time}`}
-            />
-          ) : (
-            !readOnly &&
-            onDelete && (
-              <ItemActionsMenu
-                overlay
-                className={styles.photoThumbMenu}
-                onEdit={onEdit}
-                onDelete={onDelete}
-              />
-            )
-          )}
-        </span>
-        <p className={item.caption ? styles.photoCaption : `${styles.photoCaption} ${styles.photoCaptionEmpty}`}>
-          {item.caption || "No caption"}
-        </p>
-      </button>
-      <TagRow tags={tags} tagFilter={tagFilter} onToggleTag={onToggleTag} />
-    </div>
-  );
-}
-
-function TimelineRow({
-  item,
-  media,
-  tags,
-  tagFilter,
-  onToggleTag,
-  selecting = false,
-  selected = false,
-  onToggleSelect,
-  onEdit,
-  onDelete,
-  readOnly = false,
-}: {
-  item: Item;
-  media: MediaFile[];
-  tags: Tag[];
-  tagFilter: ReadonlySet<string>;
-  onToggleTag: (tagId: string) => void;
-  selecting?: boolean;
-  selected?: boolean;
-  onToggleSelect?: () => void;
-  onEdit?: () => void;
-  onDelete?: () => void;
-  readOnly?: boolean;
-}) {
-  const preview =
-    item.kind === "note"
-      ? item.body
-      : item.kind === "voice"
-        ? item.caption
-        : null;
-
-  return (
-    <article
-      className={`${styles.timelineRow} ${selecting ? styles.timelineRowSelecting : ""} ${
-        selected ? styles.timelineRowSelected : ""
-      }`}
-    >
-      <div className={styles.timelineRowMain}>
-        {selecting && (
-          <input
-            type="checkbox"
-            className={styles.selectCheckbox}
-            checked={selected}
-            onChange={onToggleSelect}
-            aria-label={`Select ${item.kind}`}
-          />
-        )}
-        <div className={styles.timelineRowIcon} aria-hidden>
-          {item.kind === "voice" && <VoiceIcon />}
-          {item.kind === "note" && <NoteIcon />}
-          {item.kind === "file" && <FileIcon />}
-        </div>
-        <div className={styles.timelineRowBody}>
-          <div className={styles.timelineRowMeta}>
-            <time dateTime={item.captured_at}>{formatTime(item.captured_at)}</time>
-            <span className={styles.kind}>{item.kind}</span>
-          </div>
-          {item.kind === "note" && item.body && <p className={styles.body}>{item.body}</p>}
-          {preview && item.kind === "voice" && <p className={styles.rowPreview}>{preview}</p>}
-          <RowMedia item={item} media={media} />
-          <TagRow tags={tags} tagFilter={tagFilter} onToggleTag={onToggleTag} />
-        </div>
-        {!readOnly && !selecting && onDelete && (
-          <ItemActionsMenu className={styles.timelineRowMenu} onEdit={onEdit} onDelete={onDelete} />
-        )}
-      </div>
-    </article>
-  );
-}
-
-function RowMedia({ item, media }: { item: Item; media: MediaFile[] }) {
-  if (item.kind === "voice") {
-    const voice = media.find((m) => m.role === "voice_note") ?? media[0];
-    if (!voice) {
-      return <p className={styles.mediaPending}>Voice note pending upload…</p>;
-    }
-    return (
-      <audio controls preload="none" className={styles.audio} src={`/api/media/${voice.id}/download?inline=1`}>
-        <track kind="captions" />
-      </audio>
-    );
-  }
-
-  if (item.kind === "file") {
-    const file = media.find((m) => m.role === "file") ?? media[0];
-    if (!file) {
-      return <p className={styles.mediaPending}>File pending upload…</p>;
-    }
-    const label = file.original_filename || "Download file";
-    return (
-      <a className={styles.fileLink} href={`/api/media/${file.id}/download`}>
-        ↓ {label}
-      </a>
-    );
-  }
-
-  return null;
 }
 
 function PhotoLightbox({
@@ -1902,65 +1726,6 @@ function NoteEditModal({
       </div>
     </div>
   );
-}
-
-function LocationIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-      <circle cx="12" cy="10" r="3" />
-    </svg>
-  );
-}
-
-function VoiceIcon() {
-  return (
-    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
-      <path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3z" />
-      <path d="M19 11v1a7 7 0 0 1-14 0v-1M12 18v3" />
-    </svg>
-  );
-}
-
-function NoteIcon() {
-  return (
-    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-      <path d="M14 2v6h6M8 13h8M8 17h5" />
-    </svg>
-  );
-}
-
-function FileIcon() {
-  return (
-    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-      <path d="M14 2v6h6" />
-    </svg>
-  );
-}
-
-function segmentDayItems(dayItems: Item[]): TimelineSegment[] {
-  const segments: TimelineSegment[] = [];
-  let photoBatch: Item[] = [];
-
-  const flush = () => {
-    if (photoBatch.length > 0) {
-      segments.push({ type: "photos", items: photoBatch });
-      photoBatch = [];
-    }
-  };
-
-  for (const item of dayItems) {
-    if (item.kind === "photo") {
-      photoBatch.push(item);
-    } else {
-      flush();
-      segments.push({ type: "row", item });
-    }
-  }
-  flush();
-  return segments;
 }
 
 function photoItemsInJob(items: Item[]): Item[] {

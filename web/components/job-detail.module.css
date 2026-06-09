@@ -1263,3 +1263,219 @@
     color: var(--text);
   }
 }
+
+/* Desktop job detail */
+.pageShellHeaderHidden {
+  display: none !important;
+}
+
+.detailShell {
+  display: grid;
+  gap: 0;
+}
+
+.desktopJobHeader {
+  display: grid;
+  gap: 20px;
+  margin-bottom: 8px;
+}
+
+.desktopHeaderRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.desktopHeaderInfo {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.desktopJobTitle {
+  margin: 0;
+  font-size: clamp(2rem, 3vw, 2.5rem);
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--text);
+}
+
+.desktopJobAddress {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 0.9375rem;
+  color: var(--muted);
+}
+
+.desktopStatusPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.desktopHeaderActions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.desktopGhostBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 14px;
+  background: var(--surface);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.desktopGhostBtn:hover {
+  background: #f9fafb;
+  border-color: #d1d5db;
+}
+
+.desktopGhostBtn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.desktopGhostBtnIcon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  font-size: 1.125rem;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.desktopGhostBtnIcon:hover {
+  background: #f9fafb;
+}
+
+.addToJobWrap {
+  position: relative;
+}
+
+.addToJobBtn {
+  border: none;
+  border-radius: 12px;
+  padding: 12px 20px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.addToJobBtn:hover {
+  background: var(--accent-hover);
+}
+
+.jobDetailsCollapsible {
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+.jobDetailsCollapsible summary {
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--muted);
+  padding: 4px 0;
+}
+
+.jobDetailsCollapsible .detailsList {
+  margin-top: 8px;
+}
+
+.desktopFilterSummary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 8px 14px;
+  background: var(--accent-soft);
+  font-size: 0.8125rem;
+  color: #92400e;
+  cursor: pointer;
+  width: fit-content;
+}
+
+.desktopFilterSummaryClear {
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+.desktopEmptyState {
+  text-align: center;
+  padding: 64px 24px;
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: var(--card-radius);
+}
+
+.desktopEmptyState h2 {
+  margin: 0 0 8px;
+  font-size: 1.375rem;
+}
+
+.desktopEmptyState p {
+  margin: 0 0 24px;
+  color: var(--muted);
+}
+
+.desktopSelectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 0;
+}
+
+.desktopSelectionCount {
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.desktopSelectionActions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.desktopSelectionCancel {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 16px;
+  background: var(--surface);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+@media (min-width: 768px) {
+  .detailShellSelecting {
+    padding-bottom: 24px;
+  }
+}

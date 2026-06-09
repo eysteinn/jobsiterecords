@@ -11,8 +11,9 @@
   --success: #16a34a;
   --success-soft: #dcfce7;
   --danger: #dc2626;
-  --sidebar-width: 240px;
-  --header-height: 56px;
+  --sidebar-width: 248px;
+  --sidebar-collapsed-width: 64px;
+  --header-height: 68px;
   --bottom-nav-height: 64px;
   --mobile-page-padding: 20px;
   --card-radius: 18px;
