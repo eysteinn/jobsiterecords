@@ -11,7 +11,7 @@
 .sidebar {
   background: var(--bg);
   border-right: 1px solid var(--border);
-  padding: 16px 12px;
+  padding: 12px 10px;
   display: flex;
   flex-direction: column;
   min-height: 100vh;
@@ -20,73 +20,77 @@
 .sidebarBrand {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 10px 24px;
+  gap: 8px;
+  padding: 4px 8px 14px;
   font-weight: 700;
-  font-size: 0.9375rem;
+  font-size: 0.875rem;
   white-space: nowrap;
   overflow: hidden;
 }
 
 .logoMark {
-  width: 32px;
-  height: 32px;
+  width: 26px;
+  height: 26px;
   flex-shrink: 0;
-  border-radius: 8px;
+  border-radius: 7px;
   background: linear-gradient(135deg, #fbbf24, #f59e0b);
 }
 
 .nav {
   display: grid;
-  gap: 4px;
+  gap: 2px;
   flex: 1;
+  align-content: start;
 }
 
 .navItem,
 .navActive {
   display: flex;
   align-items: center;
-  gap: 12px;
-  min-height: 48px;
-  padding: 0 14px;
-  border-radius: 10px;
-  font-size: 0.9375rem;
+  gap: 10px;
+  min-height: 40px;
+  padding: 0 10px;
+  border-radius: 8px;
+  font-size: 0.875rem;
   color: var(--text);
 }
 
 .navItem:hover {
-  background: rgba(0, 0, 0, 0.03);
+  background: rgba(0, 0, 0, 0.04);
 }
 
 .navActive {
-  background: var(--accent-soft);
-  border-left: 3px solid var(--accent);
-  padding-left: 11px;
+  background: #fff7e6;
+  box-shadow: inset 3px 0 0 var(--accent);
   font-weight: 600;
 }
 
 .shellCollapsed .navActive {
-  border-left: none;
-  padding-left: 14px;
+  box-shadow: none;
+  background: var(--accent-soft);
 }
 
 .shellCollapsed .navItem,
 .shellCollapsed .navActive {
   justify-content: center;
+  width: 44px;
+  height: 40px;
+  min-height: 40px;
   padding: 0;
+  margin: 0 auto;
 }
 
 .collapseBtn {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   margin-top: auto;
-  padding: 12px 14px;
+  padding: 8px 10px;
   border: none;
-  border-radius: 10px;
+  border-radius: 8px;
   background: transparent;
   font: inherit;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   color: var(--muted);
   cursor: pointer;
 }
