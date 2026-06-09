@@ -26,7 +26,6 @@ import {
 import { buildJobPutPayload } from "@/lib/job-form";
 import { fetchJobDelta, mergeJobBundle, pollJobCursor } from "@/lib/sync-cursor";
 import { JobFormDrawer } from "@/components/job-form-drawer";
-import { JobSettingsButton } from "@/components/job-settings-button";
 import { SYNC_POLL } from "@/lib/sync-poll-config";
 import { getPhotoMedia, itemThumbUrl, mediaDownloadUrl } from "@/lib/photo-media";
 import { PhotoAnnotationEditor } from "@/components/photo-annotation/photo-annotation-editor";
@@ -699,7 +698,6 @@ export function JobDetailClient({
                 </div>
               )}
             </div>
-            <JobSettingsButton onClick={() => setEditOpen(true)} />
           </div>
         )}
       </div>
@@ -769,9 +767,6 @@ export function JobDetailClient({
       className={`${styles.detailShell} ${selecting && selected.size > 0 ? styles.detailShellSelecting : ""}`}
       headerClassName="desktopOnly"
       title={job.name}
-      titleAccessory={
-        !readOnly ? <JobSettingsButton onClick={() => setEditOpen(true)} /> : undefined
-      }
       subtitle={subtitle || "Job timeline"}
       action={
         <div className={styles.headerActions}>
@@ -897,7 +892,7 @@ export function JobDetailClient({
             </dl>
           ) : (
             <p className={styles.detailsEmpty}>
-              No job number, dates, or notes yet. Use the settings icon next to the job name to add them.
+              No job number, dates, or notes yet. Use the job menu (⋮) to edit and add them.
             </p>
           )}
         </section>
