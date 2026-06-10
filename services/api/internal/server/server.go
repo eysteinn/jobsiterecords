@@ -51,6 +51,7 @@ func New(cfg config.Config, pool *pgxpool.Pool) (*Server, error) {
 
 	authH := handlers.NewAuthHandler(cfg, authSvc, wsSvc, mail, limiter)
 	wsH := handlers.NewWorkspaceHandler(wsSvc)
+	teamH := handlers.NewTeamHandler(cfg, wsSvc, mail)
 	jobsSvc := jobs.NewService(pool)
 	jobsH := handlers.NewJobsHandler(jobsSvc)
 	mediaH := handlers.NewMediaHandler(jobsSvc, store)
@@ -74,6 +75,8 @@ func New(cfg config.Config, pool *pgxpool.Pool) (*Server, error) {
 	})
 
 	r.Route("/api/v1", func(api chi.Router) {
+		api.Get("/invites/preview", teamH.PreviewInvite)
+
 		api.Route("/auth", func(auth chi.Router) {
 			auth.Post("/signup", authH.SignUp)
 			auth.Post("/login", authH.Login)
@@ -96,6 +99,12 @@ func New(cfg config.Config, pool *pgxpool.Pool) (*Server, error) {
 			protected.Use(authmw.RequireAuth(cfg.JWTSecret))
 			protected.Get("/workspaces", wsH.List)
 			protected.Post("/workspaces/{workspaceID}/leave", wsH.Leave)
+			protected.Get("/workspaces/{workspaceID}/team", teamH.GetTeam)
+			protected.Post("/workspaces/{workspaceID}/invites", teamH.CreateInvite)
+			protected.Post("/workspaces/{workspaceID}/invites/{inviteID}/resend", teamH.ResendInvite)
+			protected.Delete("/workspaces/{workspaceID}/invites/{inviteID}", teamH.RevokeInvite)
+			protected.Delete("/workspaces/{workspaceID}/members/{memberUserID}", teamH.RemoveMember)
+			protected.Post("/invites/accept", teamH.AcceptInvite)
 			protected.Get("/workspaces/{workspaceID}/jobs", jobsH.ListWorkspaceJobs)
 			protected.Get("/workspaces/{workspaceID}/tags", jobsH.ListWorkspaceTags)
 			protected.Put("/workspaces/{workspaceID}/tags/{tagID}", jobsH.UpsertTag)

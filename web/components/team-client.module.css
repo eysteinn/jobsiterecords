@@ -1,0 +1,231 @@
+.primary {
+  border: none;
+  border-radius: 8px;
+  padding: 10px 14px;
+  background: var(--accent);
+  color: #111827;
+  font-weight: 600;
+}
+
+.primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.secondary {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: var(--surface);
+  color: #111827;
+  font-weight: 500;
+}
+
+.secondary:disabled {
+  opacity: 0.6;
+}
+
+.limitNote {
+  margin: 0 0 16px;
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+
+.limitNote a {
+  color: inherit;
+  text-decoration: underline;
+}
+
+.tableWrap {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9375rem;
+  vertical-align: middle;
+}
+
+.table th {
+  background: #fafafa;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.inviteRow td {
+  background: #fafafa;
+}
+
+.person {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  color: #374151;
+  display: grid;
+  place-items: center;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.personText {
+  min-width: 0;
+}
+
+.personText strong {
+  display: block;
+  font-weight: 600;
+}
+
+.personText span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.875rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pill {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: capitalize;
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.pillOwner {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.pillPending {
+  background: #eef2ff;
+  color: #4338ca;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.inviteForm {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.inviteForm input {
+  min-width: 220px;
+  flex: 1;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font: inherit;
+}
+
+.error {
+  margin: 0 0 12px;
+  color: #b91c1c;
+  font-size: 0.9375rem;
+}
+
+.devLink {
+  margin: 0 0 12px;
+  font-size: 0.875rem;
+  color: var(--muted);
+  word-break: break-all;
+}
+
+.devLink a {
+  color: inherit;
+}
+
+.menuWrap {
+  position: relative;
+}
+
+.menuBtn {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1.125rem;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+}
+
+.menuBtn:hover {
+  background: #f3f4f6;
+}
+
+.menu {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 5;
+  min-width: 140px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  padding: 4px;
+}
+
+.menu button {
+  display: block;
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font: inherit;
+}
+
+.menu button:hover {
+  background: #f9fafb;
+}
+
+.menu button.danger {
+  color: #b91c1c;
+}
+
+@media (max-width: 767px) {
+  .inviteForm {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .inviteForm input {
+    min-width: 0;
+  }
+
+  .actions {
+    justify-content: flex-start;
+  }
+}

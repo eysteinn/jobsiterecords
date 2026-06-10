@@ -16,10 +16,10 @@ import {
 } from "./nav-icons";
 import styles from "./dashboard-shell.module.css";
 
-const nav = [
+const baseNav = [
   { href: "/jobs", label: "Jobs", Icon: JobsNavIcon },
   { href: "/reports", label: "Reports", Icon: ReportsNavIcon },
-  { href: "/team", label: "Team", Icon: TeamNavIcon },
+  { href: "/team", label: "Team", Icon: TeamNavIcon, ownerOnly: true },
   { href: "/settings", label: "Settings", Icon: SettingsNavIcon },
 ];
 
@@ -44,6 +44,7 @@ export function DashboardShell({ session, children }: Props) {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const workspace = session.workspaces[0];
+  const nav = baseNav.filter((item) => !item.ownerOnly || workspace?.role === "owner");
   const isJobsList = pathname === "/jobs";
   const isJobDetail = /^\/jobs\/[^/]+$/.test(pathname);
   const userInitials = initialsFromEmail(session.user.email);
@@ -190,7 +191,7 @@ export function DashboardShell({ session, children }: Props) {
         <main className={styles.content}>{children}</main>
       </div>
 
-      <MobileBottomNav />
+      <MobileBottomNav session={session} />
 
       <CommandPalette
         open={paletteOpen}

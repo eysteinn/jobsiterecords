@@ -25,6 +25,16 @@ func (s *Sender) SendPasswordReset(to, link string) error {
 	return s.send(to, subject, body, link)
 }
 
+func (s *Sender) SendWorkspaceInvite(to, workspaceName, link string) error {
+	subject := fmt.Sprintf("You're invited to %s on Job Site Records", workspaceName)
+	body := fmt.Sprintf(
+		"You've been invited to join %s on Job Site Records.\n\nAccept the invite:\n\n%s\n\nThis link expires in 7 days.",
+		workspaceName,
+		link,
+	)
+	return s.send(to, subject, body, link)
+}
+
 func (s *Sender) send(to, subject, body, link string) error {
 	if s.devLog {
 		log.Printf("[email] to=%s subject=%q link=%s", to, subject, link)
