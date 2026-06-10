@@ -55,7 +55,7 @@ git pull
 docker compose -f docker-compose.deploy.yml --env-file .env.deploy up -d --build
 ```
 
-If you change `NEXT_PUBLIC_API_URL`, rebuild the **web** image (`--build`).
+If you change `NEXT_PUBLIC_API_URL` or `NEXT_PUBLIC_GOOGLE_MAPS`, rebuild the **web** image (`--build`).
 
 ## Local dev
 

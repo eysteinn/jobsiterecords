@@ -110,6 +110,7 @@ services:
       dockerfile: Dockerfile.deploy
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+        NEXT_PUBLIC_GOOGLE_MAPS: ${NEXT_PUBLIC_GOOGLE_MAPS:-}
     restart: unless-stopped
     environment:
       API_INTERNAL_URL: http://api:8080
