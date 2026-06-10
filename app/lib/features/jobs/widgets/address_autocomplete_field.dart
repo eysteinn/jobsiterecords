@@ -7,6 +7,7 @@ import 'package:flutter_google_places_sdk/flutter_google_places_sdk.dart';
 import '../../../app/theme.dart';
 import '../../../core/device_location.dart';
 import '../../../core/google_maps_config.dart';
+import '../../../core/selected_address.dart';
 
 const _addressPlaceTypes = {
   PlaceType.STREET_ADDRESS,
@@ -343,7 +344,9 @@ class _AddressAutocompleteFieldState extends State<AddressAutocompleteField> {
           fields: const [PlaceField.FormattedAddress],
         );
         final formatted = details.place?.address;
-        if (formatted != null && formatted.isNotEmpty) address = formatted;
+        if (formatted != null && formatted.isNotEmpty) {
+          address = resolveSelectedAddress(suggestion.line, formatted);
+        }
       } catch (_) {}
     }
 
@@ -360,7 +363,7 @@ class _AddressAutocompleteFieldState extends State<AddressAutocompleteField> {
       );
       final formatted = details.place?.address;
       if (formatted != null && formatted.isNotEmpty) {
-        address = formatted;
+        address = resolveSelectedAddress(prediction.fullText, formatted);
       }
     } catch (_) {}
 

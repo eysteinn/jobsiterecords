@@ -218,6 +218,39 @@ export async function fetchAddressSuggestions(
   return rankSuggestions(mapped, query);
 }
 
+export function resolveSelectedAddress(
+  predictionText: string,
+  formattedAddress: string | null | undefined,
+): string {
+  const fallback = predictionText.trim();
+  const formatted = formattedAddress?.trim();
+  if (!formatted) return fallback;
+
+  const predictionStreet = streetLine(fallback);
+  const formattedStreet = streetLine(formatted);
+  if (!predictionStreet || !formattedStreet) return formatted;
+
+  if (streetLineIsMoreSpecific(predictionStreet, formattedStreet)) {
+    return fallback;
+  }
+
+  return formatted;
+}
+
+function streetLine(address: string): string {
+  return address.split(",")[0]?.trim() ?? "";
+}
+
+function streetLineIsMoreSpecific(specific: string, general: string): boolean {
+  const normalizedSpecific = specific.toLowerCase().replace(/\s+/g, "");
+  const normalizedGeneral = general.toLowerCase().replace(/\s+/g, "");
+  if (normalizedSpecific === normalizedGeneral) return false;
+  return (
+    normalizedSpecific.startsWith(normalizedGeneral) &&
+    normalizedSpecific.length > normalizedGeneral.length
+  );
+}
+
 export async function fetchFormattedAddress(
   suggestion: AddressSuggestion,
 ): Promise<string> {
@@ -227,7 +260,9 @@ export async function fetchFormattedAddress(
       fields: ["formattedAddress"],
     });
     const formatted = place.formattedAddress?.trim();
-    if (formatted) return formatted;
+    if (formatted) {
+      return resolveSelectedAddress(suggestion.fullText, formatted);
+    }
   } catch {
     // Fall back to the suggestion text.
   }
