@@ -58,6 +58,7 @@ services:
       - "3000:3000"
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8080
+      NEXT_PUBLIC_GOOGLE_MAPS: ${NEXT_PUBLIC_GOOGLE_MAPS:-${GOOGLE_MAPS:-}}
       API_INTERNAL_URL: http://api:8080
       APP_URL: http://localhost:3000
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}

@@ -29,6 +29,18 @@ Environment variables (see repo root `.env.example`):
 
 Register redirect URI: `{APP_URL}/api/auth/google/callback` in Google Cloud Console.
 
+### Google Places (address autocomplete)
+
+Set `NEXT_PUBLIC_GOOGLE_MAPS` in the repo root `.env` (or pass through Docker Compose). Without a key, the site address field is a plain text box.
+
+Use a **browser-restricted** API key (HTTP referrer = your web origin, e.g. `http://localhost:3000/*`). Enable **Places API (New)** on the project. Manual entry still works without picking a suggestion.
+
+| Variable | Purpose |
+| --- | --- |
+| `NEXT_PUBLIC_GOOGLE_MAPS` | Browser Places autocomplete key for job address field |
+
+The mobile app uses the same Google Cloud project key via `GOOGLE_MAPS` with Android/iOS restrictions — see [`app/README.md`](../app/README.md).
+
 ## Milestone status
 
 - **M0** — shell, nav, empty states, command palette

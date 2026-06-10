@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { AddressAutocompleteInput } from "@/components/address-autocomplete-input";
 import type { Job } from "@/lib/api-jobs";
 import { buildJobPutPayload, jobToFormValues } from "@/lib/job-form";
 import styles from "./job-form.module.css";
@@ -178,9 +179,9 @@ export function JobFormDrawer(props: Props) {
             </label>
             <label>
               Site address
-              <input
+              <AddressAutocompleteInput
                 value={address}
-                onChange={(e) => setAddress(e.target.value)}
+                onChange={setAddress}
                 placeholder="Street address (optional)"
               />
             </label>
