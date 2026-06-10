@@ -110,6 +110,129 @@
   font-size: 0.875rem;
 }
 
+.addressField {
+  position: relative;
+}
+
+.addressInputWrap {
+  position: relative;
+}
+
+.addressInputWrap input {
+  width: 100%;
+  padding-right: 36px;
+}
+
+.addressSpinner {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  margin-top: -8px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: addressSpin 0.8s linear infinite;
+}
+
+@keyframes addressSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.addressHint {
+  margin: 6px 0 0;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.addressSuggestions {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 10;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+
+.addressSuggestionGroup {
+  border-bottom: 1px solid var(--border);
+}
+
+.addressSuggestionGroup:last-of-type {
+  border-bottom: none;
+}
+
+.addressSuggestion {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 14px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.addressSuggestion:hover,
+.addressSuggestionActive {
+  background: rgba(17, 24, 39, 0.04);
+}
+
+.addressSuggestionIcon {
+  flex: 0 0 auto;
+  width: 20px;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+.addressSuggestionText {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.addressSuggestionPrimary {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--ink, #111827);
+}
+
+.addressSuggestionSecondary {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.addressAddNumber {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 14px 10px 44px;
+  padding: 2px 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.addressAttribution {
+  display: flex;
+  justify-content: flex-end;
+  padding: 4px 14px 10px;
+}
+
 .dangerZone {
   margin-top: 24px;
   padding-top: 20px;

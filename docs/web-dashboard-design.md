@@ -233,7 +233,7 @@ List/table of **synced jobs** in the current workspace.
 | Assign members | ✓ | ✗ |
 | Edit captions / tags / items | ✓ (any job) | ✓ (**assigned jobs only**) |
 
-**Create job (web):** office or field lead creates the job folder (name, client, address, etc.). Opens as a **right-side drawer** (not a full page), so the list stays visible behind it. Creator is auto-assigned to the job. Owner can assign additional members. Creating a job on web does **not** replace the mobile app for capture.
+**Create job (web):** office or field lead creates the job folder (name, client, address, etc.). Opens as a **right-side drawer** (not a full page), so the list stays visible behind it. The **Site address** field uses **Google Places autocomplete** when `NEXT_PUBLIC_GOOGLE_MAPS` is configured (same formatted-address string as mobile; plain text fallback when unset). Creator is auto-assigned to the job. Owner can assign additional members. Creating a job on web does **not** replace the mobile app for capture.
 
 **Job status:** use the same values as the mobile app — `planning`, `in_progress`, `completed`. No separate archive state; use `completed` when a job is done. Status changes inline from the row (click pill → menu) with optimistic update.
 
