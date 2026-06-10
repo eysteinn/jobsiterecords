@@ -12,23 +12,23 @@ Product and marketing domain: **jobsiterecords.com**.
 - **Phase 2 — dashboard and sync:** ship **web dashboard**, **encrypted cloud sync**, **billing**, **team workspaces**, and the rest of the paid surface. This is the **second delivery milestone** and **completes the MVP**. Spec: [§17](#17-phase-2-dashboard-sync-subscription-and-teams). Work starts only after Phase 1 validates demand ([§14.5](#145-decision-gate)).  
 - **Pricing principle:** the **app remains free** for anyone who uses it **without** turning on cloud sync. Paying is only for teams that want sync, the dashboard, and shared access—not for basic capture and zip export on-device.
 
-### Implementation status (May 2026)
+### Implementation status (June 2026)
 
 The repo matches the **Phase 1** architecture in broad strokes. Use this table when reading the rest of the doc — sections below still describe the **target** UX unless marked *implemented* or *partial*.
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| Flutter app (`app/`) | **Mostly built + M4 sync (partial)** | Phase 1 capture/export complete. Job detail timeline: **photo grid + compact rows** (web parity). **M3–M4:** sign-in, workspace switcher, bidirectional sync for jobs, notes, and **photo/voice/file blobs** (direct-to-MinIO). **S1 auto-sync (implemented):** `SyncScheduler` debounces sync ~8 s after Save in workspace mode; launch/foreground/connectivity/periodic triggers; backoff + per-row retry/quarantine (`sync_attempts`, `quarantined` state); footer shows pending/offline/retrying; manual pull-to-refresh + Settings sync kept. Wi‑Fi-only blob gate. **Soft delete (implemented):** timeline single/bulk delete + job delete tombstone via `deleted_at` push; local-only jobs still hard-delete; pull reconciles server removals. Gaps: stretch business tags ([§7](#7-data-model)). |
+| Flutter app (`app/`) | **Mostly built + M4 sync (implemented)** | Phase 1 capture/export complete. Job detail timeline: **photo grid + compact rows** (web parity). **M3–M4:** sign-in, workspace switcher, bidirectional sync for jobs, notes, and **photo/voice/file blobs** (direct-to-MinIO). **S1 auto-sync (implemented):** `SyncScheduler` debounces sync ~8 s after Save in workspace mode; launch/foreground/connectivity/periodic triggers; backoff + per-row retry/quarantine (`sync_attempts`, `quarantined` state); footer shows pending/offline/retrying; manual pull-to-refresh + Settings sync kept. Wi‑Fi-only blob gate. **Soft delete (implemented):** timeline single/bulk delete + job delete tombstone via `deleted_at` push; local-only jobs still hard-delete; pull reconciles server removals. Settings **Account & Sync** section (sign-in, workspace context, Wi‑Fi-only, manual sync, quarantine review) — **What's next** waitlist copy still says cloud/PDF “coming soon” (stale). Gaps: stretch business tags ([§7](#7-data-model)). |
 | Landing (`landing/`) | **Active** | PHP + SQLite waitlist on jobsiterecords.com, plus SEO guides, use cases, trades, answers, and examples — not a single static page ([§14.4](#144-the-landing-site)). |
-| Backend (`services/api/`) | **Partial (M1–M4)** | Go API + Postgres + **MinIO** in Docker Compose: **email + password auth**, **email magic link**, **Google OAuth** (ID token verify + `user_oauth_identities`), password reset via SMTP, workspaces, jobs/items sync, **tags + item_tags** sync (`GET/PUT /workspaces/{id}/tags`, `tag_ids` on item upsert), **media_files** mint/complete/download, lazy thumbnails. **Soft delete (implemented):** `deleted_at` tombstones on PUT upsert; full loads omit deleted rows; deltas include item + media tombstones; deleted jobs return gone on access. **Sync cursors (S2):** `GREATEST(jobs.updated_at, jobs.last_activity_at)` for job/workspace change detection (metadata edits + timeline activity), `GET /jobs/{id}/cursor` and `GET /workspaces/{id}/cursor` with ETag/304. **Sign in with Apple** not started. Reports/billing not started. |
-| Web dashboard (`web/`) | **Partial (M0–M4)** | Next.js shell + auth BFF + jobs list/detail with **day-grouped card timeline** (desktop + mobile web parity), **lightbox with prev/next + caption edit**, **photo annotation** (display + full editor: pen/line/arrow/circle/box/text, save overlay + render; mobile sync fixes for `annotation_overlay` / `annotated_render` roles). **Desktop job detail (≥768px):** polished sidebar (icons, collapse) + top utility bar (workspace, search, account avatar); job header with **+ Add to job** primary action (dropdown → text note modal; photo/voice/file app-only); **All + kind summary chips**; wide search/filter/select row; **export job modal** (UI complete, download stub); card-based timeline with vertical rail; selection mode in header (Tag/Export/Delete/Cancel). **Mobile web (responsive, ≤767px):** bottom nav (Jobs / Reports / Team / Settings); jobs list as **stacked cards** (not table) with status chips, full-width search, filter bottom sheet, **+ New job** FAB, sync status line, account menu; job detail **field-first mobile UX** — compact header (back + bold title + ⋮ on one row, address with pin, green status pill; no account avatar on detail); **All + kind summary chips** (single-select type filters); search row + unified **filter bottom sheet** (type, tags, date range, sort, clear); **premium date-grouped timeline cards** (kind pills, 92px photo thumbs, card ⋮ with View/Edit/Annotate/Share/Delete); sticky **+ Add to job** FAB; **+ Add** sheet (Photo → Voice → Text → File; **photo + voice capture on mobile web** via in-browser camera/mic + library fallback; text note on web; file upload coming soon); selection via long-press or job ⋮ → Select items (Tag/Export/Delete bar; bottom nav hidden); calm empty state with CTA. **Search (client-side):** jobs list text search (name, client, address, job number) + optional **status** chips; job timeline search (caption, note body, filename, **tag names**; type + tag chips with OR semantics; active-filter summary; clear filters) — API returns `tags` + `item_tags` on job bundle when present; URL state (`?q=`, `?status=`, `?kind=`, `?tag=`, `?from=`, `?to=`, `?sort=`); `/` focuses search (desktop only); **⌘K** command palette. **Live updates (S3):** visibility-gated cursor polling (~10 s detail / ~60 s list), inclusive delta-merge on job detail, Settings → Live updates toggle. **Job status** switcher on detail (planning / in progress / completed; status pills color-coded on list + detail). **Job settings** on detail — **⋮** job menu → **Edit job** opens side drawer (name, client, address, job number, status, dates, notes; cancel/dirty guard; PUT upsert; syncs to mobile via cursor poll + LWW); collapsible job details for number/dates/notes when present. **Tag filter parity (implemented):** type chips, quick tags, **Tags** sheet (searchable multi-select; “In this job” / “All tags”; OR semantics; active-filter summary; tap tags on items to filter); unified timeline filter sheet (type/tags/date/sort) on mobile and desktop; timeline shows tag chips. **Tag sync (implemented):** mobile pushes workspace tags + per-item `tag_ids`; API returns `tags` + `item_tags` on job bundle; web delta-merge keeps tag state fresh. **Soft delete (implemented):** calm delete UX — per-item card ⋮ menu (View/Edit/Annotate/Share/Delete) with confirmation; **Select items** mode with checkboxes — selection toolbar (Tag · Export · Delete · Cancel); bulk delete always confirms; job actions (Edit, Export, Mark completed/Reopen, Delete) in job ⋮ menu with strong job-delete confirmation; respects `read_only`; tombstones sync via PUT `deleted_at` + delta merge. **Tag assignment (implemented):** create tags on web; assign on capture (photo/voice/note), lightbox, note edit, and bulk select (tri-state sheet); optimistic save via `tag_ids` on item upsert. Gaps: workspace tag management in Settings; export download backend; desktop web file/photo upload; desktop in-browser capture not started. Spec: [`web-dashboard-design.md`](web-dashboard-design.md); sync plan: [`sync-strategy-plan.md`](sync-strategy-plan.md). |
-| Production deploy | **Scaffolded** | `docker-compose.deploy.yml` — `web`, `api`, Postgres, MinIO behind host **Traefik** (`tls=true` + `letsencrypt` per router); `landing/` stays separate. DNS: **A** records for `api`/`media`/`app` to the VPS. See [`deploy/README.md`](../deploy/README.md). |
-| Tests | **Minimal** | `note_markdown_test.dart`, `photo_annotation_test.dart`; golden/integration tests not yet written ([§11.3](#113-testing)). |
+| Backend (`services/api/`) | **Partial (M1–M4)** | Go API + Postgres + **MinIO** in Docker Compose: **email + password auth**, **email magic link**, **Google OAuth** (ID token verify + `user_oauth_identities`), password reset via SMTP, workspaces, jobs/items sync, **tags + item_tags** sync (`GET/PUT /workspaces/{id}/tags`, `tag_ids` on item upsert), **media_files** mint/complete/download, lazy thumbnails. **Soft delete (implemented):** `deleted_at` tombstones on PUT upsert; full loads omit deleted rows; deltas include item + media tombstones; deleted jobs return gone on access. **Sync cursors (S2):** `GREATEST(jobs.updated_at, jobs.last_activity_at)` for job/workspace change detection (metadata edits + timeline activity), `GET /jobs/{id}/cursor` and `GET /workspaces/{id}/cursor` with ETag/304. **Job assignments (partial M5):** `job_assignments` table + `GET /workspaces/{id}/assignments`; owners see all jobs; members get `read_only` on unassigned jobs (writes return 403). `POST /workspaces/{id}/leave`. **Sign in with Apple** not started. Team invites, billing/Paddle, export/PDF endpoints not started. |
+| Web dashboard (`web/`) | **Partial (M0–M4)** | Next.js shell + auth BFF + jobs list/detail with **day-grouped card timeline** (desktop + mobile web parity), **lightbox with prev/next + caption edit**, **photo annotation** (display + full editor: pen/line/arrow/circle/box/text, save overlay + render; mobile sync fixes for `annotation_overlay` / `annotated_render` roles). **Desktop job detail (≥768px):** polished sidebar (icons, collapse) + top utility bar (workspace, search, account avatar); job header with **+ Add to job** primary action (dropdown → text note modal; photo/voice/file app-only); **All + kind summary chips**; wide search/filter/select row; **export job modal** (UI complete, download stub); card-based timeline with vertical rail; selection mode in header (Tag/Export/Delete/Cancel). **Mobile web (responsive, ≤767px):** bottom nav (Jobs / Reports / Team / Settings); jobs list as **stacked cards** (not table) with status chips, full-width search, filter bottom sheet, **+ New job** FAB, sync status line, account menu; job detail **field-first mobile UX** — compact header (back + bold title + ⋮ on one row, address with pin, green status pill; no account avatar on detail); **All + kind summary chips** (single-select type filters); search row + unified **filter bottom sheet** (type, tags, date range, sort, clear); **premium date-grouped timeline cards** (kind pills, 92px photo thumbs, card ⋮ with View/Edit/Annotate/Share/Delete); sticky **+ Add to job** FAB; **+ Add** sheet (Photo → Voice → Text → File; **photo + voice capture on mobile web** via in-browser camera/mic + library fallback; text note on web; file upload coming soon); selection via long-press or job ⋮ → Select items (Tag/Export/Delete bar; bottom nav hidden); calm empty state with CTA. **Search (client-side):** jobs list text search (name, client, address, job number) + optional **status** chips; job timeline search (caption, note body, filename, **tag names**; type + tag chips with OR semantics; active-filter summary; clear filters) — API returns `tags` + `item_tags` on job bundle when present; URL state (`?q=`, `?status=`, `?kind=`, `?tag=`, `?from=`, `?to=`, `?sort=`); `/` focuses search (desktop only); **⌘K** command palette. **Live updates (S3):** visibility-gated cursor polling (~10 s detail / ~60 s list), inclusive delta-merge on job detail, Settings → Live updates toggle. **Job status** switcher on detail (planning / in progress / completed; status pills color-coded on list + detail). **Job settings** on detail — **⋮** job menu → **Edit job** opens side drawer (name, client, address, job number, status, dates, notes; cancel/dirty guard; PUT upsert; syncs to mobile via cursor poll + LWW); collapsible job details for number/dates/notes when present. **Tag filter parity (implemented):** type chips, quick tags, **Tags** sheet (searchable multi-select; “In this job” / “All tags”; OR semantics; active-filter summary; tap tags on items to filter); unified timeline filter sheet (type/tags/date/sort) on mobile and desktop; timeline shows tag chips. **Tag sync (implemented):** mobile pushes workspace tags + per-item `tag_ids`; API returns `tags` + `item_tags` on job bundle; web delta-merge keeps tag state fresh. **Soft delete (implemented):** calm delete UX — per-item card ⋮ menu (View/Edit/Annotate/Share/Delete) with confirmation; **Select items** mode with checkboxes — selection toolbar (Tag · Export · Delete · Cancel); bulk delete always confirms; job actions (Edit, Export, Mark completed/Reopen, Delete) in job ⋮ menu with strong job-delete confirmation; respects `read_only`; tombstones sync via PUT `deleted_at` + delta merge. **Tag assignment (implemented):** create tags on web; assign on capture (photo/voice/note), lightbox, note edit, and bulk select (tri-state sheet); optimistic save via `tag_ids` on item upsert. Gaps: workspace switcher display-only (always `session.workspaces[0]`); `/team` and `/reports` empty-state placeholders (M5/M7); workspace tag management in Settings; export download backend; desktop web file/photo upload; desktop in-browser capture not started. Spec: [`web-dashboard-design.md`](web-dashboard-design.md); sync plan: [`sync-strategy-plan.md`](sync-strategy-plan.md). |
+| Production deploy | **Scaffolded** | Root `docker-compose.yml` (local) + `docker-compose.deploy.yml` (production) — `web`, `api`, Postgres, MinIO behind host **Traefik** (`tls=true` + `letsencrypt` per router); `landing/` stays separate. DNS: **A** records for `api`/`media`/`app` to the VPS. See [`deploy/README.md`](../deploy/README.md). |
+| Tests | **Minimal** | `note_markdown_test.dart`, `photo_annotation_test.dart`, `sync_errors_test.dart`, `file_utils_test.dart`; `widget_test.dart` placeholder; golden/integration tests not yet written ([§11.3](#113-testing)). |
 | i18n / dark theme | **Not started** | English strings inline; light theme only ([§4](#4-platform--tech-stack), [§10](#10-visual-design)). |
 
-**Phase 2 milestone progress ([`web-dashboard-design.md` §17](web-dashboard-design.md#17-milestones-user-testable-states)):** M0–M1 done; M2/M3 largely done; **M4 in progress** (blob sync API, mobile upload/pull, web media timeline). M5+ (teams, reports, billing) not started.
+**Phase 2 milestone progress ([`web-dashboard-design.md` §17](web-dashboard-design.md#17-milestones-user-testable-states)):** M0–M4 largely done (auth, web CRUD, mobile + web media sync, annotation roles). **M5 in progress** — assignment read model + `read_only` enforcement shipped; invites/team UI not started. M6–M8 (hardening, PDF reports, billing) not started.
 
-**Phase 1 milestone progress ([§13](#13-phasing--milestones)):** M0–M3 largely complete in code; M4 (polish, accessibility, golden tests, store assets) still in progress.
+**Phase 1 milestone progress ([§13](#13-phasing--milestones)):** M0–M3 done in code; M4 (polish, accessibility, golden tests, store assets) still in progress. Phase 2 backend/web/mobile sync work is **underway in the repo** ahead of the commercial launch gate ([§14.5](#145-decision-gate)).
 
 ---
 
@@ -61,7 +61,7 @@ Users interact with Job Site Records through **three main channels**. All three 
 - **Equal viability** — product and engineering decisions must not assume “real work” happens only in the native app or only on desktop. Web-on-phone is a supported daily driver, not a fallback login page.
 - **Similar UX** — layout adapts to screen size and input (touch vs mouse), but flows, labels, timeline grouping, search/filter semantics, and visual language stay aligned across surfaces. Shared design tokens and the same sync/API model ([§17.4](#174-technical-sketch-high-level)), [`web-dashboard-design.md`](web-dashboard-design.md).
 - **Platform-appropriate strengths** — the native app leads on **offline capture** and OS integrations (camera, share sheet, background sync). The web leads on **reports/PDF** and large-screen review. Neither surface owns exclusive access to core job workflows once sync is on.
-- **Phase 1 vs MVP** — Phase 1 ships the **native app only** (local-first, no web). Surface parity applies to the **completed MVP** (Phase 1 app + Phase 2 web dashboard + sync). Until Phase 2 ships, the web dashboard is partial and the app is the sole capture path; the parity target still guides what we build toward.
+- **Phase 1 vs MVP** — Phase 1 ships the **native app only** (local-first, no account required). Surface parity applies to the **completed MVP** (Phase 1 app + Phase 2 web dashboard + sync). The **web dashboard and optional cloud sync are partial in code today** — mobile web capture (photo/voice/note) works; desktop web capture and export download do not. The native app remains the primary field-capture path until the MVP is complete; the parity target still guides what we build toward.
 
 ---
 
@@ -86,7 +86,7 @@ The **MVP** is the **whole v1 product**: **(1)** the **mobile app** (with a perm
 ### Phase 1 non-goals (not in the first mobile ship)
 
 - **No PDF report generation in the app.** Branded PDF *exports* ship with the Phase 2 web dashboard. **Importing** existing PDFs (quotes, permits, receipts) **is** in Phase 1 scope ([§6.6a](#66a-capture-file--pdf-upload)).
-- No cloud sync, no accounts, no multi-device (in Phase 1).
+- No cloud sync, no accounts, no multi-device **required** in Phase 1. Optional sign-in and workspace sync exist in code as Phase 2 work ([implementation status](#implementation-status-june-2026)); the free local-only path stays accountless.
 - No team collaboration / sharing inside the app (in Phase 1).
 - No **cloud** AI (server transcription, summarization) in Phase 1. **Automatic** on-device voice-to-text is also **out of scope for Phase 1** — Android's system `SpeechRecognizer` holds the mic exclusively (it can't run alongside `MediaRecorder`), file-based recognition is unreliable across OEMs, and playback-into-mic workarounds make the device beep / dim media volume in ways field users will not tolerate. Users who want spoken words as text add a **text note** (OS keyboard dictation) alongside or instead of a voice clip.
 - No web app in Phase 1.
@@ -188,14 +188,14 @@ Aligned with Phase 1 mobile scope ([§13](#13-phasing--milestones)). “Must-hav
 - Search jobs
 - Export zip with photos, notes, files, timestamps, tags, and `index.html`
 
-**Strongly consider for MVP (Phase 1 stretch)**
+**Strongly consider for MVP (Phase 1 stretch)** — *several shipped in code; see [§6.10](#610-implementation-gaps-vs-target-phase-1)*
 
-- Import image files alongside PDFs (same picker flow; images saved as `kind = file`, not as camera photos)
-- Tag files and notes with business-oriented categories
-- **“Today”** section or pin at top of job timeline (same date grouping, faster scan)
-- Additional default tags: Follow-up, Material, Change Order, Client Request (see [§7](#7-data-model))
-- **Formatted text notes** — WYSIWYG editor with bold, italics, and bullet lists ([§6.6](#66-capture-text-note))
-- **Photo annotation** — pen, straight line, arrow, circle, and rectangle in a few high-contrast colors so contractors can mark up site photos directly (“circle the cracked tile”, “arrow at the leak”) without leaving the app ([§6.4a](#64a-photo-annotation-mark-up))
+- Import image files alongside PDFs (same picker flow; images saved as `kind = file`, not as camera photos) — **implemented**
+- Tag files and notes with business-oriented categories — **implemented** (user tags + default set; stretch default tags not seeded)
+- **“Today”** section or pin at top of job timeline (same date grouping, faster scan) — **not implemented**
+- Additional default tags: Follow-up, Material, Change Order, Client Request (see [§7](#7-data-model)) — **not seeded**
+- **Formatted text notes** — WYSIWYG editor with bold, italics, and bullet lists ([§6.6](#66-capture-text-note)) — **implemented**
+- **Photo annotation** — pen, straight line, arrow, circle, and rectangle in a few high-contrast colors so contractors can mark up site photos directly (“circle the cracked tile”, “arrow at the leak”) without leaving the app ([§6.4a](#64a-photo-annotation-mark-up)) — **implemented** (plus text labels)
 
 **Defer (Phase 2 or later)**
 
@@ -214,7 +214,7 @@ Aligned with Phase 1 mobile scope ([§13](#13-phasing--milestones)). “Must-hav
 
 - **Framework:** Flutter (Dart 3.9+) — single codebase for Android and iOS. Flutter SDK ≥ 3.41.
 - **Min OS:** iOS 14+, Android 8.0+ (API 26). Android target SDK 34.
-- **Local storage:** `sqflite` for metadata (schema version **2** — `media_files.original_filename`; default tags include **`Receipt`**); `path_provider` documents directory for media.
+- **Local storage:** `sqflite` for metadata (schema version **6** — sync columns, `deleted_at` tombstones, `sync_meta`; v2 migration added `media_files.original_filename` and **`Receipt`** tag); `path_provider` documents directory for media.
 - **Camera:** `camera` for live capture; `image_picker` for gallery import on the photo review flow.
 - **Audio:** `record` (v5.1.2) for capture, `just_audio` for playback. No dedicated waveform package yet — voice UI uses elapsed time + play/pause slider.
 - **Voice transcription:** **not on the phone.** Voice items are audio + caption/tags only. Phase 2 adds optional **dashboard/cloud** STT after sync — no native hooks and no `transcript` column in the local `items` table ([§17.7](#177-voice-transcription-as-readable-notes-phase-2)).
@@ -222,6 +222,8 @@ Aligned with Phase 1 mobile scope ([§13](#13-phasing--milestones)). “Must-hav
 - **Rich text notes:** `flutter_quill` (WYSIWYG editor) + `markdown` / `flutter_markdown` (serialize to `items.body`, render read-only + export HTML).
 - **Sharing / links:** `share_plus` for exports and single-item share; `url_launcher` for waitlist, feedback `mailto:`, and privacy policy URLs in Settings.
 - **File / PDF upload (*implemented*):** `file_picker` + `open_filex` — copy selected files into app storage; no upload to our servers in Phase 1 ([§6.6a](#66a-capture-file--pdf-upload)).
+- **Optional cloud sync (Phase 2 in app):** `http`, `connectivity_plus`, `flutter_secure_storage`, `shared_preferences`, `google_sign_in` — `app/lib/sync/` engine + scheduler; local-only path unchanged when not signed in.
+- **Address autocomplete:** `flutter_google_places_sdk` (vendored) + `geolocator` when `GOOGLE_MAPS` is set in `app/.env`.
 - **State management:** **Riverpod** (`flutter_riverpod`).
 - **Routing:** `go_router` with a 3-tab `ShellRoute` plus stack routes for job/capture/export/item flows.
 - **Permissions:** `permission_handler` — requested when opening camera or starting voice record (no separate in-app rationale screen yet).
@@ -241,7 +243,7 @@ Aligned with Phase 1 mobile scope ([§13](#13-phasing--milestones)). “Must-hav
 Bottom tab bar (3 tabs):
 
 1. **Jobs** — list of all jobs (default landing screen).
-2. **Capture** — quick-capture entry. **Implemented:** lists jobs, then a bottom sheet to pick Photo / Voice / Text for the chosen job (does not open the camera until a job is selected). **Target:** optional direct camera when a “current job” context exists; add **File / PDF** to the mode sheet ([§6.6a](#66a-capture-file--pdf-upload)).
+2. **Capture** — quick-capture entry. **Implemented:** lists jobs, then a bottom sheet to pick Photo / Voice / Text / **File / PDF** for the chosen job (does not open the camera until a job is selected). **Target:** optional direct camera when a “current job” context exists.
 3. **Settings** — storage info, tag library, waitlist link, feedback, about, privacy.
 
 **Three tabs on purpose:** daily work is **Jobs + Capture**; Settings and per-job export are secondary.
@@ -455,12 +457,13 @@ A lightweight 2-step sheet, not a full multi-screen wizard. Reachable from the J
 > No PDF generation, no preview screen, no "saved reports" list in **Phase 1**. The zip is built on demand and handed to the OS share sheet; we don't keep a copy ourselves (kept transient in the app's cache dir and cleaned up).
 
 ### 6.9 Settings
-- **Data & Storage**: total storage used, "Export all data" (zip backup of the whole DB + media), "Clear all data" (destructive, with confirmation).
-- **Tags**: manage the default tag library (add, rename, delete, reorder).
-- **Default Export Settings**: defaults for the toggles in the export sheet (sort order, what to include).
-- **What's next** — a single, low-key row: *"PDF reports, web dashboard, cloud sync coming soon. Get notified →"* opens an external waitlist form (see §14). This is the most important validation signal we have. No nagging banners elsewhere.
+- **Account & Sync (*implemented*):** sign-in / sign-out; workspace context label; **Sync on Wi‑Fi only** toggle; **Sync now** + status (pending, offline, quarantined); quarantined-item review sheet. Local-only users see a single **Sign in** row — no account required for capture.
+- **Data & Storage**: total storage used, "Clear all data" (destructive, with confirmation). *Target:* "Export all data" (zip backup of the whole DB + media) — not implemented.
+- **Tags**: manage the tag library (add, delete). *Target:* rename, reorder — not implemented.
+- **Default Export Settings**: defaults for the toggles in the export sheet (sort order, what to include) — *not implemented*; export uses per-run options on the export screen.
+- **What's next** — a single, low-key row linking to the waitlist (see §14). **Copy is stale in code** — still says *"PDF reports, web dashboard, cloud sync coming soon"* even though workspace sync ships today; update when billing/PDF launch. No nagging banners elsewhere.
 - **Send feedback** — opens a `mailto:` to a dedicated address. No in-app form, no backend.
-- **About**: app version, open-source licenses, privacy policy, terms.
+- **About**: app version, privacy policy link (`https://jobsiterecords.com/privacy` — anchor on landing `index.php` `#privacy`).
 
 ### 6.10 Implementation gaps vs target (Phase 1)
 
@@ -474,7 +477,7 @@ Screens in §6.1–6.9 are the **design target**. The shipped app (`app/lib/feat
 | Job detail | Timeline search / filter | **Implemented** — app bar search toggles panel; active-filter summary when collapsed; type/tag/full-text search |
 | Job detail | Row overflow menus | **Bulk select**, **tag**, and **delete** on timeline (overflow + long-press); no per-row overflow |
 | Job detail | Status pill in header | Status on list card; **⋮** job menu opens job edit (name, client, address, extras); job header is display-only |
-| Capture tab | Open camera directly | Job picker → mode sheet → capture route |
+| Capture tab | Open camera directly | Job picker → mode sheet (Photo / Voice / Text / File) → capture route |
 | PDF / file upload | Document picker → copy to app storage → timeline item (`kind = file`) | **Implemented** — `FileCaptureScreen`, `ItemsRepository.createFile`, route `capture-file` |
 | Photo annotation | Pen / line / arrow / circle / rectangle / text label; vector overlay + flattened render; Item Detail + batch-review entry | **Implemented** |
 | Text note formatting | WYSIWYG editor (bold / italics / bullet list); markdown serialized in `items.body` | **Implemented** — `NoteEditor` + `NoteBodyView`; export renders markdown to HTML |
@@ -488,7 +491,7 @@ Screens in §6.1–6.9 are the **design target**. The shipped app (`app/lib/feat
 | Item detail | Waveform for audio | Play/pause + seek slider (`just_audio`) |
 | Item detail | Voice transcript below player | **Out of scope** — Phase 2 transcription is dashboard/cloud only; use text notes on device |
 | Export | 2-step sheet | Full-screen route: options + checklist on one page |
-| Settings | Export all data; default export prefs; terms | Storage used, clear all, inline tag add/delete (no rename/reorder), waitlist → `https://jobsiterecords.com/`, `mailto:feedback@jobsiterecords.com`, privacy URL |
+| Settings | Export all data; default export prefs; terms | **Account & Sync** (sign-in, Wi‑Fi-only, manual sync, quarantine); storage used, clear all, inline tag add/delete (no rename/reorder); stale **What's next** waitlist copy; `mailto:feedback@jobsiterecords.com`, privacy URL |
 | Permissions | In-app rationale before OS dialog | OS dialog on first camera/mic use |
 | Performance | ~512px timeline thumbnails | Timeline uses full-resolution files from disk (no separate thumb files yet) |
 
@@ -510,6 +513,12 @@ Job
   end_date?
   notes?
   cover_item_id?    (fk Item — chosen thumbnail)
+  workspace_id?     (set when job belongs to a synced workspace)
+  sync_state        (local_only | pending | synced | quarantined | …)
+  last_synced_at?
+  sync_attempts
+  last_sync_error?
+  deleted_at?       (tombstone for workspace jobs)
   created_at
   updated_at
 
@@ -518,8 +527,13 @@ Item                (a single timeline entry)
   job_id (fk Job)
   kind              (photo | voice | note | file)
   caption?
-  body?             (text note content — plain text today; markdown serialized from WYSIWYG editor, §6.6)
+  body?             (text note content — markdown serialized from WYSIWYG editor, §6.6)
   captured_at       (defaults to created_at; user can edit)
+  sync_state
+  last_synced_at?
+  sync_attempts
+  last_sync_error?
+  deleted_at?
   created_at
   updated_at
 
@@ -535,6 +549,11 @@ MediaFile
   duration_ms?
   size_bytes
   original_filename?  (for imported files — display + export naming)
+  sync_state
+  remote_storage_key?  (MinIO object key after upload)
+  updated_at?
+  sync_attempts
+  last_sync_error?
   created_at
 
 Tag
@@ -573,7 +592,7 @@ Tag
 
 Each seeded tag gets its **color** in `tags.color` (UI uses chip styling). User-extensible via Settings (add custom tags; default tags cannot be deleted). Trade tags like `Plumbing`, `Framing`, etc. are not bundled by default — users add their own.
 
-**Existing installs:** when `Receipt` (and optional stretch tags) ship, add a **schema v2 migration** that inserts missing default tags by name if absent — do not duplicate tags the user already created manually.
+**Existing installs:** schema **v2** migration inserts missing default tags (including **`Receipt`**) by name if absent — do not duplicate tags the user already created manually.
 
 ### File layout on disk
 ```
@@ -591,9 +610,9 @@ Each seeded tag gets its **color** in `tags.color` (UI uses chip styling). User-
 ```
 
 ### Schema versioning
-- **Current:** `AppDatabase` at schema **version 2** (`media_files.original_filename`; v2 migration adds **`Receipt`** tag on upgrade). The local `items` table does **not** include a `transcript` column (and never will for Phase 1).
-- **Future (Phase 2 sync):** optional local columns only if sync requires them (e.g. `deleted_at`, remote ids). **Transcription text lives in the cloud** (dashboard / `services/transcribe/`), not as a field we pre-wire on the device.
-- Each row carries `created_at`/`updated_at` so the future cloud-sync feature can layer a sync engine on top without changing the model.
+- **Current:** `AppDatabase` at schema **version 6** (`app/lib/data/db/database.dart`). Migrations: v2 `original_filename` + default tags; v3 `workspace_id`, `sync_state`, `sync_meta`; v4 media sync columns; v5 `sync_attempts` / `last_sync_error`; v6 `deleted_at` tombstones on jobs/items. The local `items` table does **not** include a `transcript` column (and never will for Phase 1).
+- **Transcription** text lives in the cloud (dashboard / `services/transcribe/`), not as a local column we pre-wire on the device.
+- Each row carries `created_at`/`updated_at` for last-writer-wins sync.
 
 ---
 
@@ -696,11 +715,15 @@ Theming: centralize tokens in `app/lib/app/theme.dart`; add dark palette when ne
 The repository is a **monorepo from day one**, sized for the long game. **Phase 1** ships only the Flutter app first, but the **MVP** includes dashboard + sync in **Phase 2**; the repo assumes Job Site Records may grow into a full SaaS (mobile + web + backend services). No code lives in the root — only folders, top-level config, and meta files.
 
 ```
-/                         (repo root — no application code)
-├── app/                  Flutter mobile app (Phase 1) — active
+/                         (repo root — no application code; docker-compose*.yml for Phase 2 stack)
+├── app/                  Flutter mobile app (Phase 1 + optional sync) — active
+├── web/                  Next.js web dashboard (Phase 2) — active, partial M0–M4
 ├── landing/              Marketing site + waitlist (PHP + SQLite) — active
-├── services/             Backend services — placeholder until Phase 2 (see §11.4)
+├── services/
+│   └── api/              Go API (auth, sync, media) — active, partial M1–M4
+├── deploy/               Production deployment notes
 ├── docs/                 Design docs, mockups, MVP brief
+├── docker-compose.yml    Local dev: web + api + Postgres + MinIO
 ├── README.md             Repo overview and per-folder pointers
 ├── LICENSE
 ├── .gitignore
@@ -709,18 +732,18 @@ The repository is a **monorepo from day one**, sized for the long game. **Phase 
 
 Optional: `private/` at repo root (or on server beside `landing/`) holds `subscribers.sqlite` for the waitlist — **not** committed; see `landing/README.md`.
 
-Future additions, when they're justified by actual work — not before:
+Future additions, when justified:
 
 ```
-├── web/                  Web dashboard (Phase 2; React/Next.js most likely)
-├── shared/               Cross-language schemas (e.g. sync API payloads for Phase 2)
+├── services/pdf/         Rust HTML → PDF worker (M7 — not started; directory absent)
+├── shared/               Cross-language schemas (OpenAPI from Go API)
 ├── infra/                IaC (Terraform / Pulumi) once we have anything to deploy
 └── tools/                One-off scripts, codegen, CI helpers
 ```
 
 Rules of the road:
 - **No code at the repo root.** Anything code-like lives under exactly one top-level folder.
-- **Each top-level folder owns its own toolchain.** `app/` has `pubspec.yaml`; a future `services/api/` has its own `package.json` or `pyproject.toml`. We do not invent a global build system on day one.
+- **Each top-level folder owns its own toolchain.** `app/` has `pubspec.yaml`; `web/` has `package.json`; `services/api/` has its own Go module. We do not invent a global build system on day one.
 - **Cross-cutting contracts live in `shared/`** when they exist (e.g. sync/API schemas for Phase 2). Until then, the contract is documented in `docs/`.
 - **The root README is a map**, not a tutorial. It points at each folder's own README.
 
@@ -735,22 +758,26 @@ app/
 ├── README.md
 ├── lib/
 │   ├── main.dart
-│   ├── app/             (theme, go_router, shell, Riverpod providers)
-│   ├── core/            (ids, format, clock)
+│   ├── app/             (theme, go_router, shell, Riverpod providers, back handler)
+│   ├── core/            (ids, format, clock, note_markdown, file_utils, google_maps_config)
+│   ├── sync/            (api_client, auth_service, sync_engine, scheduler, network_gate)
 │   ├── data/
-│   │   ├── db/          (sqflite schema v1 + default tag seed)
+│   │   ├── db/          (sqflite schema v6 + default tag seed)
 │   │   ├── repositories/(JobsRepository, ItemsRepository, TagsRepository)
 │   │   └── storage/     (MediaStorage — media/<job_id>/<item_id>/)
 │   ├── domain/
-│   │   ├── models/      (Job, Item, Tag, MediaFile, TimelineItem, …)
-│   │   └── services/    (ExportService — zip + index.html + media folders)
+│   │   ├── models/      (Job, Item, Tag, MediaFile, TimelineItem, photo_annotation, …)
+│   │   └── services/    (ExportService, photo_annotation_renderer)
 │   └── features/
-│       ├── jobs/        (list, form, detail)
-│       ├── capture/     (hub, photo, voice, note, tag_chips widget)
+│       ├── jobs/        (list, form, detail, timeline_day_content, bulk_tag)
+│       ├── capture/     (hub, photo, voice, note, file, tag_chips, note_editor)
+│       ├── photo_annotation/
 │       ├── item_detail/
 │       ├── export/
+│       ├── auth/        (sign_in, google_sign_in)
+│       ├── sync/        (workspace_switcher, sync_status_footer, quarantine sheet)
 │       └── settings/
-├── test/                (placeholder today — see §11.3)
+├── test/                (unit tests — see §11.3)
 ├── android/
 └── ios/
 ```
@@ -768,26 +795,28 @@ app/
 - **Widget:** every screen with golden tests for the main states (empty, loaded, error).
 - **Integration:** capture → save → appears in timeline → export → share sheet.
 
-**Current:** `app/test/widget_test.dart` is a placeholder (`1 + 1`). Run `flutter test` from `app/` before expanding coverage. Priority next: `ExportService`, repository mapping, then golden tests for Jobs list and Export screen.
+**Current:** `note_markdown_test.dart`, `photo_annotation_test.dart`, `sync_errors_test.dart`, `file_utils_test.dart`; `widget_test.dart` is still a placeholder (`1 + 1`). Run `flutter test` from `app/` before expanding coverage. Priority next: `ExportService`, repository mapping, then golden tests for Jobs list and Export screen.
 
-### 11.4 Backend services — `services/` (placeholder for now)
+### 11.4 Backend services — `services/`
 
-`services/` exists through **Phase 1** only as an empty scaffold with a README explaining its future contents. **Nothing is built here during Phase 1** — the mobile app does not depend on our backend for local use (§8.2). When Phase 2 is greenlit ([§14.5](#145-decision-gate)), the MVP layout is intentionally **two** services:
+**Implemented today:** `services/api/` — Go service with Chi router, Postgres, MinIO (S3-compatible). Auth (email/password, magic link, Google OAuth, password reset), workspace/job/item/tag sync, media mint/complete/download, lazy thumbnails, sync cursors, soft-delete tombstones, job assignments + `read_only` enforcement. Seven SQL migrations auto-run on startup. Local stack: `docker compose up` from repo root.
+
+**Not started:** `services/pdf/` (Rust PDF worker, M7) — directory does not exist yet. `services/transcribe/` (post-MVP).
 
 ```
 services/
-├── api/                 Go — auth, CRUD, sync, signed URLs, Paddle webhooks, outbound email
-└── pdf/                 Rust — HTML → PDF worker (Postgres queue consumer)
+├── api/                 Go — auth, CRUD, sync, signed URLs, outbound email (active)
+└── pdf/                 Rust — HTML → PDF worker (planned M7)
 
 (future, when justified)
 └── transcribe/          Speech-to-text worker → cloud transcript rows (post-MVP)
 ```
 
-No separate `auth/`, `sync/`, or `webhooks/` services in MVP — those collapse into `services/api/` and only split when load or team size justifies it. Each service is its own deployable unit with its own README, dependencies, and CI lane. They share contracts via `shared/` (OpenAPI generated from the Go API) when introduced.
+No separate `auth/`, `sync/`, or `webhooks/` services in MVP — those collapse into `services/api/` and only split when load or team size justifies it. Paddle billing webhooks will also live in `services/api/` when M8 ships. Each service is its own deployable unit with its own README, dependencies, and CI lane. They share contracts via `shared/` (OpenAPI generated from the Go API) when introduced.
 
 ### 11.5 Why monorepo (and not multi-repo)
 
-- One source of truth for cross-cutting API contracts (sync payloads shared by `app/`, `services/sync/`, and `services/pdf/` — they must not drift).
+- One source of truth for cross-cutting API contracts (sync payloads shared by `app/`, `web/`, `services/api/`, and future `services/pdf/` — they must not drift).
 - One PR can touch both sides of a feature when a future change crosses the mobile/backend boundary.
 - Cheaper at our scale — one repo, one issue tracker, one CI config evolving over time. We can split if/when it actually hurts.
 
@@ -801,12 +830,12 @@ The **Phase 1** app must not paint us into a corner for **Phase 2** ([§17](#17-
 - **Timestamps everywhere:** `created_at` and `updated_at` on every row → trivial last-writer-wins or CRDT layer later.
 - **Soft delete:** local-only jobs hard-delete on device; workspace/synced jobs and items use `deleted_at` tombstones (SQLite v6 locally; Postgres on server) with 30-day retention per [`web-dashboard-design.md`](web-dashboard-design.md).
 - **Repository abstraction:** swapping the SQLite-only repo for a "SQLite + remote" repo is a one-layer change.
-- **Settings has a dormant "Account / Subscription" entry** that is hidden in Phase 1 and flipped on when Phase 2 ships.
+- **Settings Account & Sync** — sign-in and workspace sync are **optional** and off the critical capture path; local-only users never see a paywall.
 - **Export format is documented and stable**, so the future web app can ingest old exports.
 
 What Phase 2 adds (out of scope for **Phase 1**, but mapped here and detailed in [§17](#17-phase-2-dashboard-sync-subscription-and-teams)):
 - Auth (**email + password**, **email magic link**, **Google OAuth** implemented; **Sign in with Apple** planned; password reset via SMTP; JWT + rotating refresh token) + **team subscription** billing via **Paddle** (web checkout; App Store / Play in-app billing deferred). Detail: [§17.9](#179-authentication-sign-in-methods), [`web-dashboard-design.md` §10, §11](web-dashboard-design.md#10-billing-paddle--plan-sku-naming).
-- Sync engine (most likely Supabase or a small custom service over Postgres + object storage).
+- Sync engine — **implemented** as custom Go API + MinIO (`services/api/`) with mobile `SyncEngine` and web cursor polling.
 - Web dashboard (same logical model as the app; PDFs and reporting live here).
 - Voice-note transcription on the **web dashboard** (server-side, batch; cloud storage only — see [§17.7](#177-voice-transcription-as-readable-notes-phase-2)).
 - Branded PDF (logo, colors, header/footer, custom templates).
@@ -820,14 +849,14 @@ What Phase 2 adds (out of scope for **Phase 1**, but mapped here and detailed in
 | --- | --- | --- |
 | **M0 — Skeleton** | Flutter project, theming, routing, SQLite v1 + default tags | **Done** |
 | **M1 — Jobs CRUD** | Create/edit/delete, list, search, status | **Done** |
-| **M2 — Capture loop** | Camera, photo/voice/note/**PDF upload**, captions, tags (**`Receipt`**), timeline, item detail | **Mostly done** — gaps: photo+voice combo UI, timeline thumbs, “Today” UX |
+| **M2 — Capture loop** | Camera, photo/voice/note/**PDF upload**, captions, tags (**`Receipt`**), timeline, item detail, annotation, formatted notes | **Done** — minor gaps: photo+voice combo UI, timeline thumbs, “Today” UX |
 | **M3 — Export** | Selection, options, zip (`index.html` + media), share sheet | **Done** |
 | **M4 — Polish & ship** | Settings completeness, permissions UX, a11y, tests, store assets, beta | **In progress** |
 
 Original timeboxes (for planning): M0 ~1w, M1 ~1w, M2 ~2w, M3 ~1w, M4 ~1–2w (~5–7 weeks total to public Phase 1).
 
-**After M4 (start Phase 2 — completes the MVP)**  
-Backend, auth, billing, sync service, web dashboard, and team UX ship only after [§14.5](#145-decision-gate). See [§17](#17-phase-2-dashboard-sync-subscription-and-teams).
+**After M4 (Phase 2 — completes the MVP)**  
+Phase 2 implementation (backend, web dashboard, mobile sync) is **underway in the repo**; commercial launch and billing remain gated by [§14.5](#145-decision-gate). See [§17](#17-phase-2-dashboard-sync-subscription-and-teams).
 
 ---
 
@@ -916,7 +945,7 @@ We re-evaluate funding **Phase 2** after **3 months post–Phase 1 launch** with
 
 - **Strong signal** (waitlist ≥ 10% of installs, retention ≥ 25%): build Phase 2 as scoped in [§17](#17-phase-2-dashboard-sync-subscription-and-teams) — sync, web dashboard, PDF reports, transcription, team workspaces. Probably ~6 months of work.
 - **Mixed signal** (good installs, weak waitlist, OR weak installs but strong feedback): the product is interesting but the paid pitch is wrong. Re-interview the waitlisters and the top engaged users before building anything more.
-- **Weak signal** (low installs, low retention, no waitlist): keep the free app running as a portfolio piece, do not invest in Phase 2. Cheap to maintain because there's no backend.
+- **Weak signal** (low installs, low retention, no waitlist): keep the free local app running as a portfolio piece; do not invest in operating or marketing the paid cloud surface. Backend code may remain for development but production cloud costs stay off.
 
 ---
 
@@ -950,7 +979,7 @@ Most of the above list becomes **in scope in Phase 2** under a paid team subscri
 
 ## 17. Phase 2: Dashboard, sync, subscription, and teams
 
-This section defines the **second delivery phase** of the **MVP** — dashboard, sync, subscription, and teams — and completes the scope in [§2](#2-goals--non-goals). **Phase 1** is the shipped mobile app ([§13](#13-phasing--milestones)). Nothing in this section is committed work until the **decision gate** in [§14.5](#145-decision-gate) says go.
+This section defines the **second delivery phase** of the **MVP** — dashboard, sync, subscription, and teams — and completes the scope in [§2](#2-goals--non-goals). **Phase 1** is the shipped mobile app ([§13](#13-phasing--milestones)). Much of Phase 2 is **already implemented in the repo** (API, web dashboard, mobile sync); **commercial launch**, team invites, PDF reports, and billing remain gated by the **decision gate** in [§14.5](#145-decision-gate).
 
 **Dashboard detail:** screens, flows, sync protocol, slices, and **user-testable milestones (M0–M8)** are expanded in [`web-dashboard-design.md`](web-dashboard-design.md). Phase 2 ships in eight reviewable milestones — clickable shell → auth → web CRUD → mobile text sync → media sync → teams → hardening → PDF reports → billing — see [`web-dashboard-design.md` §17](web-dashboard-design.md#17-milestones-user-testable-states).
 
@@ -989,7 +1018,7 @@ Users who never create a workspace and never sign in **never pay** and **do not 
 - **Auth** — **email + password**, **email magic link**, and **Google OAuth** are **implemented**; **Sign in with Apple** is planned ([§17.9](#179-authentication-sign-in-methods)). **JWT access token (15 min) + rotating opaque refresh token (30 d)**; per-session row in DB. Session and API detail: [`web-dashboard-design.md` §11](web-dashboard-design.md#11-auth--sessions).
 - **Outbound email** — transactional SMTP from the Go API (password reset, magic links, invites). Config in repo root `.env` (local) and `.env.deploy` (production) — [§17.9](#179-authentication-sign-in-methods).
 - **Billing** — **Paddle** as Merchant of Record (Iceland-friendly, no Stripe dependency). Hosted Customer Portal; webhooks handled inline in the Go API; lapse triggers a 14-day read-only grace period. App Store / Play in-app billing is **deferred**; RevenueCat is **not** in MVP.
-- **API + sync** — single **Go** service (`services/api/`) hosts auth, CRUD, sync, signed URLs, webhooks, and outbound email. REST/JSON with OpenAPI for client generation. Sync is **per-job** with last-writer-wins on `updated_at`, soft delete + 30-day tombstones, and direct-to-S3 blob uploads via signed URLs. Read-only edges when assignment, membership, or subscription lapses. Full protocol: [`web-dashboard-design.md` §15](web-dashboard-design.md#15-sync-api--protocol). **Sync triggering:** mobile `SyncScheduler` (S1) + web cursor polling (S3); `jobs.last_activity_at` + ETag cursor endpoints (S2): [`sync-strategy-plan.md`](sync-strategy-plan.md).
+- **API + sync** — single **Go** service (`services/api/`) hosts auth, CRUD, sync, signed URLs, webhooks, and outbound email. REST/JSON with OpenAPI for client generation. Sync is **per-job** with last-writer-wins on `updated_at`, soft delete + 30-day tombstones, and direct-to-S3 blob uploads via signed URLs. **Job assignments (partial):** `job_assignments` + `read_only` on unassigned jobs for members; invite/assign UI not shipped. Read-only edges when assignment, membership, or subscription lapses. Full protocol: [`web-dashboard-design.md` §15](web-dashboard-design.md#15-sync-api--protocol). **Sync triggering:** mobile `SyncScheduler` (S1) + web cursor polling (S3); `jobs.last_activity_at` + ETag cursor endpoints (S2): [`sync-strategy-plan.md`](sync-strategy-plan.md).
 - **PDF rendering** — separate **Rust** worker (`services/pdf/`) polling a Postgres queue (`reports.status` + `SKIP LOCKED`); only async service in MVP.
 - **Storage** — Postgres (relational + queue) + S3-compatible object store (MinIO in dev). No Redis in MVP.
 - **Dashboard** — `web/` (Next.js + TypeScript) on **app.jobsiterecords.com** — served to **desktop and mobile browsers** as one of three equally viable client surfaces alongside the native app ([§1.1](#11-client-surfaces)); responsive layout required. Shares types via `shared/` (OpenAPI) when introduced.
@@ -997,7 +1026,7 @@ Users who never create a workspace and never sign in **never pay** and **do not 
 
 ### 17.5 Relationship to Phase 1 code and repo
 
-Phase 2 **extends** the monorepo: `services/api/` (Go), `services/pdf/` (Rust), `web/` (Next.js), and app changes for sign-in and sync live alongside Phase 1. The Flutter app gains **optional** network modules and adds local sync-state columns (`sync_state`, `last_sync_attempt_at`, `remote_etag?`) without removing anything from Phase 1; repositories become "local + remote" behind the same interfaces ([§12](#12-future-proofing-for-phase-2-paid-tier)). Phase 1 builds and tests remain **fully offline** in CI so the free path never regresses.
+Phase 2 **extends** the monorepo: `services/api/` (Go), `web/` (Next.js), and app sync modules live alongside Phase 1 today; `services/pdf/` (Rust) remains planned. The Flutter app has **optional** network modules (`app/lib/sync/`) and local sync-state columns (`sync_state`, `sync_attempts`, `deleted_at`, …) without removing anything from Phase 1. Phase 1 local-only builds and tests should remain **fully offline** in CI so the free path never regresses.
 
 ### 17.6 Explicitly still out of scope for Phase 2 v1 (examples)
 
@@ -1116,7 +1145,7 @@ When SMTP is not configured (empty username/password), local dev may log the res
 - **Email + password (today):** `POST /api/v1/auth/signup`, `POST /api/v1/auth/login`; Argon2id password hashing (min 10 chars; breached-password list rejection). See [`web-dashboard-design.md` §11](web-dashboard-design.md#11-auth--sessions).
 - **Google (implemented):** `POST /api/v1/auth/oauth/google` with ID token from web BFF or mobile `google_sign_in`. Env: `GOOGLE_CLIENT_ID` (comma-separated allowed `aud` values).
 - **Apple (planned):** `POST /auth/oauth/apple` with identity token; private relay emails supported.
-- **Magic link (planned):** `POST /auth/magic-link` + verify URL; 15 min TTL; mobile deep-link handler.
+- **Magic link (implemented):** `POST /api/v1/auth/magic-link` + verify URL; 15 min TTL; web BFF + mobile can consume verify links.
 
 **Explicitly not in MVP:** enterprise SSO (SAML/OIDC beyond Google/Apple consumer flows), SMS OTP.
 
