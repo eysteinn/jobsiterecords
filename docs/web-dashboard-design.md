@@ -266,10 +266,10 @@ Timeline-style view of all records for one job. Purpose: let an office user **re
 
 **Edit gating:** if the current user is a member **not** assigned to this job, the page is **read-only** (no edit job, no caption/tag changes). Show a clear banner: *“You’re viewing this job. Ask the owner for assignment to edit.”*
 
-**Web MVP UI:** view timeline; edit captions/tags and job metadata when permitted. **No in-browser photo/voice capture** in dashboard v1 (no live camera or mic — field crews use the mobile app for that). **Uploading** existing images or files from the browser is **planned post-MVP** and is a separate feature from capture. Photo **mark-up** (annotate synced photos) is in scope per [`web-photo-annotation-plan.md`](web-photo-annotation-plan.md).
+**Web MVP UI:** view timeline; edit captions/tags and job metadata when permitted. **Mobile web (≤767px):** in-browser **photo** capture (live camera + library fallback) and **voice** recording (MediaRecorder) from **+ Add to job** — same mint/complete blob path as mobile sync. **Desktop web:** no live camera/mic yet; text notes only from **+ Add to job**. **Uploading** existing images or files from disk on desktop is **planned post-MVP**. Photo **mark-up** (annotate synced photos) is in scope per [`web-photo-annotation-plan.md`](web-photo-annotation-plan.md).
 
 **UX details specific to this page**
-- **Desktop layout (*implemented*):** polished SaaS dashboard — sidebar (280px, icons, collapse), top utility bar (workspace, search, account pill), job header (large title, address, status pill, **Refresh · Export · ⋮ · + Add to job**), **All + kind summary chips**, wide **Search timeline** row with **Filter** and **Select items**, date-grouped **card timeline** with vertical rail (same card pattern as mobile web: kind pills, photo thumbnails, overflow ⋮). Inline note compose removed; **+ Add to job** dropdown opens capture options (text note via modal; photo/voice/file app-only or coming soon). **Export job** modal (item checklist, date range, sort, include options — download stub until backend export). **Selection mode** replaces header with Tag · Export · Delete · Cancel; Escape exits. Job metadata (number/dates/notes) in collapsible details when present. **Mobile web (≤767px)** unchanged — bottom nav, FAB, filter sheet.
+- **Desktop layout (*implemented*):** polished SaaS dashboard — sidebar (280px, icons, collapse), top utility bar (workspace, search, account pill), job header (large title, address, status pill, **Refresh · Export · ⋮ · + Add to job**), **All + kind summary chips**, wide **Search timeline** row with **Filter** and **Select items**, date-grouped **card timeline** with vertical rail (same card pattern as mobile web: kind pills, photo thumbnails, overflow ⋮). Inline note compose removed; **+ Add to job** dropdown opens capture options (text note via modal; photo/voice/file app-only or coming soon on desktop). **Export job** modal (item checklist, date range, sort, include options — download stub until backend export). **Selection mode** replaces header with Tag · Export · Delete · Cancel; Escape exits. Job metadata (number/dates/notes) in collapsible details when present. **Mobile web (≤767px):** bottom nav, FAB, filter sheet; **+ Add** sheet opens photo camera, voice recorder, or text note.
 - **Photos (*implemented*):** each photo is a **timeline card** (thumbnail + Photo pill + time + caption + ⋮), not a loose gallery grid. Chronological interleaving with voice, note, and file cards under date headings.
 - **Lightbox (*implemented*):** click a photo → full image; footer and nav controls **shrink-wrap to image width** (no full-viewport bar on portrait shots). **Caption** is the primary footer block (tap-to-edit textarea); **metadata** (`date · time · N of M`) and **actions** (`Annotate` / `Edit annotations`, hold-to-peek hint) sit on a second row, actions right-aligned. **← / →** (buttons + keyboard) move between all photos in the job; disabled nav hidden; mark-up editor parity with mobile §6.4a; hold to peek original; `Esc` closes.
 - **Caption & tags edit inline** — captions on photos edited in lightbox; tags on web timeline still deferred.
@@ -474,7 +474,7 @@ A worker may belong to multiple workspaces over time; each workspace bills separ
 
 | Capability | Web dashboard MVP | Mobile app |
 | --- | --- | --- |
-| Add new photos / voice / files | **No** | **Yes** (assigned jobs only for members) |
+| Add new photos / voice / files | **Mobile web:** photo + voice capture; **desktop:** text note only; file upload planned | **Yes** (assigned jobs only for members) |
 | View timeline | Yes (all jobs) | Yes (assigned jobs for members) |
 | Edit captions / tags | Yes (if assigned or owner) | Yes (if assigned or owner) |
 | Create job folder | Yes | Yes |
@@ -947,7 +947,7 @@ Exceeding the limit returns `429` with `Retry-After`. Limits live in the Go API 
 - Approval workflows
 - Advanced analytics
 - Scheduling, chat, accounting integrations
-- In-browser **capture** (live camera / mic — use the mobile app; **file upload** from disk is planned separately)
+- Desktop in-browser **capture** (live camera / mic on desktop web; mobile web has photo + voice capture; **file upload** from disk on desktop is planned separately)
 - Real-time presence, comment threads
 - Enterprise SSO
 - Email/share report from dashboard (download only for v1)

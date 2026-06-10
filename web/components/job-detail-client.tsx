@@ -33,6 +33,8 @@ import { PageShell } from "@/components/page-shell";
 import { TimelineFilteredEmpty } from "@/components/timeline-search-panel";
 import { TimelineTagFilterSheet } from "@/components/timeline-tag-filter-sheet";
 import { MobileAddSheet } from "@/components/mobile-add-sheet";
+import { MobilePhotoCapture } from "@/components/mobile-photo-capture";
+import { MobileVoiceCapture } from "@/components/mobile-voice-capture";
 import { DesktopAddMenu } from "@/components/desktop-add-menu";
 import { AddNoteModal } from "@/components/add-note-modal";
 import { ExportJobModal } from "@/components/export-job-modal";
@@ -104,6 +106,8 @@ export function JobDetailClient({
   const [lightbox, setLightbox] = useState<{ itemId: string; mediaId?: string } | null>(null);
   const [annotatingItemId, setAnnotatingItemId] = useState<string | null>(null);
   const [addSheetOpen, setAddSheetOpen] = useState(false);
+  const [photoCaptureOpen, setPhotoCaptureOpen] = useState(false);
+  const [voiceCaptureOpen, setVoiceCaptureOpen] = useState(false);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [noteModalOpen, setNoteModalOpen] = useState(false);
   const [exportModalOpen, setExportModalOpen] = useState(false);
@@ -744,6 +748,15 @@ export function JobDetailClient({
     window.requestAnimationFrame(() => noteBodyRef.current?.focus());
   }
 
+  function handleCapturedItem(item: Item, media: MediaFile) {
+    setItems((prev) => [item, ...prev].sort(
+      (a, b) => new Date(b.captured_at).getTime() - new Date(a.captured_at).getTime(),
+    ));
+    setMediaFiles((prev) => [...prev, media]);
+    setToast(item.kind === "photo" ? "Photo saved" : "Voice note saved");
+    router.refresh();
+  }
+
   const showMobileAddFab =
     mobileChromeReady && isActiveJobRoute && !readOnly && !selecting && items.length > 0;
 
@@ -1342,6 +1355,22 @@ export function JobDetailClient({
       jobName={job.name}
       readOnly={readOnly}
       onAddNote={openMobileNoteCompose}
+      onAddPhoto={() => setPhotoCaptureOpen(true)}
+      onAddVoice={() => setVoiceCaptureOpen(true)}
+    />
+
+    <MobilePhotoCapture
+      open={photoCaptureOpen && isActiveJobRoute}
+      jobId={job.id}
+      onClose={() => setPhotoCaptureOpen(false)}
+      onSaved={handleCapturedItem}
+    />
+
+    <MobileVoiceCapture
+      open={voiceCaptureOpen && isActiveJobRoute}
+      jobId={job.id}
+      onClose={() => setVoiceCaptureOpen(false)}
+      onSaved={handleCapturedItem}
     />
 
     <AddNoteModal

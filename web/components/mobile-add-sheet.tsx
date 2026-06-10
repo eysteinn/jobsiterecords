@@ -8,10 +8,20 @@ type Props = {
   onClose: () => void;
   jobName: string;
   onAddNote: () => void;
+  onAddPhoto?: () => void;
+  onAddVoice?: () => void;
   readOnly?: boolean;
 };
 
-export function MobileAddSheet({ open, onClose, jobName, onAddNote, readOnly = false }: Props) {
+export function MobileAddSheet({
+  open,
+  onClose,
+  jobName,
+  onAddNote,
+  onAddPhoto,
+  onAddVoice,
+  readOnly = false,
+}: Props) {
   useEffect(() => {
     if (!open) return;
     function onKey(e: KeyboardEvent) {
@@ -36,23 +46,37 @@ export function MobileAddSheet({ open, onClose, jobName, onAddNote, readOnly = f
         <h2 className={styles.title}>Add to {jobName}</h2>
         <p className={styles.subtitle}>Capture and store records</p>
 
-        <button type="button" className={styles.option} disabled aria-disabled="true">
+        <button
+          type="button"
+          className={styles.option}
+          onClick={() => {
+            onAddPhoto?.();
+            onClose();
+          }}
+        >
           <span className={styles.optionIcon} aria-hidden>
             <PhotoOptionIcon />
           </span>
           <span className={styles.optionBody}>
             <strong>Photo</strong>
-            <span>Upload or take a photo — use the mobile app</span>
+            <span>Take a photo or choose from library</span>
           </span>
         </button>
 
-        <button type="button" className={styles.option} disabled aria-disabled="true">
+        <button
+          type="button"
+          className={styles.option}
+          onClick={() => {
+            onAddVoice?.();
+            onClose();
+          }}
+        >
           <span className={styles.optionIcon} aria-hidden>
             <VoiceOptionIcon />
           </span>
           <span className={styles.optionBody}>
             <strong>Voice note</strong>
-            <span>Record on site — use the mobile app</span>
+            <span>Record on site</span>
           </span>
         </button>
 

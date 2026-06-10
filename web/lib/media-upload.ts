@@ -19,6 +19,7 @@ export async function mintMediaUpload(
     size_bytes: number;
     width?: number;
     height?: number;
+    duration_ms?: number;
   },
 ): Promise<MintResponse> {
   const res = await fetch(`/api/items/${itemId}/media-files`, {

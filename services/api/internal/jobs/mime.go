@@ -18,11 +18,12 @@ var allowedPhotoMimes = map[string]bool{
 }
 
 var allowedVoiceMimes = map[string]bool{
-	"audio/m4a":    true,
-	"audio/mp4":    true,
-	"audio/aac":    true,
-	"audio/wav":    true,
-	"audio/x-m4a":  true,
+	"audio/m4a":   true,
+	"audio/mp4":   true,
+	"audio/aac":   true,
+	"audio/wav":   true,
+	"audio/webm":  true,
+	"audio/x-m4a": true,
 }
 
 var allowedFileMimes = map[string]bool{
@@ -57,6 +58,9 @@ func validateMagicBytes(mime string, head []byte) error {
 		}
 	case strings.HasPrefix(mime, "audio/"):
 		if len(head) >= 12 && string(head[4:8]) == "ftyp" {
+			return nil
+		}
+		if mime == "audio/webm" && len(head) >= 4 && head[0] == 0x1A && head[1] == 0x45 && head[2] == 0xDF && head[3] == 0xA3 {
 			return nil
 		}
 		if mime == "audio/wav" && len(head) >= 12 && string(head[:4]) == "RIFF" && string(head[8:12]) == "WAVE" {
