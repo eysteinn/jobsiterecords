@@ -32,6 +32,18 @@ import { PhotoAnnotationEditor } from "@/components/photo-annotation/photo-annot
 import { PageShell } from "@/components/page-shell";
 import { TimelineFilteredEmpty } from "@/components/timeline-search-panel";
 import { TimelineTagFilterSheet } from "@/components/timeline-tag-filter-sheet";
+import { BulkTagSheet } from "@/components/bulk-tag-sheet";
+import { AddTagDialog } from "@/components/add-tag-dialog";
+import { TagChips } from "@/components/tag-chips";
+import {
+  buildItemTagsMap,
+  itemTagLinksForItem,
+  mergeBulkItemTags,
+  mergeItemTags,
+  saveItemTagIds,
+  tagIdsForItem,
+  upsertWorkspaceTag,
+} from "@/lib/tags";
 import { MobileAddSheet } from "@/components/mobile-add-sheet";
 import { MobilePhotoCapture } from "@/components/mobile-photo-capture";
 import { MobileVoiceCapture } from "@/components/mobile-voice-capture";
@@ -118,6 +130,10 @@ export function JobDetailClient({
   const [editingNote, setEditingNote] = useState<Item | null>(null);
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
   const [tagFilterOpen, setTagFilterOpen] = useState(false);
+  const [bulkTagOpen, setBulkTagOpen] = useState(false);
+  const [addTagOpen, setAddTagOpen] = useState(false);
+  const [addTagTarget, setAddTagTarget] = useState<"compose" | { itemId: string } | null>(null);
+  const [composeTagIds, setComposeTagIds] = useState<Set<string>>(new Set());
   const [workspaceTags, setWorkspaceTags] = useState<Tag[]>(initialTags);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
   const jobMenuRef = useRef<HTMLDivElement>(null);
@@ -440,6 +456,73 @@ export function JobDetailClient({
     allTags,
   ).join(" · ");
 
+  function mergeTagLibrary(tag: Tag) {
+    const merge = (prev: Tag[]) => {
+      const byId = new Map(prev.map((entry) => [entry.id, entry]));
+      byId.set(tag.id, tag);
+      return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
+    };
+    setWorkspaceTags(merge);
+    setTags(merge);
+  }
+
+  async function createTag(name: string): Promise<Tag> {
+    const tag = await upsertWorkspaceTag(workspaceId, name);
+    mergeTagLibrary(tag);
+    return tag;
+  }
+
+  function toggleComposeTag(tagId: string) {
+    setComposeTagIds((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(tagId)) next.add(tagId);
+      return next;
+    });
+  }
+
+  function resetComposeTags() {
+    setComposeTagIds(new Set());
+  }
+
+  async function saveItemTags(item: Item, nextTagIds: Set<string>) {
+    const tagIdList = [...nextTagIds];
+    const snapshot = itemTags;
+    setItemTags((prev) => mergeItemTags(prev, item.id, nextTagIds));
+    try {
+      await saveItemTagIds(job.id, item, tagIdList);
+      router.refresh();
+    } catch (err) {
+      setItemTags(snapshot);
+      throw err;
+    }
+  }
+
+  async function applyBulkTags(pending: Map<string, Set<string>>) {
+    const original = buildItemTagsMap(itemTags, pending.keys());
+    const changed: { item: Item; tagIds: string[] }[] = [];
+    for (const [itemId, tagSet] of pending) {
+      const prevSet = original.get(itemId) ?? new Set<string>();
+      const sameSize = prevSet.size === tagSet.size;
+      const sameTags = sameSize && [...prevSet].every((id) => tagSet.has(id));
+      if (sameTags) continue;
+      const item = items.find((entry) => entry.id === itemId);
+      if (!item) continue;
+      changed.push({ item, tagIds: [...tagSet] });
+    }
+    if (changed.length === 0) return;
+
+    const snapshot = itemTags;
+    setItemTags((prev) => mergeBulkItemTags(prev, pending));
+    try {
+      await Promise.all(changed.map(({ item, tagIds }) => saveItemTagIds(job.id, item, tagIds)));
+      setToast(changed.length === 1 ? "Tags updated" : `Tags updated on ${changed.length} items`);
+      router.refresh();
+    } catch (err) {
+      setItemTags(snapshot);
+      throw err;
+    }
+  }
+
   async function addNote() {
     if (!noteBody.trim()) return;
     setSaving(true);
@@ -447,6 +530,7 @@ export function JobDetailClient({
     try {
       const id = crypto.randomUUID();
       const now = new Date().toISOString();
+      const tagIdList = [...composeTagIds];
       const res = await fetch(`/api/jobs/${job.id}/items/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -457,13 +541,18 @@ export function JobDetailClient({
           captured_at: now,
           created_at: now,
           updated_at: now,
+          ...(tagIdList.length > 0 ? { tag_ids: tagIdList } : {}),
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Could not add note");
       setItems((prev) => [data, ...prev]);
+      if (tagIdList.length > 0) {
+        setItemTags((prev) => [...prev, ...itemTagLinksForItem(id, tagIdList)]);
+      }
       setNoteBody("");
       setNoteCaption("");
+      resetComposeTags();
       setNoteMessage("Saved");
       setNoteModalOpen(false);
       setMobileNoteOpen(false);
@@ -652,8 +741,11 @@ export function JobDetailClient({
     setToast("Edit voice notes and files in the mobile app");
   }
 
-  async function saveNoteEdit(item: Item, body: string, caption: string) {
+  async function saveNoteEdit(item: Item, body: string, caption: string, tagIds: Set<string>) {
     const now = new Date().toISOString();
+    const tagIdList = [...tagIds];
+    const snapshot = itemTags;
+    setItemTags((prev) => mergeItemTags(prev, item.id, tagIds));
     const res = await fetch(`/api/jobs/${job.id}/items/${item.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -664,10 +756,14 @@ export function JobDetailClient({
         captured_at: item.captured_at,
         created_at: item.created_at,
         updated_at: now,
+        tag_ids: tagIdList,
       }),
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.message || "Could not save note");
+    if (!res.ok) {
+      setItemTags(snapshot);
+      throw new Error(data.message || "Could not save note");
+    }
     setItems((prev) => prev.map((entry) => (entry.id === item.id ? data : entry)));
     setEditingNote(null);
     router.refresh();
@@ -748,13 +844,43 @@ export function JobDetailClient({
     window.requestAnimationFrame(() => noteBodyRef.current?.focus());
   }
 
-  function handleCapturedItem(item: Item, media: MediaFile) {
+  function handleCapturedItem(item: Item, media: MediaFile, tagIds?: string[]) {
     setItems((prev) => [item, ...prev].sort(
       (a, b) => new Date(b.captured_at).getTime() - new Date(a.captured_at).getTime(),
     ));
     setMediaFiles((prev) => [...prev, media]);
+    if (tagIds && tagIds.length > 0) {
+      setItemTags((prev) => [...prev, ...itemTagLinksForItem(item.id, tagIds)]);
+    }
+    resetComposeTags();
     setToast(item.kind === "photo" ? "Photo saved" : "Voice note saved");
     router.refresh();
+  }
+
+  function openBulkTag() {
+    if (selected.size === 0 || readOnly) return;
+    setBulkTagOpen(true);
+  }
+
+  function openAddTag(target: "compose" | { itemId: string } = "compose") {
+    setAddTagTarget(target);
+    setAddTagOpen(true);
+  }
+
+  async function handleCreateTag(name: string) {
+    const tag = await createTag(name);
+    if (addTagTarget === "compose") {
+      setComposeTagIds((prev) => new Set([...prev, tag.id]));
+    } else if (addTagTarget) {
+      const item = items.find((entry) => entry.id === addTagTarget.itemId);
+      if (item) {
+        const next = new Set(tagIdsForItem(itemTags, item.id));
+        next.add(tag.id);
+        await saveItemTags(item, next);
+      }
+    }
+    setAddTagTarget(null);
+    return tag;
   }
 
   const showMobileAddFab =
@@ -894,7 +1020,7 @@ export function JobDetailClient({
           <button
             type="button"
             className={styles.selectionOutlineBtn}
-            onClick={() => setToast("Tag assignment is available in the mobile app")}
+            onClick={openBulkTag}
             disabled={selected.size === 0}
           >
             Tag
@@ -936,7 +1062,7 @@ export function JobDetailClient({
               <button
                 type="button"
                 className={styles.selectionOutlineBtn}
-                onClick={() => setToast("Tag assignment is available in the mobile app")}
+                onClick={openBulkTag}
                 disabled={selected.size === 0}
               >
                 Tag
@@ -1200,6 +1326,14 @@ export function JobDetailClient({
           value={noteBody}
           onChange={(e) => setNoteBody(e.target.value)}
         />
+        <TagChips
+          allTags={allTags}
+          selectedIds={composeTagIds}
+          onToggle={toggleComposeTag}
+          onAddTag={() => openAddTag("compose")}
+          disabled={saving}
+          label="Tags (optional)"
+        />
         <div className={styles.composeActions}>
           <button type="button" className={styles.primary} disabled={saving} onClick={addNote}>
             {saving ? "Saving…" : "Add note"}
@@ -1294,9 +1428,21 @@ export function JobDetailClient({
           mediaByItem={mediaByItem}
           lightbox={lightbox}
           readOnly={readOnly}
+          allTags={allTags}
+          itemTagIds={tagIdsForItem(itemTags, lightbox.itemId)}
           onClose={() => setLightbox(null)}
           onNavigate={(itemId, mediaId) => setLightbox({ itemId, mediaId })}
           onSaveCaption={saveCaption}
+          onToggleTag={async (item, tagId) => {
+            const next = new Set(tagIdsForItem(itemTags, item.id));
+            if (!next.delete(tagId)) next.add(tagId);
+            try {
+              await saveItemTags(item, next);
+            } catch (err) {
+              setToast(err instanceof Error ? err.message : "Could not save tags");
+            }
+          }}
+          onAddTag={() => openAddTag({ itemId: lightbox.itemId })}
           onAnnotate={(itemId) => {
             setLightbox(null);
             setAnnotatingItemId(itemId);
@@ -1344,8 +1490,18 @@ export function JobDetailClient({
     {editingNote && (
       <NoteEditModal
         item={editingNote}
+        allTags={allTags}
+        selectedTagIds={tagIdsForItem(itemTags, editingNote.id)}
         onClose={() => setEditingNote(null)}
         onSave={saveNoteEdit}
+        onToggleTag={(tagId) => {
+          const next = new Set(tagIdsForItem(itemTags, editingNote.id));
+          if (!next.delete(tagId)) next.add(tagId);
+          void saveItemTags(editingNote, next).catch((err) => {
+            setToast(err instanceof Error ? err.message : "Could not save tags");
+          });
+        }}
+        onAddTag={() => openAddTag({ itemId: editingNote.id })}
       />
     )}
 
@@ -1362,24 +1518,45 @@ export function JobDetailClient({
     <MobilePhotoCapture
       open={photoCaptureOpen && isActiveJobRoute}
       jobId={job.id}
-      onClose={() => setPhotoCaptureOpen(false)}
+      onClose={() => {
+        setPhotoCaptureOpen(false);
+        resetComposeTags();
+      }}
       onSaved={handleCapturedItem}
+      allTags={allTags}
+      selectedTagIds={composeTagIds}
+      onToggleTag={toggleComposeTag}
+      onAddTag={() => openAddTag("compose")}
     />
 
     <MobileVoiceCapture
       open={voiceCaptureOpen && isActiveJobRoute}
       jobId={job.id}
-      onClose={() => setVoiceCaptureOpen(false)}
+      onClose={() => {
+        setVoiceCaptureOpen(false);
+        resetComposeTags();
+      }}
       onSaved={handleCapturedItem}
+      allTags={allTags}
+      selectedTagIds={composeTagIds}
+      onToggleTag={toggleComposeTag}
+      onAddTag={() => openAddTag("compose")}
     />
 
     <AddNoteModal
       open={noteModalOpen}
-      onClose={() => setNoteModalOpen(false)}
+      onClose={() => {
+        setNoteModalOpen(false);
+        resetComposeTags();
+      }}
       caption={noteCaption}
       body={noteBody}
       onCaptionChange={setNoteCaption}
       onBodyChange={setNoteBody}
+      allTags={allTags}
+      selectedTagIds={composeTagIds}
+      onToggleTag={toggleComposeTag}
+      onAddTag={() => openAddTag("compose")}
       onSave={addNote}
       saving={saving}
       error={noteMessage && noteMessage !== "Saved" ? noteMessage : null}
@@ -1426,6 +1603,27 @@ export function JobDetailClient({
       selectedTagIds={tagFilter}
       onApply={applyTagFilter}
     />
+
+    <BulkTagSheet
+      open={bulkTagOpen}
+      onClose={() => setBulkTagOpen(false)}
+      selectedItemIds={selected}
+      allTags={allTags}
+      itemTags={itemTags}
+      onApply={applyBulkTags}
+      onCreateTag={createTag}
+    />
+
+    <AddTagDialog
+      open={addTagOpen}
+      onClose={() => {
+        setAddTagOpen(false);
+        setAddTagTarget(null);
+      }}
+      onSave={async (name) => {
+        await handleCreateTag(name);
+      }}
+    />
     </div>
   );
 }
@@ -1440,9 +1638,13 @@ function PhotoLightbox({
   mediaByItem,
   lightbox,
   readOnly,
+  allTags,
+  itemTagIds,
   onClose,
   onNavigate,
   onSaveCaption,
+  onToggleTag,
+  onAddTag,
   onAnnotate,
   onDelete,
   onEdit,
@@ -1452,9 +1654,13 @@ function PhotoLightbox({
   mediaByItem: Map<string, MediaFile[]>;
   lightbox: { itemId: string; mediaId?: string };
   readOnly: boolean;
+  allTags: Tag[];
+  itemTagIds: Set<string>;
   onClose: () => void;
   onNavigate: (itemId: string, mediaId?: string) => void;
   onSaveCaption: (item: Item, caption: string) => Promise<void>;
+  onToggleTag: (item: Item, tagId: string) => void | Promise<void>;
+  onAddTag?: () => void;
   onAnnotate: (itemId: string) => void;
   onDelete?: (itemId: string) => void;
   onEdit?: (itemId: string) => void;
@@ -1540,6 +1746,26 @@ function PhotoLightbox({
         </div>
         <div className={styles.lightboxFooter}>
           <LightboxCaption item={item} onSave={onSaveCaption} readOnly={readOnly} />
+          {!readOnly && (
+            <div className={styles.lightboxTags}>
+              <TagChips
+                allTags={allTags}
+                selectedIds={itemTagIds}
+                onToggle={(tagId) => void onToggleTag(item, tagId)}
+                onAddTag={onAddTag}
+              />
+            </div>
+          )}
+          {readOnly && itemTagIds.size > 0 && (
+            <div className={styles.lightboxTags}>
+              <TagChips
+                allTags={allTags.filter((tag) => itemTagIds.has(tag.id))}
+                selectedIds={itemTagIds}
+                onToggle={() => {}}
+                disabled
+              />
+            </div>
+          )}
           <div className={styles.lightboxFooterBar}>
             <p className={styles.lightboxMeta}>
               {formatDate(item.captured_at)} · {formatTime(item.captured_at)}
@@ -1693,12 +1919,20 @@ function LightboxCaption({
 
 function NoteEditModal({
   item,
+  allTags,
+  selectedTagIds,
   onClose,
   onSave,
+  onToggleTag,
+  onAddTag,
 }: {
   item: Item;
+  allTags: Tag[];
+  selectedTagIds: Set<string>;
   onClose: () => void;
-  onSave: (item: Item, body: string, caption: string) => Promise<void>;
+  onSave: (item: Item, body: string, caption: string, tagIds: Set<string>) => Promise<void>;
+  onToggleTag: (tagId: string) => void;
+  onAddTag?: () => void;
 }) {
   const [body, setBody] = useState(item.body ?? "");
   const [caption, setCaption] = useState(item.caption ?? "");
@@ -1717,7 +1951,7 @@ function NoteEditModal({
     setSaving(true);
     setError(null);
     try {
-      await onSave(item, body, caption);
+      await onSave(item, body, caption, selectedTagIds);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save note");
     } finally {
@@ -1743,6 +1977,14 @@ function NoteEditModal({
           Note
           <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={6} />
         </label>
+        <TagChips
+          allTags={allTags}
+          selectedIds={selectedTagIds}
+          onToggle={onToggleTag}
+          onAddTag={onAddTag}
+          disabled={saving}
+          label="Tags"
+        />
         {error && <p className={styles.error}>{error}</p>}
         <div className={styles.noteEditActions}>
           <button type="button" onClick={onClose} disabled={saving}>

@@ -582,6 +582,10 @@
   right: 8px;
 }
 
+.lightboxTags {
+  margin-top: 10px;
+}
+
 .lightboxFooter {
   background: #fff;
   border-radius: 8px;

@@ -5,6 +5,7 @@ type SavePhotoInput = {
   jobId: string;
   blob: Blob;
   caption?: string | null;
+  tagIds?: string[];
   width?: number;
   height?: number;
 };
@@ -15,6 +16,7 @@ type SaveVoiceInput = {
   mimeType: string;
   durationMs: number;
   caption?: string | null;
+  tagIds?: string[];
 };
 
 async function upsertItem(
@@ -57,6 +59,7 @@ export async function saveCapturedPhoto({
   jobId,
   blob,
   caption,
+  tagIds,
   width,
   height,
 }: SavePhotoInput): Promise<{ item: Item; media: MediaFile }> {
@@ -70,6 +73,7 @@ export async function saveCapturedPhoto({
     captured_at: now,
     created_at: now,
     updated_at: now,
+    ...(tagIds && tagIds.length > 0 ? { tag_ids: tagIds } : {}),
   });
 
   const media = await uploadMedia(itemId, mediaId, "primary_photo", blob, "image/jpeg", {
@@ -86,6 +90,7 @@ export async function saveCapturedVoice({
   mimeType,
   durationMs,
   caption,
+  tagIds,
 }: SaveVoiceInput): Promise<{ item: Item; media: MediaFile }> {
   const itemId = crypto.randomUUID();
   const mediaId = crypto.randomUUID();
@@ -97,6 +102,7 @@ export async function saveCapturedVoice({
     captured_at: now,
     created_at: now,
     updated_at: now,
+    ...(tagIds && tagIds.length > 0 ? { tag_ids: tagIds } : {}),
   });
 
   const media = await uploadMedia(itemId, mediaId, "voice_note", blob, mimeType, {
