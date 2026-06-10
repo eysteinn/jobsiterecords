@@ -488,6 +488,7 @@
   flex-direction: column;
   gap: 10px;
   width: fit-content;
+  min-height: 0;
 }
 
 .lightboxMedia {
@@ -582,6 +583,10 @@
   right: 8px;
 }
 
+.lightboxTags {
+  margin-top: 10px;
+}
+
 .lightboxFooter {
   background: #fff;
   border-radius: 8px;
@@ -590,6 +595,7 @@
   flex-direction: column;
   gap: 10px;
   width: 100%;
+  flex-shrink: 0;
 }
 
 .lightboxFooterBar {
@@ -1244,6 +1250,65 @@
 }
 
 @media (max-width: 767px) {
+  .lightbox {
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .lightboxInner {
+    width: 100%;
+    max-width: 100%;
+    height: 100dvh;
+    max-height: 100dvh;
+    gap: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .lightboxMedia {
+    flex: 1 1 0;
+    min-height: 30dvh;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .annotatedPhotoWrap {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .lightboxImg {
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    border-radius: 0;
+  }
+
+  .lightboxFooter {
+    flex-shrink: 0;
+    border-radius: 16px 16px 0 0;
+    max-height: min(46dvh, 400px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0));
+  }
+
+  .lightboxClose {
+    top: calc(12px + env(safe-area-inset-top, 0));
+    right: 12px;
+  }
+
   .refreshBtn,
   .backLink {
     display: none;

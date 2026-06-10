@@ -1,0 +1,63 @@
+.wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #f3f4f6;
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--ink, #111827);
+  cursor: pointer;
+}
+
+.chipSelected {
+  border: 1px solid var(--accent, #f59e0b);
+  background: var(--accent-soft, #fef3c7);
+  color: #92400e;
+}
+
+.chipPartial {
+  border: 1.5px solid var(--accent, #f59e0b);
+  background: rgba(245, 158, 11, 0.35);
+}
+
+.chip:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.addChip {
+  border: 1px dashed var(--border);
+  border-radius: 999px;
+  background: transparent;
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.addChip:hover {
+  border-color: var(--accent);
+  color: var(--ink, #111827);
+}
+
+.partialMark {
+  margin-right: 4px;
+  font-size: 0.75rem;
+}
+
+.label {
+  display: block;
+  margin: 0 0 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted);
+}

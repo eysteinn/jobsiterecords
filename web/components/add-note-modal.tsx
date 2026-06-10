@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import type { Tag } from "@/lib/api-jobs";
+import { TagChips } from "@/components/tag-chips";
 import styles from "./add-note-modal.module.css";
 
 type Props = {
@@ -10,6 +12,10 @@ type Props = {
   body: string;
   onCaptionChange: (value: string) => void;
   onBodyChange: (value: string) => void;
+  allTags?: Tag[];
+  selectedTagIds?: ReadonlySet<string>;
+  onToggleTag?: (tagId: string) => void;
+  onAddTag?: () => void;
   onSave: () => void;
   saving?: boolean;
   error?: string | null;
@@ -22,6 +28,10 @@ export function AddNoteModal({
   body,
   onCaptionChange,
   onBodyChange,
+  allTags = [],
+  selectedTagIds,
+  onToggleTag,
+  onAddTag,
   onSave,
   saving = false,
   error,
@@ -76,6 +86,17 @@ export function AddNoteModal({
             placeholder="Write your note…"
           />
         </label>
+
+        {onToggleTag && (
+          <TagChips
+            allTags={allTags}
+            selectedIds={selectedTagIds ?? new Set()}
+            onToggle={onToggleTag}
+            onAddTag={onAddTag}
+            disabled={saving}
+            label="Tags (optional)"
+          />
+        )}
 
         {error && (
           <p className={styles.error} role="alert">

@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { blobFromCanvas, hasCameraCapture, loadImageDimensions } from "@/lib/capture-support";
 import { saveCapturedPhoto } from "@/lib/save-captured-item";
-import type { Item, MediaFile } from "@/lib/api-jobs";
+import type { Item, MediaFile, Tag } from "@/lib/api-jobs";
+import { TagChips } from "@/components/tag-chips";
 import styles from "./mobile-photo-capture.module.css";
 
 type Phase = "camera" | "review" | "fallback";
@@ -12,10 +13,23 @@ type Props = {
   open: boolean;
   jobId: string;
   onClose: () => void;
-  onSaved: (item: Item, media: MediaFile) => void;
+  onSaved: (item: Item, media: MediaFile, tagIds?: string[]) => void;
+  allTags?: Tag[];
+  selectedTagIds?: ReadonlySet<string>;
+  onToggleTag?: (tagId: string) => void;
+  onAddTag?: () => void;
 };
 
-export function MobilePhotoCapture({ open, jobId, onClose, onSaved }: Props) {
+export function MobilePhotoCapture({
+  open,
+  jobId,
+  onClose,
+  onSaved,
+  allTags = [],
+  selectedTagIds,
+  onToggleTag,
+  onAddTag,
+}: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -147,14 +161,16 @@ export function MobilePhotoCapture({ open, jobId, onClose, onSaved }: Props) {
     setError(null);
     try {
       const dims = await loadImageDimensions(photoBlob);
+      const tagIds = selectedTagIds ? [...selectedTagIds] : [];
       const { item, media } = await saveCapturedPhoto({
         jobId,
         blob: photoBlob,
         caption,
+        tagIds,
         width: dims.width,
         height: dims.height,
       });
-      onSaved(item, media);
+      onSaved(item, media, tagIds);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save photo");
@@ -183,6 +199,16 @@ export function MobilePhotoCapture({ open, jobId, onClose, onSaved }: Props) {
                 maxLength={160}
               />
             </label>
+            {onToggleTag && (
+              <TagChips
+                allTags={allTags}
+                selectedIds={selectedTagIds ?? new Set()}
+                onToggle={onToggleTag}
+                onAddTag={onAddTag}
+                disabled={saving}
+                label="Tags (optional)"
+              />
+            )}
             {error && (
               <p className={styles.error} role="alert">
                 {error}

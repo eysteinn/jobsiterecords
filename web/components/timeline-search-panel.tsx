@@ -160,8 +160,7 @@ export function TimelineSearchPanel({
               type="button"
               className={`${styles.chip} ${tagFilter.size > 0 ? styles.tagChipActive : ""}`}
               onClick={onOpenTagFilter}
-              disabled={allTags.length === 0}
-              title={allTags.length === 0 ? "No tags yet — add tags in the mobile app" : undefined}
+              title={allTags.length === 0 ? "No tags yet — add tags when editing items" : undefined}
             >
               {tagFilter.size === 0 ? "Tags" : `Tags (${tagFilter.size})`}
             </button>

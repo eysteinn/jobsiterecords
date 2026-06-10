@@ -8,7 +8,8 @@ import {
   pickVoiceRecorderMime,
 } from "@/lib/capture-support";
 import { saveCapturedVoice } from "@/lib/save-captured-item";
-import type { Item, MediaFile } from "@/lib/api-jobs";
+import type { Item, MediaFile, Tag } from "@/lib/api-jobs";
+import { TagChips } from "@/components/tag-chips";
 import styles from "./mobile-voice-capture.module.css";
 
 type Phase = "record" | "review" | "unsupported";
@@ -20,10 +21,23 @@ type Props = {
   open: boolean;
   jobId: string;
   onClose: () => void;
-  onSaved: (item: Item, media: MediaFile) => void;
+  onSaved: (item: Item, media: MediaFile, tagIds?: string[]) => void;
+  allTags?: Tag[];
+  selectedTagIds?: ReadonlySet<string>;
+  onToggleTag?: (tagId: string) => void;
+  onAddTag?: () => void;
 };
 
-export function MobileVoiceCapture({ open, jobId, onClose, onSaved }: Props) {
+export function MobileVoiceCapture({
+  open,
+  jobId,
+  onClose,
+  onSaved,
+  allTags = [],
+  selectedTagIds,
+  onToggleTag,
+  onAddTag,
+}: Props) {
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
@@ -160,14 +174,16 @@ export function MobileVoiceCapture({ open, jobId, onClose, onSaved }: Props) {
     setError(null);
     try {
       const normalizedMime = normalizeVoiceMime(mimeType);
+      const tagIds = selectedTagIds ? [...selectedTagIds] : [];
       const { item, media } = await saveCapturedVoice({
         jobId,
         blob: audioBlob,
         mimeType: normalizedMime,
         durationMs: elapsedMs,
         caption,
+        tagIds,
       });
-      onSaved(item, media);
+      onSaved(item, media, tagIds);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save voice note");
@@ -221,6 +237,16 @@ export function MobileVoiceCapture({ open, jobId, onClose, onSaved }: Props) {
                 maxLength={160}
               />
             </label>
+            {onToggleTag && (
+              <TagChips
+                allTags={allTags}
+                selectedIds={selectedTagIds ?? new Set()}
+                onToggle={onToggleTag}
+                onAddTag={onAddTag}
+                disabled={saving}
+                label="Tags (optional)"
+              />
+            )}
           </div>
           {error && (
             <p className={styles.error} role="alert">
