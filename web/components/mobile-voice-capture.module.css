@@ -118,12 +118,14 @@
 
 .review {
   flex: 1;
-  display: grid;
-  grid-template-rows: auto 1fr auto;
+  display: flex;
+  flex-direction: column;
   min-height: 0;
+  overflow: hidden;
 }
 
 .playerWrap {
+  flex-shrink: 0;
   padding: var(--mobile-page-padding);
   display: grid;
   gap: 12px;
@@ -134,6 +136,11 @@
 }
 
 .reviewForm {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: min(40dvh, 360px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   padding: 0 var(--mobile-page-padding) var(--mobile-page-padding);
   display: grid;
   gap: 12px;
@@ -154,6 +161,7 @@
 }
 
 .reviewActions {
+  flex-shrink: 0;
   display: flex;
   gap: 10px;
   padding: 0 var(--mobile-page-padding);
