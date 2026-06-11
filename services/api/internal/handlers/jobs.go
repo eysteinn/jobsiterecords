@@ -182,8 +182,10 @@ func (h *JobsHandler) AssignedJobIDs(w http.ResponseWriter, r *http.Request) {
 
 func writeJobsError(w http.ResponseWriter, err error) {
 	switch err.Error() {
-	case "not a workspace member", "no access", "not assigned to job":
+	case "not a workspace member", "no access":
 		httpx.Error(w, http.StatusForbidden, "forbidden", err.Error(), nil)
+	case "not assigned to job":
+		httpx.Error(w, http.StatusForbidden, "read_only", "Job is read-only", nil)
 	case "read_only":
 		httpx.Error(w, http.StatusForbidden, "read_only", "Job is read-only", nil)
 	default:

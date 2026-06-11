@@ -109,14 +109,7 @@ func (s *Service) CreateMediaUpload(ctx context.Context, userID, itemID string, 
 	if err != nil {
 		return CreateMediaResult{}, err
 	}
-	_, readOnly, err := s.getJobAccess(ctx, userID, item.JobID)
-	if err != nil {
-		return CreateMediaResult{}, err
-	}
-	if readOnly {
-		return CreateMediaResult{}, errors.New("read_only")
-	}
-	if err := s.requireWrite(ctx, userID, item.WorkspaceID, item.JobID); err != nil {
+	if _, err := s.requireJobWrite(ctx, userID, item.JobID); err != nil {
 		return CreateMediaResult{}, err
 	}
 
@@ -200,14 +193,7 @@ func (s *Service) CompleteMediaUpload(ctx context.Context, userID, mediaID strin
 	if err != nil {
 		return MediaFile{}, err
 	}
-	_, readOnly, err := s.getJobAccess(ctx, userID, item.JobID)
-	if err != nil {
-		return MediaFile{}, err
-	}
-	if readOnly {
-		return MediaFile{}, errors.New("read_only")
-	}
-	if err := s.requireWrite(ctx, userID, item.WorkspaceID, item.JobID); err != nil {
+	if _, err := s.requireJobWrite(ctx, userID, item.JobID); err != nil {
 		return MediaFile{}, err
 	}
 
@@ -265,14 +251,7 @@ func (s *Service) DeleteMedia(ctx context.Context, userID, mediaID string) error
 	if err != nil {
 		return err
 	}
-	_, readOnly, err := s.getJobAccess(ctx, userID, item.JobID)
-	if err != nil {
-		return err
-	}
-	if readOnly {
-		return errors.New("read_only")
-	}
-	if err := s.requireWrite(ctx, userID, item.WorkspaceID, item.JobID); err != nil {
+	if _, err := s.requireJobWrite(ctx, userID, item.JobID); err != nil {
 		return err
 	}
 	now := time.Now().UTC()
