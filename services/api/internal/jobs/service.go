@@ -122,14 +122,19 @@ func (s *Service) UpsertJob(ctx context.Context, userID string, in Job) (Job, er
 	if in.WorkspaceID == "" || in.ID == "" || in.Name == "" {
 		return Job{}, errors.New("missing required job fields")
 	}
-	if err := s.requireWrite(ctx, userID, in.WorkspaceID, in.ID); err != nil {
-		return Job{}, err
-	}
 
 	var existingUpdated time.Time
 	err := s.pool.QueryRow(ctx, `SELECT updated_at FROM jobs WHERE id = $1`, in.ID).Scan(&existingUpdated)
 	isNew := errors.Is(err, pgx.ErrNoRows)
 	if err != nil && !isNew {
+		return Job{}, err
+	}
+
+	if isNew {
+		if err := s.requireMember(ctx, userID, in.WorkspaceID); err != nil {
+			return Job{}, err
+		}
+	} else if _, err := s.requireJobWrite(ctx, userID, in.ID); err != nil {
 		return Job{}, err
 	}
 
@@ -244,12 +249,9 @@ func (s *Service) UpsertItem(ctx context.Context, userID, jobID string, in Item,
 		return Item{}, errors.New("job id mismatch")
 	}
 
-	job, readOnly, err := s.getJobAccess(ctx, userID, jobID)
+	job, err := s.requireJobWrite(ctx, userID, jobID)
 	if err != nil {
 		return Item{}, err
-	}
-	if readOnly {
-		return Item{}, errors.New("read_only")
 	}
 	in.WorkspaceID = job.WorkspaceID
 
@@ -468,10 +470,23 @@ func (s *Service) getJobAccess(ctx context.Context, userID, jobID string) (Job, 
 	if err != nil {
 		return Job{}, false, err
 	}
-	if !assigned {
-		return Job{}, false, errors.New("no access")
+	// Workspace members without an active assignment may read the job (web
+	// dashboard) but cannot write — callers use requireJobWrite for mutations.
+	return job, !assigned, nil
+}
+
+func (s *Service) requireJobWrite(ctx context.Context, userID, jobID string) (Job, error) {
+	job, readOnly, err := s.getJobAccess(ctx, userID, jobID)
+	if err != nil {
+		return Job{}, err
 	}
-	return job, false, nil
+	if readOnly {
+		return Job{}, errors.New("read_only")
+	}
+	if err := s.requireWrite(ctx, userID, job.WorkspaceID, jobID); err != nil {
+		return Job{}, err
+	}
+	return job, nil
 }
 
 func (s *Service) fetchJob(ctx context.Context, id string) (Job, error) {
