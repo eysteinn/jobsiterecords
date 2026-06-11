@@ -1,12 +1,28 @@
-import { EmptyState, PageShell } from "@/components/page-shell";
+export const dynamic = "force-dynamic";
 
-export default function ReportsPage() {
+import { Suspense } from "react";
+import { ReportsClient } from "@/components/reports-client";
+import { listReports } from "@/lib/api-reports";
+import { listJobs } from "@/lib/api-jobs";
+import { requireSession } from "@/lib/server-session";
+
+export default async function ReportsPage() {
+  const session = await requireSession();
+  const workspace = session.workspaces[0];
+  if (!workspace) {
+    return <p>No workspace found for this account.</p>;
+  }
+  const [{ reports }, { jobs }] = await Promise.all([
+    listReports(workspace.id),
+    listJobs(workspace.id),
+  ]);
   return (
-    <PageShell title="Reports" subtitle="PDF reports for client handoff">
-      <EmptyState
-        title="No reports yet"
-        description="Generate branded PDF reports from job timelines. Reports ship in M7."
+    <Suspense>
+      <ReportsClient
+        workspaceId={workspace.id}
+        initialReports={reports}
+        jobs={jobs}
       />
-    </PageShell>
+    </Suspense>
   );
 }
