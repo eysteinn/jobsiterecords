@@ -101,7 +101,7 @@ func (s *Service) GetTeam(ctx context.Context, userID, workspaceID string) (Team
 	}
 	defer memberRows.Close()
 
-	var members []TeamMember
+	members := make([]TeamMember, 0)
 	for memberRows.Next() {
 		var m TeamMember
 		if err := memberRows.Scan(&m.UserID, &m.Email, &m.Name, &m.Role, &m.Status, &m.LastActiveAt, &m.JoinedAt); err != nil {
@@ -124,7 +124,7 @@ func (s *Service) GetTeam(ctx context.Context, userID, workspaceID string) (Team
 	}
 	defer inviteRows.Close()
 
-	var invites []TeamInvite
+	invites := make([]TeamInvite, 0)
 	for inviteRows.Next() {
 		var inv TeamInvite
 		if err := inviteRows.Scan(&inv.ID, &inv.Email, &inv.Role, &inv.Status, &inv.CreatedAt, &inv.ExpiresAt); err != nil {

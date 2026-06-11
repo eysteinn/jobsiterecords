@@ -211,6 +211,10 @@
   background: #f9fafb;
 }
 
+.danger {
+  color: #b91c1c;
+}
+
 .menu button.danger {
   color: #b91c1c;
 }

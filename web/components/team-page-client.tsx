@@ -11,13 +11,23 @@ type Props = {
   initial: TeamSummary;
 };
 
+function normalizeTeam(data: TeamSummary): TeamSummary {
+  return {
+    members: data.members ?? [],
+    invites: data.invites ?? [],
+    member_count: data.member_count ?? data.members?.length ?? 0,
+    member_limit: data.member_limit ?? 1,
+    pending_count: data.pending_count ?? data.invites?.length ?? 0,
+  };
+}
+
 function initials(email: string, name?: string | null): string {
   if (name?.trim()) {
-    const parts = name.trim().split(/\s+/);
+    const parts = name.trim().split(/\s+/).filter(Boolean);
     if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-    return parts[0].slice(0, 2).toUpperCase();
+    if (parts[0]) return parts[0].slice(0, 2).toUpperCase();
   }
-  const local = email.split("@")[0] ?? "";
+  const local = (email.split("@")[0] ?? "").trim();
   const parts = local.split(/[._-]/).filter(Boolean);
   if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
   return local.slice(0, 2).toUpperCase();
@@ -35,7 +45,7 @@ type Row =
   | { kind: "invite"; invite: TeamInvite };
 
 export function TeamPageClient({ workspaceId, initial }: Props) {
-  const [team, setTeam] = useState(initial);
+  const [team, setTeam] = useState(() => normalizeTeam(initial));
   const [inviteEmail, setInviteEmail] = useState("");
   const [showInviteRow, setShowInviteRow] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -55,7 +65,7 @@ export function TeamPageClient({ workspaceId, initial }: Props) {
     const res = await fetch(`/api/workspaces/${workspaceId}/team`, { cache: "no-store" });
     const data = await res.json();
     if (!res.ok) throw new Error(data.message || "Could not refresh team");
-    setTeam(data);
+    setTeam(normalizeTeam(data));
   }
 
   async function onInvite(e: FormEvent) {
