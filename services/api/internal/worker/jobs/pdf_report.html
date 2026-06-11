@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 11px;
+  color: #1a1a1a;
+  background: white;
+}
+.header {
+  background: #1e2d3d;
+  color: white;
+  padding: 24px 32px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+.header-left { flex: 1; }
+.header-title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+.header-sub { font-size: 10px; opacity: 0.75; line-height: 1.5; }
+.header-right { text-align: right; font-size: 10px; opacity: 0.8; flex-shrink: 0; margin-left: 24px; }
+.header-workspace { font-size: 12px; font-weight: 600; margin-bottom: 2px; }
+.meta-bar {
+  padding: 12px 32px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  gap: 28px;
+  flex-wrap: wrap;
+}
+.meta-item { }
+.meta-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #6b7280;
+  font-weight: 600;
+}
+.meta-value { font-size: 11px; color: #111827; margin-top: 1px; font-weight: 500; }
+.content { padding: 20px 32px 40px; }
+.date-group { margin-bottom: 24px; }
+.date-heading {
+  font-size: 10px;
+  font-weight: 700;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 6px;
+  margin-bottom: 12px;
+}
+.item {
+  margin-bottom: 14px;
+  page-break-inside: avoid;
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+.item-photo { flex-shrink: 0; }
+.item-photo img {
+  max-width: 260px;
+  max-height: 200px;
+  border-radius: 4px;
+  display: block;
+  border: 1px solid #e5e7eb;
+}
+.item-content { flex: 1; min-width: 0; }
+.item-note {
+  background: #fffbeb;
+  border-left: 3px solid #f59e0b;
+  border-radius: 3px;
+  padding: 8px 10px;
+}
+.item-voice {
+  background: #f5f3ff;
+  border-left: 3px solid #8b5cf6;
+  border-radius: 3px;
+  padding: 8px 10px;
+}
+.item-file {
+  background: #f0f9ff;
+  border-left: 3px solid #0ea5e9;
+  border-radius: 3px;
+  padding: 8px 10px;
+}
+.item-meta {
+  font-size: 9px;
+  color: #9ca3af;
+  margin-bottom: 4px;
+}
+.item-caption { font-size: 11px; font-weight: 600; color: #111827; margin-bottom: 3px; }
+.item-body { font-size: 11px; color: #374151; line-height: 1.5; white-space: pre-wrap; }
+.item-tags { margin-top: 5px; display: flex; flex-wrap: wrap; gap: 3px; }
+.tag {
+  font-size: 9px;
+  background: #f3f4f6;
+  border: 1px solid #d1d5db;
+  border-radius: 2px;
+  padding: 1px 5px;
+  color: #4b5563;
+}
+.empty { text-align: center; padding: 48px 32px; color: #9ca3af; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="header-title">{{.Title}}</div>
+    <div class="header-sub">
+      {{if .Job.ClientName}}{{.Job.ClientName}} &bull; {{end -}}
+      {{- if .Job.Address}}{{.Job.Address}} &bull; {{end -}}
+      {{- if .Job.JobNumber}}Job #{{.Job.JobNumber}} &bull; {{end -}}
+      Generated {{.GeneratedAt}}
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="header-workspace">{{.WorkspaceName}}</div>
+  </div>
+</div>
+
+<div class="meta-bar">
+  <div class="meta-item">
+    <div class="meta-label">Job</div>
+    <div class="meta-value">{{.Job.Name}}</div>
+  </div>
+  <div class="meta-item">
+    <div class="meta-label">Status</div>
+    <div class="meta-value">{{.Job.StatusLabel}}</div>
+  </div>
+  {{if .DateRange}}
+  <div class="meta-item">
+    <div class="meta-label">Date Range</div>
+    <div class="meta-value">{{.DateRange}}</div>
+  </div>
+  {{end}}
+  <div class="meta-item">
+    <div class="meta-label">Records</div>
+    <div class="meta-value">{{.TotalItems}}</div>
+  </div>
+</div>
+
+<div class="content">
+  {{if .Groups}}
+  {{range .Groups}}
+  <div class="date-group">
+    <div class="date-heading">{{.Date}}</div>
+    {{range .Items}}
+    <div class="item">
+      {{if .PhotoSrc}}
+      <div class="item-photo">
+        <img src="{{.PhotoSrc}}">
+      </div>
+      {{end}}
+      <div class="item-content {{.CSSClass}}">
+        <div class="item-meta">{{.TimeStr}} &bull; {{.AuthorName}} &bull; {{.KindLabel}}</div>
+        {{if .Caption}}<div class="item-caption">{{.Caption}}</div>{{end}}
+        {{if .Body}}<div class="item-body">{{.Body}}</div>{{end}}
+        {{if .Tags}}
+        <div class="item-tags">
+          {{range .Tags}}<span class="tag">{{.}}</span>{{end}}
+        </div>
+        {{end}}
+      </div>
+    </div>
+    {{end}}
+  </div>
+  {{end}}
+  {{else}}
+  <div class="empty">No records match the selected filters.</div>
+  {{end}}
+</div>
+
+</body>
+</html>

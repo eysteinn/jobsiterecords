@@ -51,6 +51,30 @@ services:
     volumes:
       - minio_data:/data
 
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ./services/api
+    command: ["/app/worker"]
+    environment:
+      DATABASE_URL: postgres://sitelog:sitelog@postgres:5432/sitelog?sslmode=disable
+      S3_ENDPOINT: minio:9000
+      S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-localhost:9000}
+      S3_ACCESS_KEY: minioadmin
+      S3_SECRET_KEY: minioadmin
+      S3_BUCKET: sitelog
+      GOTENBERG_URL: http://gotenberg:3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_started
+      gotenberg:
+        condition: service_started
+
   web:
     build:
       context: ./web
