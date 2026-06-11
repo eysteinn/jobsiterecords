@@ -24,7 +24,9 @@ type Config struct {
 	S3Bucket          string
 	S3UseSSL          bool
 	S3PublicUseSSL    bool
-	GoogleClientIDs   []string
+	GoogleClientIDs    []string
+	GotenbergURL       string
+	WorkerConcurrency  int
 }
 
 func Load() Config {
@@ -48,6 +50,8 @@ func Load() Config {
 		S3UseSSL:          env("S3_USE_SSL", "false") == "true",
 		S3PublicUseSSL:    env("S3_PUBLIC_USE_SSL", env("S3_USE_SSL", "false")) == "true",
 		GoogleClientIDs:   splitCSV(env("GOOGLE_CLIENT_ID", "")),
+		GotenbergURL:      env("GOTENBERG_URL", "http://localhost:7070"),
+		WorkerConcurrency: 5,
 	}
 }
 

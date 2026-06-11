@@ -104,6 +104,33 @@ services:
       retries: 5
       start_period: 30s
 
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ./services/api
+    command: ["/app/worker"]
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      S3_ENDPOINT: minio:9000
+      S3_PUBLIC_ENDPOINT: ${MEDIA_HOST}
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      S3_BUCKET: ${S3_BUCKET}
+      S3_USE_SSL: "false"
+      S3_PUBLIC_USE_SSL: "true"
+      GOTENBERG_URL: http://gotenberg:3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_started
+      gotenberg:
+        condition: service_started
+
   web:
     build:
       context: ./web

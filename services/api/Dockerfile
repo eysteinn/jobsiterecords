@@ -7,12 +7,15 @@ COPY go.mod ./
 RUN go mod download
 
 COPY . .
-RUN go mod tidy && CGO_ENABLED=0 GOOS=linux go build -o /api ./cmd/server
+RUN go mod tidy && \
+    CGO_ENABLED=0 GOOS=linux go build -o /api ./cmd/server && \
+    CGO_ENABLED=0 GOOS=linux go build -o /worker ./cmd/worker
 
 FROM alpine:3.20
 RUN apk add --no-cache ca-certificates
 WORKDIR /app
 COPY --from=build /api /app/api
+COPY --from=build /worker /app/worker
 COPY migrations /app/migrations
 EXPOSE 8080
 CMD ["/app/api"]

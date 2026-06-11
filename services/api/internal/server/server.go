@@ -9,6 +9,8 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/riverqueue/river"
+	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 
 	"github.com/eysteinn/jobsiterecords/services/api/internal/auth"
 	"github.com/eysteinn/jobsiterecords/services/api/internal/config"
@@ -17,6 +19,7 @@ import (
 	"github.com/eysteinn/jobsiterecords/services/api/internal/jobs"
 	authmw "github.com/eysteinn/jobsiterecords/services/api/internal/middleware"
 	"github.com/eysteinn/jobsiterecords/services/api/internal/ratelimit"
+	"github.com/eysteinn/jobsiterecords/services/api/internal/reports"
 	"github.com/eysteinn/jobsiterecords/services/api/internal/storage"
 	"github.com/eysteinn/jobsiterecords/services/api/internal/workspace"
 )
@@ -49,12 +52,21 @@ func New(cfg config.Config, pool *pgxpool.Pool) (*Server, error) {
 		return nil, fmt.Errorf("storage: %w", err)
 	}
 
+	// Insert-only River client: enqueues jobs but does not run workers.
+	// The worker binary polls and processes them separately.
+	riverClient, err := river.NewClient(riverpgxv5.New(pool), &river.Config{})
+	if err != nil {
+		return nil, fmt.Errorf("river client: %w", err)
+	}
+
 	authH := handlers.NewAuthHandler(cfg, authSvc, wsSvc, mail, limiter)
 	wsH := handlers.NewWorkspaceHandler(wsSvc)
 	teamH := handlers.NewTeamHandler(cfg, wsSvc, mail)
 	jobsSvc := jobs.NewService(pool)
 	jobsH := handlers.NewJobsHandler(jobsSvc)
 	mediaH := handlers.NewMediaHandler(jobsSvc, store)
+	reportsSvc := reports.NewService(pool)
+	reportsH := handlers.NewReportsHandler(reportsSvc, riverClient, store)
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
@@ -110,6 +122,8 @@ func New(cfg config.Config, pool *pgxpool.Pool) (*Server, error) {
 			protected.Put("/workspaces/{workspaceID}/tags/{tagID}", jobsH.UpsertTag)
 			protected.Get("/workspaces/{workspaceID}/cursor", jobsH.GetWorkspaceCursor)
 			protected.Get("/workspaces/{workspaceID}/assignments", jobsH.AssignedJobIDs)
+			protected.Post("/workspaces/{workspaceID}/reports", reportsH.Create)
+			protected.Get("/workspaces/{workspaceID}/reports", reportsH.List)
 			protected.Get("/jobs/{jobID}/cursor", jobsH.GetJobCursor)
 			protected.Get("/jobs/{jobID}", jobsH.GetJob)
 			protected.Put("/jobs/{jobID}", jobsH.UpsertJob)
@@ -119,6 +133,8 @@ func New(cfg config.Config, pool *pgxpool.Pool) (*Server, error) {
 			protected.Post("/media-files/{mediaID}/complete", mediaH.CompleteMedia)
 			protected.Delete("/media-files/{mediaID}", mediaH.DeleteMedia)
 			protected.Get("/media-files/{mediaID}/download", mediaH.DownloadMedia)
+			protected.Get("/reports/{reportID}", reportsH.Get)
+			protected.Get("/reports/{reportID}/download", reportsH.Download)
 		})
 	})
 

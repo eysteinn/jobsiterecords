@@ -9,6 +9,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/riverqueue/river/rivermigrate"
+	"github.com/riverqueue/river/riverdriver/riverpgxv5"
+
 	"github.com/eysteinn/jobsiterecords/services/api/internal/config"
 	"github.com/eysteinn/jobsiterecords/services/api/internal/db"
 	"github.com/eysteinn/jobsiterecords/services/api/internal/server"
@@ -26,6 +30,11 @@ func main() {
 
 	if err := db.RunMigrations(ctx, pool, "migrations"); err != nil {
 		log.Fatalf("migrations: %v", err)
+	}
+
+	// River tables must exist before the insert-only client in server.New can be used.
+	if err := runRiverMigrations(ctx, pool); err != nil {
+		log.Fatalf("river migrations: %v", err)
 	}
 
 	srv, err := server.New(cfg, pool)
@@ -56,4 +65,13 @@ func main() {
 	if err := httpServer.Shutdown(shutdownCtx); err != nil {
 		log.Printf("shutdown: %v", err)
 	}
+}
+
+func runRiverMigrations(ctx context.Context, pool *pgxpool.Pool) error {
+	migrator, err := rivermigrate.New(riverpgxv5.New(pool), nil)
+	if err != nil {
+		return err
+	}
+	_, err = migrator.Migrate(ctx, rivermigrate.DirectionUp, nil)
+	return err
 }
