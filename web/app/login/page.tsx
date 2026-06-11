@@ -3,7 +3,7 @@ import { AuthForm } from "@/components/auth-form";
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; next?: string }>;
 }) {
   const params = await searchParams;
   const error =
@@ -16,5 +16,6 @@ export default async function LoginPage({
           : params.error === "oauth_not_configured"
             ? "Google sign-in is not configured on this server."
             : undefined;
-  return <AuthForm mode="login" error={error} />;
+  const next = params.next?.startsWith("/") ? params.next : undefined;
+  return <AuthForm mode="login" error={error} next={next} />;
 }

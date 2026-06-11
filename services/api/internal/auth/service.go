@@ -76,7 +76,7 @@ func (s *Service) SignUp(ctx context.Context, email, password string, name *stri
 	var workspaceID string
 	err = tx.QueryRow(ctx, `
 		INSERT INTO workspaces (name, owner_user_id, plan_sku, member_limit)
-		VALUES ($1, $2, 'solo_1', 1)
+		VALUES ($1, $2, 'crew_5', 5)
 		RETURNING id
 	`, wsName, user.ID).Scan(&workspaceID)
 	if err != nil {

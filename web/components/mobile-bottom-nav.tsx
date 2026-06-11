@@ -2,17 +2,24 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import type { Session } from "@/lib/types";
 import styles from "./mobile-bottom-nav.module.css";
 
-const nav = [
+const baseNav = [
   { href: "/jobs", label: "Jobs", icon: JobsIcon },
   { href: "/reports", label: "Reports", icon: ReportsIcon },
-  { href: "/team", label: "Team", icon: TeamIcon },
+  { href: "/team", label: "Team", icon: TeamIcon, ownerOnly: true },
   { href: "/settings", label: "Settings", icon: SettingsIcon },
 ];
 
-export function MobileBottomNav() {
+type Props = {
+  session: Session;
+};
+
+export function MobileBottomNav({ session }: Props) {
   const pathname = usePathname();
+  const workspace = session.workspaces[0];
+  const nav = baseNav.filter((item) => !item.ownerOnly || workspace?.role === "owner");
 
   return (
     <nav className={`${styles.nav} mobileOnly`} aria-label="Main navigation">

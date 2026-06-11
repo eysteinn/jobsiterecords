@@ -1,11 +1,14 @@
 import { DashboardSyncSettings } from "@/components/dashboard-sync-settings";
 import { PageShell } from "@/components/page-shell";
+import { getTeam } from "@/lib/api-team";
 import { requireSession } from "@/lib/server-session";
 import styles from "./settings.module.css";
 
 export default async function SettingsPage() {
   const session = await requireSession();
   const workspace = session.workspaces[0];
+  const team =
+    workspace?.role === "owner" ? await getTeam(workspace.id).catch(() => null) : null;
 
   return (
     <PageShell title="Settings" subtitle="Account and workspace preferences">
@@ -37,6 +40,15 @@ export default async function SettingsPage() {
                 <dt>Plan</dt>
                 <dd>{workspace.plan_sku}</dd>
               </div>
+              {workspace.role === "owner" && team && (
+                <div>
+                  <dt>Members</dt>
+                  <dd>
+                    {team.member_count} / {team.member_limit}
+                    {team.pending_count > 0 ? ` (${team.pending_count} pending)` : ""}
+                  </dd>
+                </div>
+              )}
               <div>
                 <dt>Your role</dt>
                 <dd>{workspace.role}</dd>

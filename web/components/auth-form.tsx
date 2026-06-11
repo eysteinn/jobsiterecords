@@ -10,9 +10,10 @@ type Mode = "login" | "signup" | "magic";
 type Props = {
   mode?: Mode;
   error?: string;
+  next?: string;
 };
 
-export function AuthForm({ mode: initialMode = "login", error }: Props) {
+export function AuthForm({ mode: initialMode = "login", error, next }: Props) {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>(initialMode);
   const [email, setEmail] = useState("");
@@ -63,7 +64,7 @@ export function AuthForm({ mode: initialMode = "login", error }: Props) {
         setFormError(data.message || "Sign in failed");
         return;
       }
-      router.push("/jobs");
+      router.push(next && next.startsWith("/") ? next : "/jobs");
       router.refresh();
     } finally {
       setSubmitting(false);
