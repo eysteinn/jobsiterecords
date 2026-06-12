@@ -73,6 +73,8 @@ services:
       S3_SECRET_KEY: minioadmin
       S3_BUCKET: sitelog
       GOTENBERG_URL: http://gotenberg:3000
+      WORKER_ROLE: all
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-5}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USERNAME: ${SMTP_USERNAME:-}

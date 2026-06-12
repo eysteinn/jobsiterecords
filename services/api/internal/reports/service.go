@@ -9,6 +9,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
+
+	"github.com/eysteinn/jobsiterecords/services/api/internal/jobqueue"
 )
 
 // PDFReportArgs is the River job payload for PDF generation.
@@ -114,7 +116,7 @@ func (s *Service) Create(ctx context.Context, riverClient *river.Client[pgx.Tx],
 	}
 
 	// Enqueue River job in the same transaction so the job and DB row are always consistent.
-	if _, err = riverClient.InsertTx(ctx, tx, PDFReportArgs{ReportID: id}, nil); err != nil {
+	if _, err = riverClient.InsertTx(ctx, tx, PDFReportArgs{ReportID: id}, &river.InsertOpts{Queue: jobqueue.Reports}); err != nil {
 		return Report{}, err
 	}
 

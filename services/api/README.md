@@ -89,7 +89,7 @@ The web dashboard completes the authorization-code flow in Next.js and forwards 
 
 ## Outbound email
 
-Magic links, password reset, and workspace invites enqueue `send_email` River jobs from the API; the **worker** binary sends them via SMTP. Local dev with `DEV_LOG_EMAIL_LINKS=true` logs links to the API stdout instead of enqueueing. See repo root `.env.example` / `.env.deploy.example` for `SMTP_*` variables on the worker service.
+Magic links, password reset, and workspace invites enqueue `send_email` jobs on River queue **`email`**. PDF reports enqueue on queue **`reports`**. Local dev uses one `worker` with `WORKER_ROLE=all`; production splits **`worker-mail`** and **`worker-reports`** (scale mail with `--scale worker-mail=N`). See `deploy/README.md` and `.env.deploy.example`.
 
 ## Paddle Billing
 

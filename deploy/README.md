@@ -55,6 +55,14 @@ git pull
 docker compose -f docker-compose.deploy.yml --env-file .env.deploy up -d --build
 ```
 
+Background jobs run as two worker services: **`worker-mail`** (SMTP) and **`worker-reports`** (PDF via Gotenberg). Scale mail independently, e.g. two mail workers and one report worker:
+
+```bash
+docker compose -f docker-compose.deploy.yml --env-file .env.deploy up -d --build --scale worker-mail=2 worker-mail worker-reports
+```
+
+Set `WORKER_MAIL_CONCURRENCY` / `WORKER_REPORTS_CONCURRENCY` in `.env.deploy` for per-process slot limits (default 5 each).
+
 If you change `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_GOOGLE_MAPS`, or any `NEXT_PUBLIC_PADDLE_*` billing vars, rebuild the **web** image (`--build`).
 
 Paddle webhooks use `https://<API_HOST>/api/v1/webhooks/paddle` — set `PADDLE_API_KEY`, `PADDLE_WEBHOOK_SECRET`, and price IDs in `.env.deploy` (see `.env.deploy.example`).

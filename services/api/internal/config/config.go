@@ -27,6 +27,7 @@ type Config struct {
 	S3PublicUseSSL    bool
 	GoogleClientIDs    []string
 	GotenbergURL       string
+	WorkerRole         string
 	WorkerConcurrency  int
 	PaddleAPIKey       string
 	PaddleWebhookSecret string
@@ -62,7 +63,8 @@ func Load() Config {
 		S3PublicUseSSL:    env("S3_PUBLIC_USE_SSL", env("S3_USE_SSL", "false")) == "true",
 		GoogleClientIDs:   splitCSV(env("GOOGLE_CLIENT_ID", "")),
 		GotenbergURL:      env("GOTENBERG_URL", "http://localhost:7070"),
-		WorkerConcurrency: 5,
+		WorkerRole:        env("WORKER_ROLE", "all"),
+		WorkerConcurrency: envInt("WORKER_CONCURRENCY", 5),
 		PaddleAPIKey:       env("PADDLE_API_KEY", ""),
 		PaddleWebhookSecret: env("PADDLE_WEBHOOK_SECRET", ""),
 		PaddleEnv:          env("PADDLE_ENV", env("NEXT_PUBLIC_PADDLE_ENV", "sandbox")),

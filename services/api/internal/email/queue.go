@@ -7,6 +7,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/riverqueue/river"
+
+	"github.com/eysteinn/jobsiterecords/services/api/internal/jobqueue"
 )
 
 // Queue enqueues outbound email for the worker process. In dev mode it logs links instead.
@@ -50,6 +52,6 @@ func (q *Queue) enqueue(ctx context.Context, to, subject, body, devLink string) 
 		To:      to,
 		Subject: subject,
 		Body:    body,
-	}, nil)
+	}, &river.InsertOpts{Queue: jobqueue.Email})
 	return err
 }
