@@ -36,7 +36,7 @@ Check:
 
 ## Traefik labels
 
-Compose attaches `web`, `api`, and `minio` to the external `TRAEFIK_NETWORK` and sets router rules `Host(\`…\`)` per service. Router names are prefixed `sitelog-` to avoid clashes with other stacks on the same host.
+Compose attaches `web`, `api`, and `minio` to the external `TRAEFIK_NETWORK` and sets router rules `Host(\`…\`)` per service. Router names are prefixed `jobsiterecords-` to avoid clashes with other stacks on the same host.
 
 If your Traefik setup differs (no cert resolver, different entrypoint names, file-based routes instead of Docker labels), adjust the labels in `docker-compose.deploy.yml` or use a Compose override file.
 

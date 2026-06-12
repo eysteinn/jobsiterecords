@@ -5,7 +5,7 @@
 **Scope:** Web dashboard job detail (`/jobs/:id`)  
 **Related docs:** [`web-dashboard-design.md`](web-dashboard-design.md) §4.2, [`high-level-design.md`](high-level-design.md) §6.3
 
-**Positioning:** Borrow layout patterns that work (dense photo grid, day groups, lightbox). SiteLog stays a **unified job record** for trades + office — not a photo-PM clone.
+**Positioning:** Borrow layout patterns that work (dense photo grid, day groups, lightbox). Job Site Records stays a **unified job record** for trades + office — not a photo-PM clone.
 
 ---
 
@@ -43,9 +43,9 @@ Web job detail uses **one full-width card per item** with photos capped at **280
 
 ---
 
-## 2. What we borrow vs what stays SiteLog
+## 2. What we borrow vs what stays Job Site Records
 
-| Borrow (proven) | SiteLog-only |
+| Borrow (proven) | Job Site Records-only |
 | --- | --- |
 | Responsive **photo grid** under date headings | **One timeline** — photos, voice, notes, files **interleaved** |
 | Click thumb → **lightbox** | Handoff = zip / PDF later, not live client photo feed |

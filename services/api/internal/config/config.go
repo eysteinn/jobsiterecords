@@ -44,7 +44,7 @@ type Config struct {
 func Load() Config {
 	return Config{
 		Port:              env("PORT", "8080"),
-		DatabaseURL:       env("DATABASE_URL", "postgres://sitelog:sitelog@localhost:5432/sitelog?sslmode=disable"),
+		DatabaseURL:       env("DATABASE_URL", "postgres://jobsiterecords:jobsiterecords@localhost:5432/jobsiterecords?sslmode=disable"),
 		JWTSecret:         env("JWT_SECRET", "dev-jwt-secret-change-me"),
 		AppURL:            strings.TrimRight(env("APP_URL", "http://localhost:3000"), "/"),
 		CORSOrigins:       splitCSV(env("CORS_ORIGINS", "http://localhost:3000")),
@@ -58,7 +58,7 @@ func Load() Config {
 		S3PublicEndpoint:  env("S3_PUBLIC_ENDPOINT", env("S3_ENDPOINT", "localhost:9000")),
 		S3AccessKey:       env("S3_ACCESS_KEY", "minioadmin"),
 		S3SecretKey:       env("S3_SECRET_KEY", "minioadmin"),
-		S3Bucket:          env("S3_BUCKET", "sitelog"),
+		S3Bucket:          env("S3_BUCKET", "jobsiterecords"),
 		S3UseSSL:          env("S3_USE_SSL", "false") == "true",
 		S3PublicUseSSL:    env("S3_PUBLIC_USE_SSL", env("S3_USE_SSL", "false")) == "true",
 		GoogleClientIDs:   splitCSV(env("GOOGLE_CLIENT_ID", "")),
