@@ -55,7 +55,9 @@ git pull
 docker compose -f docker-compose.deploy.yml --env-file .env.deploy up -d --build
 ```
 
-If you change `NEXT_PUBLIC_API_URL` or `NEXT_PUBLIC_GOOGLE_MAPS`, rebuild the **web** image (`--build`).
+If you change `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_GOOGLE_MAPS`, or any `NEXT_PUBLIC_PADDLE_*` billing vars, rebuild the **web** image (`--build`).
+
+Paddle webhooks use `https://<API_HOST>/api/v1/webhooks/paddle` — set `PADDLE_API_KEY`, `PADDLE_WEBHOOK_SECRET`, and price IDs in `.env.deploy` (see `.env.deploy.example`).
 
 ## Local dev
 
