@@ -425,12 +425,6 @@ class _EmptyState extends StatelessWidget {
             textAlign: TextAlign.center,
             style: TextStyle(color: AppColors.subtle, fontSize: 13),
           ),
-          const SizedBox(height: 20),
-          ElevatedButton.icon(
-            onPressed: () => context.pushNamed('job-new'),
-            icon: const Icon(Icons.add_rounded),
-            label: const Text('New Job'),
-          ),
         ],
       ),
     );
