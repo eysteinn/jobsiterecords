@@ -37,7 +37,6 @@ func New(cfg config.Config, pool *pgxpool.Pool) (*Server, error) {
 	}
 	authSvc := auth.NewService(pool, cfg.JWTSecret, cfg.AccessTokenTTL, cfg.RefreshTokenDays, cfg.MagicLinkMinutes, cfg.ResetTokenMinutes, googleVerifier)
 	wsSvc := workspace.NewService(pool)
-	mail := email.New(cfg.DevLogEmailLinks)
 	limiter := ratelimit.New()
 
 	store, err := storage.New(context.Background(), storage.Config{
@@ -59,6 +58,8 @@ func New(cfg config.Config, pool *pgxpool.Pool) (*Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("river client: %w", err)
 	}
+
+	mail := email.NewQueue(riverClient, cfg.DevLogEmailLinks)
 
 	authH := handlers.NewAuthHandler(cfg, authSvc, wsSvc, mail, limiter)
 	wsH := handlers.NewWorkspaceHandler(wsSvc)

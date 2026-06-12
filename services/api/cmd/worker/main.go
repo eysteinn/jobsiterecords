@@ -14,6 +14,7 @@ import (
 
 	"github.com/eysteinn/jobsiterecords/services/api/internal/config"
 	"github.com/eysteinn/jobsiterecords/services/api/internal/db"
+	"github.com/eysteinn/jobsiterecords/services/api/internal/email"
 	"github.com/eysteinn/jobsiterecords/services/api/internal/reports"
 	"github.com/eysteinn/jobsiterecords/services/api/internal/storage"
 	workerjobs "github.com/eysteinn/jobsiterecords/services/api/internal/worker/jobs"
@@ -60,6 +61,9 @@ func main() {
 		Store:        store,
 		GotenbergURL: cfg.GotenbergURL,
 	})
+	river.AddWorker(workers, &workerjobs.SendEmailWorker{
+		SMTP: email.SMTPFromConfig(cfg),
+	})
 
 	riverClient, err := river.NewClient(riverpgxv5.New(pool), &river.Config{
 		Queues: map[string]river.QueueConfig{
@@ -74,7 +78,7 @@ func main() {
 	if err := riverClient.Start(ctx); err != nil {
 		log.Fatalf("river start: %v", err)
 	}
-	log.Printf("worker started (concurrency=%d, gotenberg=%s)", cfg.WorkerConcurrency, cfg.GotenbergURL)
+	log.Printf("worker started (concurrency=%d, gotenberg=%s, smtp=%t)", cfg.WorkerConcurrency, cfg.GotenbergURL, email.SMTPFromConfig(cfg).Enabled())
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)

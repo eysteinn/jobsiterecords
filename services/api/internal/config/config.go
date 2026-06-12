@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -31,6 +32,12 @@ type Config struct {
 	PaddleWebhookSecret string
 	PaddleEnv          string
 	PaddlePriceIDs     map[string]string
+	SMTPHost           string
+	SMTPPort           int
+	SMTPUsername       string
+	SMTPPassword       string
+	SMTPFromEmail      string
+	SMTPFromName       string
 }
 
 func Load() Config {
@@ -64,6 +71,12 @@ func Load() Config {
 			"crew_5":  env("PADDLE_PRICE_ID_CREW_5_MONTHLY", env("NEXT_PUBLIC_PADDLE_PRICE_ID_CREW_5_MONTHLY", "")),
 			"team_15": env("PADDLE_PRICE_ID_TEAM_15_MONTHLY", env("NEXT_PUBLIC_PADDLE_PRICE_ID_TEAM_15_MONTHLY", "")),
 		},
+		SMTPHost:      env("SMTP_HOST", ""),
+		SMTPPort:      envInt("SMTP_PORT", 587),
+		SMTPUsername:  env("SMTP_USERNAME", ""),
+		SMTPPassword:  env("SMTP_PASSWORD", ""),
+		SMTPFromEmail: env("SMTP_FROM_EMAIL", ""),
+		SMTPFromName:  env("SMTP_FROM_NAME", "Job Site Records"),
 	}
 }
 
@@ -72,6 +85,18 @@ func env(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func envInt(key string, fallback int) int {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		return fallback
+	}
+	return n
 }
 
 func splitCSV(s string) []string {

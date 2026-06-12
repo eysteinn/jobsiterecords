@@ -87,6 +87,10 @@ curl -sS -X POST http://localhost:8080/api/v1/auth/oauth/google \
 
 The web dashboard completes the authorization-code flow in Next.js and forwards the `id_token` to this endpoint. Flutter sends the ID token from `google_sign_in` directly.
 
+## Outbound email
+
+Magic links, password reset, and workspace invites enqueue `send_email` River jobs from the API; the **worker** binary sends them via SMTP. Local dev with `DEV_LOG_EMAIL_LINKS=true` logs links to the API stdout instead of enqueueing. See repo root `.env.example` / `.env.deploy.example` for `SMTP_*` variables on the worker service.
+
 ## Paddle Billing
 
 Configure server secrets on the API and public price IDs + client token on the web dashboard (see repo root `.env.example`).

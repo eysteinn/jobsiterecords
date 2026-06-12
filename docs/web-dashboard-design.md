@@ -1017,7 +1017,7 @@ Align with mobile Phase 1 and the light mockup aesthetic ([`dashboard-mockup-03-
 - Mobile sync endpoints (no separate `services/sync/` for MVP)
 - Lazy thumbnail endpoint: `GET /api/items/:id/thumb?w=512` → resize, cache to S3, redirect (or stream)
 - Paddle webhook receiver (verify signature, upsert workspace plan, idempotent via `paddle_event_id` unique index)
-- Outbound email (magic links, password reset, invites) — synchronous, fail-fast with retry on the next user action
+- Outbound email (magic links, password reset, invites) — **async via River** in the Go worker (`send_email` jobs); API enqueues and returns immediately; worker sends via SMTP with retries
 
 **`services/pdf/` (Rust)** — the one async worker:
 
