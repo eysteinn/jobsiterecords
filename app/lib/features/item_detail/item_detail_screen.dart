@@ -9,6 +9,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../app/providers.dart';
 import '../../app/theme.dart';
+import '../../sync/sync_providers.dart';
 import '../../core/format.dart';
 import '../../core/note_markdown.dart';
 import '../../domain/models/item.dart';
