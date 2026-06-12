@@ -11,6 +11,8 @@ export type Workspace = {
   role: "owner" | "member";
   plan_sku: string;
   member_limit: number;
+  subscription_status: string;
+  has_subscription: boolean;
   created_at: string;
 };
 

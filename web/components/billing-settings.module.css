@@ -1,0 +1,135 @@
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+}
+
+.card h2 {
+  margin: 0 0 14px;
+  font-size: 1rem;
+}
+
+.summary {
+  margin: 0 0 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.summary dt {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+
+.summary dd {
+  margin: 0;
+  font-size: 0.9375rem;
+}
+
+.planGrid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  margin-bottom: 16px;
+}
+
+.plan,
+.planCurrent {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  display: grid;
+  gap: 8px;
+}
+
+.planCurrent {
+  border-color: var(--accent, #1f7a4d);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent, #1f7a4d) 35%, transparent);
+}
+
+.plan h3,
+.planCurrent h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.price {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.price span {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.muted {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.alert {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: #fff4e5;
+  color: #7a4b00;
+  font-size: 0.875rem;
+}
+
+.error {
+  margin: 0 0 12px;
+  color: #b42318;
+  font-size: 0.875rem;
+}
+
+.message {
+  margin: 0 0 12px;
+  color: var(--accent, #1f7a4d);
+  font-size: 0.875rem;
+}
+
+.statusBad {
+  color: #b42318;
+}
+
+.primaryButton,
+.secondaryButton {
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.primaryButton {
+  border: none;
+  background: var(--accent, #1f7a4d);
+  color: #fff;
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.secondaryButton {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: inherit;
+}
+
+.currentBadge {
+  display: inline-flex;
+  align-self: start;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent, #1f7a4d) 12%, transparent);
+  color: var(--accent, #1f7a4d);
+  font-size: 0.75rem;
+  font-weight: 600;
+}

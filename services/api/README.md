@@ -37,7 +37,10 @@ Flutter uses the same `.env` via `app/.env` → `../.env`; set `API_BASE_URL` to
 | POST | `/api/v1/auth/reset-password` | Set new password |
 | POST | `/api/v1/auth/oauth/google` | Sign in with Google ID token (`{"id_token":"…"}`) |
 | GET | `/api/v1/workspaces` | List workspaces |
+| GET | `/api/v1/workspaces/{id}/billing` | Owner: plan, seat usage, Paddle catalog |
+| POST | `/api/v1/workspaces/{id}/billing/portal` | Owner: Paddle customer portal session URL |
 | POST | `/api/v1/workspaces/{id}/leave` | Member leave workspace |
+| POST | `/api/v1/webhooks/paddle` | Paddle Billing webhooks (signature verified) |
 
 ## M2–M3 sync endpoints (auth required)
 
@@ -83,3 +86,21 @@ curl -sS -X POST http://localhost:8080/api/v1/auth/oauth/google \
 ```
 
 The web dashboard completes the authorization-code flow in Next.js and forwards the `id_token` to this endpoint. Flutter sends the ID token from `google_sign_in` directly.
+
+## Paddle Billing
+
+Configure server secrets on the API and public price IDs + client token on the web dashboard (see repo root `.env.example`).
+
+| SKU | Seats | Monthly (USD) |
+| --- | --- | --- |
+| `solo_1` | 1 (owner only) | $19 |
+| `crew_5` | 5 | $49 |
+| `team_15` | 15 | $99 |
+
+Checkout passes `custom_data.workspace_id` so webhooks attach the subscription to the correct workspace. `paddle_events` provides idempotent webhook processing.
+
+Point your Paddle notification destination at:
+
+`https://<API_HOST>/api/v1/webhooks/paddle`
+
+Handled events: `subscription.created`, `subscription.activated`, `subscription.updated`, `subscription.resumed`, `subscription.past_due`, `subscription.canceled`.

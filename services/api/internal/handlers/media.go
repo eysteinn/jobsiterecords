@@ -195,7 +195,7 @@ func writeMediaError(w http.ResponseWriter, err error) {
 	switch err.Error() {
 	case "not a workspace member", "no access", "not assigned to job":
 		httpx.Error(w, http.StatusForbidden, "forbidden", err.Error(), nil)
-	case "read_only":
+	case "read_only", "subscription_lapsed":
 		httpx.Error(w, http.StatusForbidden, "read_only", "Job is read-only", nil)
 	case "missing required media fields":
 		httpx.Error(w, http.StatusBadRequest, "invalid_request", err.Error(), nil)

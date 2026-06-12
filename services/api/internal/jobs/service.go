@@ -69,12 +69,21 @@ type JobBundle struct {
 	ReadOnly   bool        `json:"read_only,omitempty"`
 }
 
+type workspaceBilling interface {
+	WorkspaceWritable(ctx context.Context, workspaceID string) (bool, error)
+}
+
 type Service struct {
-	pool *pgxpool.Pool
+	pool    *pgxpool.Pool
+	billing workspaceBilling
 }
 
 func NewService(pool *pgxpool.Pool) *Service {
 	return &Service{pool: pool}
+}
+
+func (s *Service) SetBilling(b workspaceBilling) {
+	s.billing = b
 }
 
 func (s *Service) ListWorkspaceJobs(ctx context.Context, userID, workspaceID string) ([]Job, error) {
@@ -406,6 +415,44 @@ func (s *Service) requireMember(ctx context.Context, userID, workspaceID string)
 	return err
 }
 
+func (s *Service) requireWorkspaceWritable(ctx context.Context, workspaceID string) error {
+	writable, err := s.workspaceWritable(ctx, workspaceID)
+	if err != nil {
+		return err
+	}
+	if !writable {
+		return errors.New("subscription_lapsed")
+	}
+	return nil
+}
+
+func (s *Service) workspaceWritable(ctx context.Context, workspaceID string) (bool, error) {
+	if s.billing != nil {
+		return s.billing.WorkspaceWritable(ctx, workspaceID)
+	}
+	var status string
+	var paddleSubscription *string
+	err := s.pool.QueryRow(ctx, `
+		SELECT subscription_status, paddle_subscription_id
+		FROM workspaces WHERE id = $1
+	`, workspaceID).Scan(&status, &paddleSubscription)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, errors.New("workspace not found")
+		}
+		return false, err
+	}
+	if paddleSubscription != nil && *paddleSubscription != "" {
+		switch status {
+		case "active", "trialing", "none", "":
+			return true, nil
+		default:
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
 func (s *Service) memberRole(ctx context.Context, userID, workspaceID string) (string, error) {
 	var role string
 	err := s.pool.QueryRow(ctx, `
@@ -422,6 +469,9 @@ func (s *Service) memberRole(ctx context.Context, userID, workspaceID string) (s
 }
 
 func (s *Service) requireWrite(ctx context.Context, userID, workspaceID, jobID string) error {
+	if err := s.requireWorkspaceWritable(ctx, workspaceID); err != nil {
+		return err
+	}
 	role, err := s.memberRole(ctx, userID, workspaceID)
 	if err != nil {
 		return err
@@ -452,6 +502,13 @@ func (s *Service) getJobAccess(ctx context.Context, userID, jobID string) (Job, 
 	}
 	if job.DeletedAt != nil {
 		return Job{}, false, errors.New("gone")
+	}
+	writable, err := s.workspaceWritable(ctx, job.WorkspaceID)
+	if err != nil {
+		return Job{}, false, err
+	}
+	if !writable {
+		return job, true, nil
 	}
 	role, err := s.memberRole(ctx, userID, job.WorkspaceID)
 	if err != nil {

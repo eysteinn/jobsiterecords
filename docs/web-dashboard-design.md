@@ -1668,7 +1668,7 @@ _None — all Phase 2 mobile policy decisions are now locked (D31–D34, M9b). D
 
 **Still to do (implementation, not design):**
 
-- [ ] Configure Paddle products for `solo_1`, `crew_5`, `team_15`; document price_id → SKU map
+- [x] Configure Paddle products for `solo_1`, `crew_5`, `team_15`; price_id → SKU map in API (`internal/billing/plans.go`) + env vars (see `.env.example`)
 - [ ] Point `app.jobsiterecords.com` DNS + TLS when deploying `web/`
 - [ ] Wireframe Jobs list + job detail per MVP spec (mockup for styling reference only)
 - [ ] Generate OpenAPI spec from the §15 contract; publish to `shared/`
