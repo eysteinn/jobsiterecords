@@ -688,8 +688,9 @@ class ItemsRepository {
     return item;
   }
 
-  Future<SyncState> _syncStateForJob(String jobId) async {
-    final rows = await _db.db.query('jobs', columns: ['workspace_id'], where: 'id = ?', whereArgs: [jobId], limit: 1);
+  Future<SyncState> _syncStateForJob(String jobId, {DatabaseExecutor? db}) async {
+    final executor = db ?? _db.db;
+    final rows = await executor.query('jobs', columns: ['workspace_id'], where: 'id = ?', whereArgs: [jobId], limit: 1);
     if (rows.isEmpty || rows.first['workspace_id'] == null) return SyncState.localOnly;
     return SyncState.pending;
   }
@@ -726,7 +727,7 @@ class ItemsRepository {
   }
 
   Future<void> _markItemPending(Transaction txn, String itemId, String jobId) async {
-    final syncState = await _syncStateForJob(jobId);
+    final syncState = await _syncStateForJob(jobId, db: txn);
     if (syncState == SyncState.localOnly) return;
     await txn.update(
       'items',
