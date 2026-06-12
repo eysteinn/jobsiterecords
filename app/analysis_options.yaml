@@ -1,5 +1,11 @@
 include: package:flutter_lints/flutter.yaml
 
+analyzer:
+  exclude:
+    # Vendored plugin example/test apps are not part of the product; analyzing
+    # them fails CI (broken package: imports, stale PlaceField enums).
+    - packages/**
+
 linter:
   rules:
     prefer_single_quotes: true
