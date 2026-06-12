@@ -80,10 +80,21 @@ class ItemsRepository {
       args.addAll([pattern, pattern, pattern, pattern, pattern]);
     }
 
+    if (query.fromDate != null) {
+      where.add('i.captured_at >= ?');
+      args.add(DateTime(query.fromDate!.year, query.fromDate!.month, query.fromDate!.day).toIso8601String());
+    }
+    if (query.toDate != null) {
+      final end = DateTime(query.toDate!.year, query.toDate!.month, query.toDate!.day, 23, 59, 59, 999);
+      where.add('i.captured_at <= ?');
+      args.add(end.toIso8601String());
+    }
+
+    final orderBy = query.sortOldest ? 'i.captured_at ASC' : 'i.captured_at DESC';
     final rows = await _db.db.rawQuery('''
       SELECT DISTINCT i.* FROM items i
       WHERE ${where.join(' AND ')}
-      ORDER BY i.captured_at DESC
+      ORDER BY $orderBy
     ''', args);
 
     final items = rows.map(Item.fromDb).toList();

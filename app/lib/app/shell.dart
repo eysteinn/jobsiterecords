@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'theme.dart';
+
 /// Bottom-nav shell using [StatefulNavigationShell].
 class AppShell extends StatelessWidget {
   const AppShell({super.key, required this.navigationShell});
@@ -19,11 +21,14 @@ class AppShell extends StatelessWidget {
       bottomNavigationBar: NavigationBar(
         selectedIndex: navigationShell.currentIndex,
         onDestinationSelected: navigationShell.goBranch,
+        backgroundColor: Colors.white,
+        indicatorColor: AppColors.accentSoft,
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         destinations: [
           for (final d in _destinations)
             NavigationDestination(
-              icon: Icon(d.$1),
-              selectedIcon: Icon(d.$2),
+              icon: Icon(d.$1, color: AppColors.subtle),
+              selectedIcon: Icon(d.$2, color: AppColors.accentDark),
               label: d.$3,
             ),
         ],

@@ -3,9 +3,14 @@ import 'package:flutter/material.dart';
 class AppColors {
   static const accent = Color(0xFFF59E0B);
   static const accentDark = Color(0xFFB45309);
+  static const accentSoft = Color(0xFFFEF3C7);
   static const ink = Color(0xFF111827);
   static const subtle = Color(0xFF6B7280);
-  static const surface = Color(0xFFF9FAFB);
+  static const mutedLight = Color(0xFF9CA3AF);
+  static const border = Color(0xFFE5E7EB);
+  static const surface = Color(0xFFF8F8F6);
+  static const cardRadius = 18.0;
+  static const jobCardRadius = 10.0;
 }
 
 ThemeData buildLightTheme() {
