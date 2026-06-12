@@ -1026,7 +1026,7 @@ Users who never create a workspace and never sign in **never pay** and **do not 
 
 ### 17.5 Relationship to Phase 1 code and repo
 
-Phase 2 **extends** the monorepo: `services/api/` (Go), `web/` (Next.js), and app sync modules live alongside Phase 1 today; `services/pdf/` (Rust) remains planned. The Flutter app has **optional** network modules (`app/lib/sync/`) and local sync-state columns (`sync_state`, `sync_attempts`, `deleted_at`, …) without removing anything from Phase 1. Phase 1 local-only builds and tests should remain **fully offline** in CI so the free path never regresses.
+Phase 2 **extends** the monorepo: `services/api/` (Go), `web/` (Next.js), and app sync modules live alongside Phase 1 today; `services/pdf/` (Rust) remains planned. The Flutter app has **optional** network modules (`app/lib/sync/`) and local sync-state columns (`sync_state`, `sync_attempts`, `deleted_at`, …) without removing anything from Phase 1. Phase 1 local-only builds and tests should remain **fully offline** in CI so the free path never regresses. **Mobile CI:** manual GitHub Actions workflow [`.github/workflows/build-mobile-app.yml`](../.github/workflows/build-mobile-app.yml) (`workflow_dispatch`) builds Android APK/AAB and unsigned iOS; injects `app/.env` from repository secrets (`GOOGLE_MAPS`, `GOOGLE_WEB_CLIENT_ID`, `API_BASE_URL`, optional release keystore). See [`app/README.md`](../app/README.md#ci-build-github-actions).
 
 ### 17.6 Explicitly still out of scope for Phase 2 v1 (examples)
 
