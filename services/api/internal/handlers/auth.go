@@ -18,11 +18,11 @@ type AuthHandler struct {
 	cfg       config.Config
 	auth      *auth.Service
 	workspaces *workspace.Service
-	mail      *email.Sender
+	mail      *email.Queue
 	limiter   *ratelimit.Limiter
 }
 
-func NewAuthHandler(cfg config.Config, authSvc *auth.Service, wsSvc *workspace.Service, mail *email.Sender, limiter *ratelimit.Limiter) *AuthHandler {
+func NewAuthHandler(cfg config.Config, authSvc *auth.Service, wsSvc *workspace.Service, mail *email.Queue, limiter *ratelimit.Limiter) *AuthHandler {
 	return &AuthHandler{cfg: cfg, auth: authSvc, workspaces: wsSvc, mail: mail, limiter: limiter}
 }
 
@@ -171,7 +171,10 @@ func (h *AuthHandler) MagicLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	link := fmt.Sprintf("%s/auth/verify?token=%s", h.cfg.AppURL, plain)
-	_ = h.mail.SendMagicLink(emailNorm, link)
+	if err := h.mail.SendMagicLink(r.Context(), emailNorm, link); err != nil {
+		httpx.Error(w, http.StatusInternalServerError, "internal", "Could not send magic link", nil)
+		return
+	}
 
 	resp := map[string]string{"status": "sent", "message": "If that email is registered, a sign-in link is on its way."}
 	if h.cfg.DevLogEmailLinks && plain != "" {
@@ -234,7 +237,10 @@ func (h *AuthHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]string{"status": "sent", "message": "If that email is registered, reset instructions are on their way."}
 	if plain != "" {
 		link := fmt.Sprintf("%s/reset-password?token=%s", h.cfg.AppURL, plain)
-		_ = h.mail.SendPasswordReset(emailNorm, link)
+		if err := h.mail.SendPasswordReset(r.Context(), emailNorm, link); err != nil {
+			httpx.Error(w, http.StatusInternalServerError, "internal", "Could not send reset email", nil)
+			return
+		}
 		if h.cfg.DevLogEmailLinks {
 			resp["dev_link"] = link
 		}

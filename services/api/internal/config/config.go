@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -26,11 +27,18 @@ type Config struct {
 	S3PublicUseSSL    bool
 	GoogleClientIDs    []string
 	GotenbergURL       string
+	WorkerRole         string
 	WorkerConcurrency  int
 	PaddleAPIKey       string
 	PaddleWebhookSecret string
 	PaddleEnv          string
 	PaddlePriceIDs     map[string]string
+	SMTPHost           string
+	SMTPPort           int
+	SMTPUsername       string
+	SMTPPassword       string
+	SMTPFromEmail      string
+	SMTPFromName       string
 }
 
 func Load() Config {
@@ -55,7 +63,8 @@ func Load() Config {
 		S3PublicUseSSL:    env("S3_PUBLIC_USE_SSL", env("S3_USE_SSL", "false")) == "true",
 		GoogleClientIDs:   splitCSV(env("GOOGLE_CLIENT_ID", "")),
 		GotenbergURL:      env("GOTENBERG_URL", "http://localhost:7070"),
-		WorkerConcurrency: 5,
+		WorkerRole:        env("WORKER_ROLE", "all"),
+		WorkerConcurrency: envInt("WORKER_CONCURRENCY", 5),
 		PaddleAPIKey:       env("PADDLE_API_KEY", ""),
 		PaddleWebhookSecret: env("PADDLE_WEBHOOK_SECRET", ""),
 		PaddleEnv:          env("PADDLE_ENV", env("NEXT_PUBLIC_PADDLE_ENV", "sandbox")),
@@ -64,6 +73,12 @@ func Load() Config {
 			"crew_5":  env("PADDLE_PRICE_ID_CREW_5_MONTHLY", env("NEXT_PUBLIC_PADDLE_PRICE_ID_CREW_5_MONTHLY", "")),
 			"team_15": env("PADDLE_PRICE_ID_TEAM_15_MONTHLY", env("NEXT_PUBLIC_PADDLE_PRICE_ID_TEAM_15_MONTHLY", "")),
 		},
+		SMTPHost:      env("SMTP_HOST", ""),
+		SMTPPort:      envInt("SMTP_PORT", 587),
+		SMTPUsername:  env("SMTP_USERNAME", ""),
+		SMTPPassword:  env("SMTP_PASSWORD", ""),
+		SMTPFromEmail: env("SMTP_FROM_EMAIL", ""),
+		SMTPFromName:  env("SMTP_FROM_NAME", "Job Site Records"),
 	}
 }
 
@@ -72,6 +87,18 @@ func env(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func envInt(key string, fallback int) int {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		return fallback
+	}
+	return n
 }
 
 func splitCSV(s string) []string {

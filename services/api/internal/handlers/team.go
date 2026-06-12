@@ -15,10 +15,10 @@ import (
 type TeamHandler struct {
 	cfg        config.Config
 	workspaces *workspace.Service
-	mail       *email.Sender
+	mail       *email.Queue
 }
 
-func NewTeamHandler(cfg config.Config, ws *workspace.Service, mail *email.Sender) *TeamHandler {
+func NewTeamHandler(cfg config.Config, ws *workspace.Service, mail *email.Queue) *TeamHandler {
 	return &TeamHandler{cfg: cfg, workspaces: ws, mail: mail}
 }
 
@@ -62,7 +62,10 @@ func (h *TeamHandler) CreateInvite(w http.ResponseWriter, r *http.Request) {
 		wsName = "your workspace"
 	}
 	link := fmt.Sprintf("%s/invite/accept?token=%s", h.cfg.AppURL, plain)
-	_ = h.mail.SendWorkspaceInvite(inv.Email, wsName, link)
+	if err := h.mail.SendWorkspaceInvite(r.Context(), inv.Email, wsName, link); err != nil {
+		httpx.Error(w, http.StatusInternalServerError, "internal", "Could not send invite email", nil)
+		return
+	}
 
 	resp := map[string]any{"invite": inv}
 	if h.cfg.DevLogEmailLinks {
@@ -87,7 +90,10 @@ func (h *TeamHandler) ResendInvite(w http.ResponseWriter, r *http.Request) {
 		wsName = "your workspace"
 	}
 	link := fmt.Sprintf("%s/invite/accept?token=%s", h.cfg.AppURL, plain)
-	_ = h.mail.SendWorkspaceInvite(inv.Email, wsName, link)
+	if err := h.mail.SendWorkspaceInvite(r.Context(), inv.Email, wsName, link); err != nil {
+		httpx.Error(w, http.StatusInternalServerError, "internal", "Could not send invite email", nil)
+		return
+	}
 
 	resp := map[string]any{"invite": inv}
 	if h.cfg.DevLogEmailLinks {

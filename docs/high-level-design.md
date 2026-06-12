@@ -1016,7 +1016,7 @@ Users who never create a workspace and never sign in **never pay** and **do not 
 ### 17.4 Technical sketch (high level)
 
 - **Auth** — **email + password**, **email magic link**, and **Google OAuth** are **implemented**; **Sign in with Apple** is planned ([§17.9](#179-authentication-sign-in-methods)). **JWT access token (15 min) + rotating opaque refresh token (30 d)**; per-session row in DB. Session and API detail: [`web-dashboard-design.md` §11](web-dashboard-design.md#11-auth--sessions).
-- **Outbound email** — transactional SMTP from the Go API (password reset, magic links, invites). Config in repo root `.env` (local) and `.env.deploy` (production) — [§17.9](#179-authentication-sign-in-methods).
+- **Outbound email** — transactional SMTP via River queue `email` on **`worker-mail`** (`send_email` jobs: magic links, password reset, invites). PDF reports use queue `reports` on **`worker-reports`**. API enqueues both; workers send/process independently. Config in `.env` / `.env.deploy` — [§17.9](#179-authentication-sign-in-methods).
 - **Billing** — **Paddle** as Merchant of Record (Iceland-friendly, no Stripe dependency). Hosted Customer Portal; webhooks handled inline in the Go API. New workspaces get a **14-day trial** (solo, 3 jobs, 50 items/job). After lapse: **7-day grace** (sync push still works, billing warning), then **read-only** until reactivated. App Store / Play in-app billing is **deferred**; RevenueCat is **not** in MVP.
 - **API + sync** — single **Go** service (`services/api/`) hosts auth, CRUD, sync, signed URLs, webhooks, and outbound email. REST/JSON with OpenAPI for client generation. Sync is **per-job** with last-writer-wins on `updated_at`, soft delete + 30-day tombstones, and direct-to-S3 blob uploads via signed URLs. **Job assignments (partial):** `job_assignments` + `read_only` on unassigned jobs for members; invite/assign UI not shipped. Read-only edges when assignment, membership, or subscription lapses. Full protocol: [`web-dashboard-design.md` §15](web-dashboard-design.md#15-sync-api--protocol). **Sync triggering:** mobile `SyncScheduler` (S1) + web cursor polling (S3); `jobs.last_activity_at` + ETag cursor endpoints (S2): [`sync-strategy-plan.md`](sync-strategy-plan.md).
 - **PDF rendering** — separate **Rust** worker (`services/pdf/`) polling a Postgres queue (`reports.status` + `SKIP LOCKED`); only async service in MVP.
@@ -1118,10 +1118,12 @@ Magic-link sign-in and OAuth do not use this flow; password reset applies only t
 
 #### Outbound email (SMTP)
 
-The Go API sends transactional email inline (password reset today; magic links and team invites when those ship). **SMTP** is configured via environment variables in:
+Transactional email (magic links, password reset, workspace invites) is **enqueued by the API** on River queue **`email`** and **sent by `worker-mail`** via SMTP. PDF reports enqueue on queue **`reports`** and run in **`worker-reports`**. The API returns immediately after enqueue; SMTP and Gotenberg I/O run in workers with River retries.
 
-- **Local dev:** repo root `.env` (read by `docker-compose.yml` for the `api` service)
-- **Production:** `.env.deploy` (read by `docker-compose.deploy.yml`)
+**SMTP** is configured via environment variables in:
+
+- **Local dev:** repo root `.env` (passed to the combined `worker` service with `WORKER_ROLE=all` in `docker-compose.yml`)
+- **Production:** `.env.deploy` (passed to **`worker-mail`** in `docker-compose.deploy.yml`; **`worker-reports`** does not need SMTP)
 
 | Variable | Example / default | Purpose |
 | --- | --- | --- |
@@ -1129,10 +1131,14 @@ The Go API sends transactional email inline (password reset today; magic links a
 | `SMTP_PORT` | `587` | SMTP port (STARTTLS on 587) |
 | `SMTP_USERNAME` | *(set in env)* | SMTP auth username |
 | `SMTP_PASSWORD` | *(set in env)* | SMTP auth password |
-| `SMTP_FROM_EMAIL` | *(set in env)* | Envelope / From address (e.g. `noreply@jobsiterecords.com`) |
+| `SMTP_FROM_EMAIL` | *(set in env)* | Envelope / From address (e.g. `notifications@jobsiterecords.com`) |
 | `SMTP_FROM_NAME` | `Job Site Records` | Display name on outbound mail |
+| `WORKER_ROLE` | `all` (local) / `mail` or `reports` (prod) | Which job types a worker process runs |
+| `WORKER_CONCURRENCY` | `5` | Max concurrent jobs per process (local combined worker) |
+| `WORKER_MAIL_CONCURRENCY` | `5` | Max concurrent email jobs per `worker-mail` replica |
+| `WORKER_REPORTS_CONCURRENCY` | `5` | Max concurrent PDF jobs in `worker-reports` |
 
-When SMTP is not configured (empty username/password), local dev may log the reset link to the API container stdout instead of sending mail — useful for testing without a mailbox. Production **must** set all SMTP variables in `.env.deploy`.
+When SMTP is not configured, local dev with `DEV_LOG_EMAIL_LINKS=true` on the API logs links to stdout instead of enqueueing — useful for testing without a mailbox. Production **must** set all SMTP variables on **`worker-mail`**, set `DEV_LOG_EMAIL_LINKS=false` on the API, and run at least one `worker-mail` and one `worker-reports` container. Scale mail with `docker compose … --scale worker-mail=N`.
 
 **Sessions (all methods):**
 
