@@ -30,6 +30,13 @@ String formatRelative(DateTime d) {
   return DateFormat.yMMMd().format(d.toLocal());
 }
 
+/// Matches web `formatUpdatedLabel` — "Updated 2h ago" or full date when older.
+String formatUpdatedLabel(DateTime d) {
+  final diff = DateTime.now().toUtc().difference(d.toUtc());
+  if (diff.inDays < 7) return 'Updated ${formatRelative(d)}';
+  return 'Updated ${DateFormat.yMMMd().format(d.toLocal())}';
+}
+
 String formatDuration(Duration d) {
   final m = d.inMinutes;
   final s = d.inSeconds.remainder(60);

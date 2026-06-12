@@ -19,7 +19,10 @@ import '../../domain/models/timeline_item.dart';
 import '../../domain/models/timeline_query.dart';
 import 'bulk_tag_sheet.dart';
 import 'timeline_day_content.dart';
-import 'timeline_tag_filter_sheet.dart';
+import 'widgets/job_status_pill.dart';
+import 'widgets/sticky_action_fab.dart';
+import 'widgets/summary_kind_chips.dart';
+import 'widgets/timeline_filter_sheet.dart';
 
 class JobDetailScreen extends ConsumerStatefulWidget {
   const JobDetailScreen({super.key, required this.jobId});
@@ -37,7 +40,6 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
   TimelineQuery _query = TimelineQuery.empty;
   List<TimelineItem>? _timelineItems;
   Timer? _searchDebounce;
-  bool _filtersExpanded = false;
   final _searchFocusNode = FocusNode();
   bool _watchingJob = false;
   SyncScheduler? _syncScheduler;
@@ -90,48 +92,61 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
     _searchDebounce?.cancel();
     _searchCtrl.clear();
     _searchFocusNode.unfocus();
-    setState(() {
-      _query = TimelineQuery.empty;
-      _filtersExpanded = false;
-    });
+    setState(() => _query = TimelineQuery.empty);
   }
 
-  void _expandFilters() {
-    setState(() => _filtersExpanded = true);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _searchFocusNode.requestFocus();
-    });
-  }
-
-  void _toggleFiltersExpanded() {
-    if (_filtersExpanded) {
-      _searchFocusNode.unfocus();
-      setState(() => _filtersExpanded = false);
+  void _selectKind(ItemKind? kind) {
+    if (kind == null) {
+      _setQuery(_query.copyWith(clearKinds: true));
+    } else if (_query.activeKind == kind) {
+      _setQuery(_query.copyWith(clearKinds: true));
     } else {
-      _expandFilters();
+      _setQuery(_query.copyWith(kinds: {kind}));
     }
   }
 
-  void _toggleTag(String tagId) {
-    final tagIds = Set<String>.of(_query.tagIds);
-    if (!tagIds.add(tagId)) tagIds.remove(tagId);
-    _setQuery(_query.copyWith(tagIds: tagIds));
-  }
-
-  Future<void> _openTagFilter(Set<String> tagsInJob) async {
-    final result = await showTimelineTagFilterSheet(
+  Future<void> _openFilterSheet(Set<String> tagsInJob) async {
+    final result = await showTimelineFilterSheet(
       context: context,
-      selectedTagIds: _query.tagIds,
+      query: _query,
       tagsInJob: tagsInJob,
     );
     if (result == null || !mounted) return;
-    _setQuery(_query.copyWith(tagIds: result));
+    _setQuery(result);
   }
 
-  void _toggleKind(ItemKind kind) {
-    final kinds = Set<ItemKind>.of(_query.kinds);
-    if (!kinds.add(kind)) kinds.remove(kind);
-    _setQuery(_query.copyWith(kinds: kinds));
+  Future<void> _changeStatus(JobStatus next) async {
+    final repo = ref.read(jobsRepositoryProvider);
+    final job = await repo.byId(jobId);
+    if (job != null && job.status != next) {
+      await repo.update(job.copyWith(status: next));
+      bumpDataRevision(ref);
+      ref.invalidate(jobProvider(jobId));
+    }
+  }
+
+  void _showStatusSheet(JobStatus current) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final status in JobStatus.values)
+              ListTile(
+                leading: current == status ? const Icon(Icons.check, color: AppColors.accent) : const SizedBox(width: 24),
+                title: Text(status.label),
+                onTap: () {
+                  Navigator.pop(context);
+                  _changeStatus(status);
+                },
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
   }
 
   void _enterSelection({String? initialItemId}) {
@@ -271,44 +286,19 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                 orElse: () => const Text('Job'),
               ),
               actions: [
-                IconButton(
-                  icon: Badge(
-                    isLabelVisible: _query.hasFilters && !_filtersExpanded,
-                    backgroundColor: AppColors.accent,
-                    smallSize: 8,
-                    child: Icon(_filtersExpanded ? Icons.close : Icons.search_rounded),
-                  ),
-                  tooltip: _filtersExpanded ? 'Close search' : 'Search & filter',
-                  onPressed: _toggleFiltersExpanded,
-                ),
-                IconButton(
-                  icon: const Icon(Icons.settings_outlined),
-                  tooltip: 'Job settings',
-                  onPressed: () => context.pushNamed('job-edit', pathParameters: {'id': jobId}),
-                ),
                 PopupMenuButton<String>(
                   onSelected: (v) => _onMenu(context, ref, v),
                   itemBuilder: (context) {
                     final currentStatus = jobAsync.valueOrNull?.status;
                     return [
+                      const PopupMenuItem(value: 'edit', child: Text('Edit job')),
                       const PopupMenuItem(value: 'select', child: Text('Select items…')),
                       const PopupMenuItem(value: 'export', child: Text('Export…')),
                       const PopupMenuDivider(),
-                      for (final status in JobStatus.values)
-                        PopupMenuItem(
-                          value: 'status:${status.dbValue}',
-                          child: Row(
-                            children: [
-                              SizedBox(
-                                width: 20,
-                                child: currentStatus == status
-                                    ? const Icon(Icons.check, size: 18)
-                                    : null,
-                              ),
-                              Text(status.label),
-                            ],
-                          ),
-                        ),
+                      if (currentStatus != JobStatus.completed)
+                        const PopupMenuItem(value: 'status:completed', child: Text('Mark completed')),
+                      if (currentStatus == JobStatus.completed)
+                        const PopupMenuItem(value: 'status:in_progress', child: Text('Reopen job')),
                       const PopupMenuDivider(),
                       const PopupMenuItem(
                         value: 'delete',
@@ -328,50 +318,50 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
           if (timelineLoading) {
             return const Center(child: CircularProgressIndicator());
           }
-          return _Body(
-            job: job,
-            items: items,
-            summary: summary,
-            storage: storage.absolutePath,
-            selecting: _selecting,
-            selected: _selected,
-            query: _query,
-            searchCtrl: _searchCtrl,
-            searchFocusNode: _searchFocusNode,
-            tagsInJob: tagsInJob,
-            filtersExpanded: _filtersExpanded,
-            timelineRefreshing: timelineRefreshing,
-            onExpandFilters: _expandFilters,
-            onSearchChanged: _onSearchChanged,
-            onClearSearch: _clearSearch,
-            onToggleKind: _toggleKind,
-            onToggleTag: _toggleTag,
-            onOpenTagFilter: () => _openTagFilter(tagsInJob),
-            onClearFilters: _clearFilters,
-            onToggle: _toggleSelected,
-            onLongPress: (id) => _enterSelection(initialItemId: id),
-            onRefresh: () async {
-              final ctx = ref.read(captureContextProvider);
-              if (ctx.isWorkspace) {
-                final status = await runManualSync(ref);
-                if (context.mounted) showSyncSnackBar(context, status);
-              }
-              ref.invalidate(jobProvider(jobId));
-              ref.invalidate(jobTimelineProvider((jobId: jobId, query: _query)));
-              ref.invalidate(jobSummariesProvider);
-            },
+          return Stack(
+            children: [
+              _Body(
+                job: job,
+                items: items,
+                summary: summary,
+                storage: storage.absolutePath,
+                selecting: _selecting,
+                selected: _selected,
+                query: _query,
+                searchCtrl: _searchCtrl,
+                searchFocusNode: _searchFocusNode,
+                tagsInJob: tagsInJob,
+                timelineRefreshing: timelineRefreshing,
+                onSearchChanged: _onSearchChanged,
+                onClearSearch: _clearSearch,
+                onSelectKind: _selectKind,
+                onOpenFilterSheet: () => _openFilterSheet(tagsInJob),
+                onClearFilters: _clearFilters,
+                onStatusTap: () => _showStatusSheet(job.status),
+                onToggle: _toggleSelected,
+                onLongPress: (id) => _enterSelection(initialItemId: id),
+                onRefresh: () async {
+                  final ctx = ref.read(captureContextProvider);
+                  if (ctx.isWorkspace) {
+                    final status = await runManualSync(ref);
+                    if (context.mounted) showSyncSnackBar(context, status);
+                  }
+                  ref.invalidate(jobProvider(jobId));
+                  ref.invalidate(jobTimelineProvider((jobId: jobId, query: _query)));
+                  ref.invalidate(jobSummariesProvider);
+                },
+              ),
+              if (!_selecting && items.isNotEmpty)
+                StickyActionFab(
+                  label: 'Add to job',
+                  onPressed: () => _addItemSheet(context),
+                ),
+            ],
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Error: $e')),
       ),
-      floatingActionButton: _selecting
-          ? null
-          : FloatingActionButton(
-              onPressed: () => _addItemSheet(context),
-              tooltip: 'Add photo or note',
-              child: const Icon(Icons.add_rounded),
-            ),
       bottomNavigationBar: _selecting
           ? SafeArea(
               child: Padding(
@@ -465,6 +455,8 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
 
   Future<void> _onMenu(BuildContext context, WidgetRef ref, String v) async {
     switch (v) {
+      case 'edit':
+        context.pushNamed('job-edit', pathParameters: {'id': jobId});
       case 'select':
         _enterSelection();
       case 'export':
@@ -519,15 +511,13 @@ class _Body extends StatelessWidget {
     required this.searchCtrl,
     required this.searchFocusNode,
     required this.tagsInJob,
-    required this.filtersExpanded,
     required this.timelineRefreshing,
-    required this.onExpandFilters,
     required this.onSearchChanged,
     required this.onClearSearch,
-    required this.onToggleKind,
-    required this.onToggleTag,
-    required this.onOpenTagFilter,
+    required this.onSelectKind,
+    required this.onOpenFilterSheet,
     required this.onClearFilters,
+    required this.onStatusTap,
     required this.onToggle,
     required this.onLongPress,
     required this.onRefresh,
@@ -542,15 +532,13 @@ class _Body extends StatelessWidget {
   final TextEditingController searchCtrl;
   final FocusNode searchFocusNode;
   final Set<String> tagsInJob;
-  final bool filtersExpanded;
   final bool timelineRefreshing;
-  final VoidCallback onExpandFilters;
   final ValueChanged<String> onSearchChanged;
   final VoidCallback onClearSearch;
-  final ValueChanged<ItemKind> onToggleKind;
-  final ValueChanged<String> onToggleTag;
-  final VoidCallback onOpenTagFilter;
+  final ValueChanged<ItemKind?> onSelectKind;
+  final VoidCallback onOpenFilterSheet;
   final VoidCallback onClearFilters;
+  final VoidCallback onStatusTap;
   final void Function(String itemId) onToggle;
   final void Function(String itemId) onLongPress;
   final Future<void> Function() onRefresh;
@@ -563,46 +551,46 @@ class _Body extends StatelessWidget {
       return DateTime(d.year, d.month, d.day);
     });
     final days = byDay.keys.toList()..sort((a, b) => b.compareTo(a));
-    final bottomPad = selecting ? 88.0 : 80.0;
+    final bottomPad = selecting ? 88.0 : 120.0;
 
     return RefreshIndicator(
       onRefresh: onRefresh,
       child: ListView(
-      padding: EdgeInsets.fromLTRB(16, 12, 16, bottomPad),
+      padding: EdgeInsets.fromLTRB(16, 8, 16, bottomPad),
       physics: const AlwaysScrollableScrollPhysics(),
       children: [
-        _Header(job: job),
+        _Header(job: job, onStatusTap: onStatusTap),
         const SizedBox(height: 12),
-        _Counts(counts: counts),
-        if (!selecting && (filtersExpanded || query.hasFilters)) ...[
-          const SizedBox(height: 12),
-          AnimatedSize(
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeInOut,
-            alignment: Alignment.topCenter,
-            clipBehavior: Clip.hardEdge,
-            child: filtersExpanded
-                ? _TimelineFilters(
-                    query: query,
-                    searchCtrl: searchCtrl,
-                    searchFocusNode: searchFocusNode,
-                    tagsInJob: tagsInJob,
-                    tagsInJobCount: tagsInJob.length,
-                    onSearchChanged: onSearchChanged,
-                    onClearSearch: onClearSearch,
-                    onToggleKind: onToggleKind,
-                    onToggleTag: onToggleTag,
-                    onOpenTagFilter: onOpenTagFilter,
-                    onClearFilters: onClearFilters,
-                  )
-                : _ActiveFilterSummary(
-                    query: query,
-                    onTap: onExpandFilters,
-                    onClear: onClearFilters,
-                  ),
+        if (!selecting)
+          SummaryKindChips(
+            totalItems: counts.items,
+            photos: counts.photos,
+            notes: counts.notes,
+            voice: counts.voiceNotes,
+            files: counts.files,
+            activeKind: query.activeKind,
+            onSelect: onSelectKind,
           ),
+        if (!selecting) ...[
+          const SizedBox(height: 12),
+          _TimelineToolbar(
+            query: query,
+            searchCtrl: searchCtrl,
+            searchFocusNode: searchFocusNode,
+            onSearchChanged: onSearchChanged,
+            onClearSearch: onClearSearch,
+            onOpenFilterSheet: onOpenFilterSheet,
+          ),
+          if (query.hasAdvancedFilters) ...[
+            const SizedBox(height: 8),
+            _ActiveFilterSummary(
+              query: query,
+              onTap: onOpenFilterSheet,
+              onClear: onClearFilters,
+            ),
+          ],
         ],
-        const SizedBox(height: 18),
+        const SizedBox(height: 16),
         Row(
           children: [
             const Expanded(
@@ -697,51 +685,40 @@ class _Body extends StatelessWidget {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.job});
+  const _Header({required this.job, required this.onStatusTap});
   final Job job;
+  final VoidCallback onStatusTap;
 
   @override
   Widget build(BuildContext context) {
-    final addr = [job.clientName, job.address].where((s) => (s ?? '').isNotEmpty).join(' · ');
-    final hasExtra = (job.jobNumber ?? '').isNotEmpty ||
-        job.startDate != null ||
-        job.endDate != null ||
-        (job.notes ?? '').isNotEmpty;
+    final address = job.address;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(job.name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 20, color: AppColors.ink)),
-        if (addr.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Text(addr, style: const TextStyle(color: AppColors.subtle)),
+        if ((address ?? '').isNotEmpty)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Padding(
+                padding: EdgeInsets.only(top: 2),
+                child: Icon(Icons.location_on_outlined, size: 16, color: AppColors.subtle),
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  address!,
+                  style: const TextStyle(color: AppColors.subtle, fontSize: 14),
+                ),
+              ),
+            ],
           ),
-        if (hasExtra) ...[
-          const SizedBox(height: 8),
-          if ((job.jobNumber ?? '').isNotEmpty)
-            Text('Job #${job.jobNumber}', style: const TextStyle(color: AppColors.subtle, fontSize: 13)),
-          if (job.startDate != null || job.endDate != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: Text(
-                [
-                  if (job.startDate != null) formatJobDate(job.startDate!),
-                  if (job.endDate != null) formatJobDate(job.endDate!),
-                ].join(' → '),
-                style: const TextStyle(color: AppColors.subtle, fontSize: 13),
-              ),
-            ),
-          if ((job.notes ?? '').isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                job.notes!,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: AppColors.subtle, fontSize: 13),
-              ),
-            ),
-        ],
+        if ((job.clientName ?? '').isNotEmpty && (address ?? '').isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(job.clientName!, style: const TextStyle(color: AppColors.subtle, fontSize: 13)),
+          ),
+        const SizedBox(height: 8),
+        JobStatusPill(status: job.status, showCheck: true, onTap: onStatusTap),
       ],
     );
   }
@@ -759,35 +736,87 @@ class _CountsData {
   });
 }
 
-class _Counts extends StatelessWidget {
-  const _Counts({required this.counts});
-  final _CountsData counts;
+class _TimelineToolbar extends StatefulWidget {
+  const _TimelineToolbar({
+    required this.query,
+    required this.searchCtrl,
+    required this.searchFocusNode,
+    required this.onSearchChanged,
+    required this.onClearSearch,
+    required this.onOpenFilterSheet,
+  });
+
+  final TimelineQuery query;
+  final TextEditingController searchCtrl;
+  final FocusNode searchFocusNode;
+  final ValueChanged<String> onSearchChanged;
+  final VoidCallback onClearSearch;
+  final VoidCallback onOpenFilterSheet;
+
+  @override
+  State<_TimelineToolbar> createState() => _TimelineToolbarState();
+}
+
+class _TimelineToolbarState extends State<_TimelineToolbar> {
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
-      child: Row(
-        children: [
-          _stat('${counts.items}', 'Items'),
-          _stat('${counts.photos}', 'Photos'),
-          _stat('${counts.voiceNotes}', 'Voice'),
-          _stat('${counts.notes}', 'Notes'),
-          _stat('${counts.files}', 'Files'),
-          _stat('${counts.issues}', 'Issues'),
-        ],
-      ),
-    );
-  }
-
-  Widget _stat(String n, String l) => Expanded(
-        child: Column(
+    return Row(
+      children: [
+        Expanded(
+          child: TextField(
+            controller: widget.searchCtrl,
+            focusNode: widget.searchFocusNode,
+            onChanged: (v) {
+              setState(() {});
+              widget.onSearchChanged(v);
+            },
+            decoration: InputDecoration(
+              hintText: 'Search timeline',
+              prefixIcon: const Icon(Icons.search_rounded),
+              isDense: true,
+              suffixIcon: widget.searchCtrl.text.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear, size: 18),
+                      onPressed: () {
+                        widget.onClearSearch();
+                        setState(() {});
+                      },
+                    )
+                  : null,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Stack(
+          clipBehavior: Clip.none,
           children: [
-            Text(n, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: AppColors.ink)),
-            Text(l, style: const TextStyle(color: AppColors.subtle, fontSize: 11)),
+            OutlinedButton(
+              onPressed: widget.onOpenFilterSheet,
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(48, 48),
+                padding: EdgeInsets.zero,
+                side: const BorderSide(color: AppColors.border),
+              ),
+              child: const Icon(Icons.tune_rounded, size: 20),
+            ),
+            if (widget.query.hasAdvancedFilters)
+              Positioned(
+                top: 6,
+                right: 6,
+                child: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                    color: AppColors.accent,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
           ],
         ),
-      );
+      ],
+    );
+  }
 }
 
 class _ItemRow extends StatelessWidget {
@@ -930,162 +959,6 @@ class _ItemRow extends StatelessWidget {
   }
 }
 
-class _TimelineFilters extends ConsumerStatefulWidget {
-  const _TimelineFilters({
-    required this.query,
-    required this.searchCtrl,
-    required this.searchFocusNode,
-    required this.tagsInJob,
-    required this.tagsInJobCount,
-    required this.onSearchChanged,
-    required this.onClearSearch,
-    required this.onToggleKind,
-    required this.onToggleTag,
-    required this.onOpenTagFilter,
-    required this.onClearFilters,
-  });
-
-  final TimelineQuery query;
-  final TextEditingController searchCtrl;
-  final FocusNode searchFocusNode;
-  final int tagsInJobCount;
-  final Set<String> tagsInJob;
-  final ValueChanged<String> onSearchChanged;
-  final VoidCallback onClearSearch;
-  final ValueChanged<ItemKind> onToggleKind;
-  final ValueChanged<String> onToggleTag;
-  final VoidCallback onOpenTagFilter;
-  final VoidCallback onClearFilters;
-
-  @override
-  ConsumerState<_TimelineFilters> createState() => _TimelineFiltersState();
-}
-
-class _TimelineFiltersState extends ConsumerState<_TimelineFilters> {
-  @override
-  Widget build(BuildContext context) {
-    final query = widget.query;
-    final searchCtrl = widget.searchCtrl;
-    final tagsAsync = ref.watch(tagsProvider);
-    final quickTags = tagsAsync.maybeWhen(
-      data: (allTags) => allTags.where((t) => widget.tagsInJob.contains(t.id)).take(6).toList(),
-      orElse: () => const <Tag>[],
-    );
-    final moreTagCount =
-        widget.tagsInJobCount > quickTags.length ? widget.tagsInJobCount - quickTags.length : 0;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        TextField(
-          controller: searchCtrl,
-          focusNode: widget.searchFocusNode,
-          onChanged: (v) {
-            setState(() {});
-            widget.onSearchChanged(v);
-          },
-          decoration: InputDecoration(
-            hintText: 'Search captions, notes, tags…',
-            prefixIcon: const Icon(Icons.search_rounded),
-            isDense: true,
-            suffixIcon: searchCtrl.text.isNotEmpty
-                ? IconButton(
-                    icon: const Icon(Icons.clear, size: 18),
-                    onPressed: () {
-                      widget.onClearSearch();
-                      setState(() {});
-                    },
-                  )
-                : null,
-          ),
-        ),
-        const SizedBox(height: 10),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              for (final kind in ItemKind.values)
-                Padding(
-                  padding: const EdgeInsets.only(right: 6),
-                  child: FilterChip(
-                    label: Text(_kindFilterLabel(kind)),
-                    selected: query.kinds.contains(kind),
-                    onSelected: (_) => widget.onToggleKind(kind),
-                    showCheckmark: false,
-                    selectedColor: AppColors.accent.withValues(alpha: 0.25),
-                    checkmarkColor: AppColors.ink,
-                    labelStyle: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: query.kinds.contains(kind) ? AppColors.ink : AppColors.subtle,
-                    ),
-                  ),
-                ),
-              FilterChip(
-                avatar: Icon(
-                  Icons.label_outline,
-                  size: 16,
-                  color: query.tagIds.isNotEmpty ? AppColors.ink : AppColors.subtle,
-                ),
-                label: Text(query.tagIds.isEmpty ? 'Tags' : 'Tags (${query.tagIds.length})'),
-                selected: query.tagIds.isNotEmpty,
-                onSelected: (_) => widget.onOpenTagFilter(),
-                showCheckmark: false,
-                selectedColor: AppColors.accent.withValues(alpha: 0.25),
-                labelStyle: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: query.tagIds.isNotEmpty ? AppColors.ink : AppColors.subtle,
-                ),
-              ),
-              if (query.hasFilters) ...[
-                const SizedBox(width: 2),
-                ActionChip(
-                  label: const Text('Clear'),
-                  onPressed: widget.onClearFilters,
-                ),
-              ],
-            ],
-          ),
-        ),
-        if (quickTags.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                for (final tag in quickTags)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 6),
-                    child: FilterChip(
-                      label: Text(tag.name),
-                      selected: query.tagIds.contains(tag.id),
-                      onSelected: (_) => widget.onToggleTag(tag.id),
-                      showCheckmark: false,
-                      selectedColor: const Color(0xFFFEF3C7),
-                      labelStyle: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: query.tagIds.contains(tag.id)
-                            ? const Color(0xFF92400E)
-                            : AppColors.subtle,
-                      ),
-                    ),
-                  ),
-                if (moreTagCount > 0)
-                  ActionChip(
-                    label: Text('+$moreTagCount more'),
-                    onPressed: widget.onOpenTagFilter,
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
 String _kindFilterLabel(ItemKind kind) => switch (kind) {
       ItemKind.photo => 'Photos',
       ItemKind.voice => 'Voice',
@@ -1095,14 +968,15 @@ String _kindFilterLabel(ItemKind kind) => switch (kind) {
 
 List<String> _activeFilterLabels(TimelineQuery query, List<Tag> allTags) {
   final parts = <String>[];
-  final search = query.trimmedSearch;
-  if (search != null) parts.add('“$search”');
   for (final kind in ItemKind.values) {
     if (query.kinds.contains(kind)) parts.add(_kindFilterLabel(kind));
   }
   for (final tag in allTags) {
     if (query.tagIds.contains(tag.id)) parts.add(tag.name);
   }
+  if (query.fromDate != null) parts.add('From ${formatJobDate(query.fromDate!)}');
+  if (query.toDate != null) parts.add('To ${formatJobDate(query.toDate!)}');
+  if (query.sortOldest) parts.add('Oldest first');
   return parts;
 }
 
