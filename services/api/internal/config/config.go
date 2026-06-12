@@ -27,6 +27,10 @@ type Config struct {
 	GoogleClientIDs    []string
 	GotenbergURL       string
 	WorkerConcurrency  int
+	PaddleAPIKey       string
+	PaddleWebhookSecret string
+	PaddleEnv          string
+	PaddlePriceIDs     map[string]string
 }
 
 func Load() Config {
@@ -52,6 +56,14 @@ func Load() Config {
 		GoogleClientIDs:   splitCSV(env("GOOGLE_CLIENT_ID", "")),
 		GotenbergURL:      env("GOTENBERG_URL", "http://localhost:7070"),
 		WorkerConcurrency: 5,
+		PaddleAPIKey:       env("PADDLE_API_KEY", ""),
+		PaddleWebhookSecret: env("PADDLE_WEBHOOK_SECRET", ""),
+		PaddleEnv:          env("PADDLE_ENV", env("NEXT_PUBLIC_PADDLE_ENV", "sandbox")),
+		PaddlePriceIDs: map[string]string{
+			"solo_1":  env("PADDLE_PRICE_ID_SOLO_1_MONTHLY", env("NEXT_PUBLIC_PADDLE_PRICE_ID_SOLO_1_MONTHLY", "")),
+			"crew_5":  env("PADDLE_PRICE_ID_CREW_5_MONTHLY", env("NEXT_PUBLIC_PADDLE_PRICE_ID_CREW_5_MONTHLY", "")),
+			"team_15": env("PADDLE_PRICE_ID_TEAM_15_MONTHLY", env("NEXT_PUBLIC_PADDLE_PRICE_ID_TEAM_15_MONTHLY", "")),
+		},
 	}
 }
 

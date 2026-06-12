@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { Session } from "@/lib/types";
 import { CommandPalette } from "./command-palette";
+import { SubscriptionBanner } from "./subscription-banner";
 import { MobileBottomNav } from "./mobile-bottom-nav";
 import {
   ChevronLeftIcon,
@@ -188,7 +189,10 @@ export function DashboardShell({ session, children }: Props) {
           </div>
         )}
 
-        <main className={styles.content}>{children}</main>
+        <main className={styles.content}>
+          {workspace && <SubscriptionBanner workspace={workspace} />}
+          {children}
+        </main>
       </div>
 
       <MobileBottomNav session={session} />

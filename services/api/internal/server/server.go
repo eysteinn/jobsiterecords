@@ -13,6 +13,7 @@ import (
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 
 	"github.com/eysteinn/jobsiterecords/services/api/internal/auth"
+	"github.com/eysteinn/jobsiterecords/services/api/internal/billing"
 	"github.com/eysteinn/jobsiterecords/services/api/internal/config"
 	"github.com/eysteinn/jobsiterecords/services/api/internal/email"
 	"github.com/eysteinn/jobsiterecords/services/api/internal/handlers"
@@ -67,6 +68,9 @@ func New(cfg config.Config, pool *pgxpool.Pool) (*Server, error) {
 	mediaH := handlers.NewMediaHandler(jobsSvc, store)
 	reportsSvc := reports.NewService(pool)
 	reportsH := handlers.NewReportsHandler(reportsSvc, riverClient, store)
+	billingSvc := billing.NewService(pool, cfg.PaddleAPIKey, cfg.PaddleWebhookSecret, cfg.PaddleEnv, cfg.PaddlePriceIDs)
+	billingH := handlers.NewBillingHandler(billingSvc)
+	jobsSvc.SetBilling(billingSvc)
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
@@ -85,6 +89,8 @@ func New(cfg config.Config, pool *pgxpool.Pool) (*Server, error) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"status":"ok"}`))
 	})
+
+	r.Post("/api/v1/webhooks/paddle", billingH.Webhook)
 
 	r.Route("/api/v1", func(api chi.Router) {
 		api.Get("/invites/preview", teamH.PreviewInvite)
@@ -110,6 +116,8 @@ func New(cfg config.Config, pool *pgxpool.Pool) (*Server, error) {
 		api.Group(func(protected chi.Router) {
 			protected.Use(authmw.RequireAuth(cfg.JWTSecret))
 			protected.Get("/workspaces", wsH.List)
+			protected.Get("/workspaces/{workspaceID}/billing", billingH.GetWorkspaceBilling)
+			protected.Post("/workspaces/{workspaceID}/billing/portal", billingH.OpenPortal)
 			protected.Post("/workspaces/{workspaceID}/leave", wsH.Leave)
 			protected.Get("/workspaces/{workspaceID}/team", teamH.GetTeam)
 			protected.Post("/workspaces/{workspaceID}/invites", teamH.CreateInvite)

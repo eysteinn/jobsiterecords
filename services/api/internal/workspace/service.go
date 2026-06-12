@@ -10,12 +10,14 @@ import (
 )
 
 type Workspace struct {
-	ID          string    `json:"id"`
-	Name        string    `json:"name"`
-	Role        string    `json:"role"`
-	PlanSKU     string    `json:"plan_sku"`
-	MemberLimit int       `json:"member_limit"`
-	CreatedAt   time.Time `json:"created_at"`
+	ID                 string    `json:"id"`
+	Name               string    `json:"name"`
+	Role               string    `json:"role"`
+	PlanSKU            string    `json:"plan_sku"`
+	MemberLimit        int       `json:"member_limit"`
+	SubscriptionStatus string    `json:"subscription_status"`
+	HasSubscription    bool      `json:"has_subscription"`
+	CreatedAt          time.Time `json:"created_at"`
 }
 
 type Service struct {
@@ -28,7 +30,8 @@ func NewService(pool *pgxpool.Pool) *Service {
 
 func (s *Service) ListForUser(ctx context.Context, userID string) ([]Workspace, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT w.id, w.name, m.role, w.plan_sku, w.member_limit, w.created_at
+		SELECT w.id, w.name, m.role, w.plan_sku, w.member_limit, w.subscription_status,
+		       (w.paddle_subscription_id IS NOT NULL), w.created_at
 		FROM workspace_memberships m
 		JOIN workspaces w ON w.id = m.workspace_id
 		WHERE m.user_id = $1 AND m.status = 'active'
@@ -42,7 +45,10 @@ func (s *Service) ListForUser(ctx context.Context, userID string) ([]Workspace, 
 	var out []Workspace
 	for rows.Next() {
 		var ws Workspace
-		if err := rows.Scan(&ws.ID, &ws.Name, &ws.Role, &ws.PlanSKU, &ws.MemberLimit, &ws.CreatedAt); err != nil {
+		if err := rows.Scan(
+			&ws.ID, &ws.Name, &ws.Role, &ws.PlanSKU, &ws.MemberLimit,
+			&ws.SubscriptionStatus, &ws.HasSubscription, &ws.CreatedAt,
+		); err != nil {
 			return nil, err
 		}
 		out = append(out, ws)

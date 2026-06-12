@@ -1,6 +1,9 @@
+import { BillingSettings } from "@/components/billing-settings";
 import { DashboardSyncSettings } from "@/components/dashboard-sync-settings";
 import { PageShell } from "@/components/page-shell";
+import { getWorkspaceBillingServer } from "@/lib/api-billing-server";
 import { getTeam } from "@/lib/api-team";
+import { planDisplayName } from "@/lib/paddle-config";
 import { requireSession } from "@/lib/server-session";
 import styles from "./settings.module.css";
 
@@ -9,6 +12,10 @@ export default async function SettingsPage() {
   const workspace = session.workspaces[0];
   const team =
     workspace?.role === "owner" ? await getTeam(workspace.id).catch(() => null) : null;
+  const billing =
+    workspace?.role === "owner"
+      ? await getWorkspaceBillingServer(workspace.id).catch(() => null)
+      : null;
 
   return (
     <PageShell title="Settings" subtitle="Account and workspace preferences">
@@ -38,7 +45,7 @@ export default async function SettingsPage() {
               </div>
               <div>
                 <dt>Plan</dt>
-                <dd>{workspace.plan_sku}</dd>
+                <dd>{planDisplayName(workspace.plan_sku)}</dd>
               </div>
               {workspace.role === "owner" && team && (
                 <div>
@@ -55,6 +62,13 @@ export default async function SettingsPage() {
               </div>
             </dl>
           </section>
+        )}
+        {workspace?.role === "owner" && workspace && (
+          <BillingSettings
+            workspaceId={workspace.id}
+            ownerEmail={session.user.email}
+            initial={billing}
+          />
         )}
         <DashboardSyncSettings />
       </div>

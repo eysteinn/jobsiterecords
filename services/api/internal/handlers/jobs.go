@@ -186,7 +186,7 @@ func writeJobsError(w http.ResponseWriter, err error) {
 		httpx.Error(w, http.StatusForbidden, "forbidden", err.Error(), nil)
 	case "not assigned to job":
 		httpx.Error(w, http.StatusForbidden, "read_only", "Job is read-only", nil)
-	case "read_only":
+	case "read_only", "subscription_lapsed":
 		httpx.Error(w, http.StatusForbidden, "read_only", "Job is read-only", nil)
 	default:
 		httpx.Error(w, http.StatusBadRequest, "bad_request", err.Error(), nil)
