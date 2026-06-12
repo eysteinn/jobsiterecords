@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../app/theme.dart';
 import '../../../domain/models/job.dart';
 
 /// Color-coded status pill matching web dashboard semantics.

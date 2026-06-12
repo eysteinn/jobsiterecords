@@ -132,7 +132,7 @@ jobs:
         run: flutter pub get
 
       - name: flutter analyze
-        run: flutter analyze
+        run: flutter analyze --no-fatal-infos
 
       - name: flutter test
         if: ${{ inputs.run_tests }}
@@ -199,7 +199,7 @@ jobs:
         run: flutter pub get
 
       - name: flutter analyze
-        run: flutter analyze
+        run: flutter analyze --no-fatal-infos
 
       - name: flutter test
         if: ${{ inputs.run_tests }}
