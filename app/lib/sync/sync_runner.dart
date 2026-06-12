@@ -6,6 +6,7 @@ import '../app/data_revision.dart';
 import '../core/format.dart';
 import 'sync_nudge_reason.dart';
 import 'sync_providers.dart';
+import 'workspace_access.dart';
 
 const _lastSyncedAtKey = 'sync_last_synced_at';
 const _lastSyncedWorkspaceKey = 'sync_last_workspace_id';
@@ -63,10 +64,13 @@ class SyncExecutor {
     try {
       final engine = _ref.read(syncEngineProvider);
       final wifiOnly = _ref.read(syncWifiOnlyProvider);
+      final workspace = findWorkspace(session.workspaces, ctx.workspaceId!);
+      final pushAllowed = workspaceSyncPushAllowed(workspace);
       final result = await engine.sync(
         session: session,
         workspaceId: ctx.workspaceId!,
         wifiOnly: wifiOnly,
+        pushAllowed: pushAllowed,
       );
 
       final pending = await engine.countPending(ctx.workspaceId!);
@@ -128,7 +132,11 @@ Future<int> refreshSyncCounts(Ref ref) {
 }
 
 /// Short label for the jobs-list footer — subtle, not intrusive.
-String syncStatusFooterLabel(SyncStatus status) {
+String syncStatusFooterLabel(SyncStatus status, {Map<String, dynamic>? workspace}) {
+  final subscriptionLabel = subscriptionSyncFooterLabel(workspace);
+  if (subscriptionLabel.isNotEmpty && workspaceAccessMode(workspace) == 'read_only') {
+    return subscriptionLabel;
+  }
   if (status.isSyncing) return 'Syncing…';
   if (status.isOffline && status.pending > 0) return 'Offline · will sync when online';
   if (status.quarantined > 0) {
@@ -137,7 +145,13 @@ String syncStatusFooterLabel(SyncStatus status) {
   }
   if (status.error != null) return 'Sync failed · retrying';
   if (status.pending > 0) return '${status.pending} pending';
-  if (status.lastSyncedAt != null) return 'Synced ${formatRelative(status.lastSyncedAt!)}';
+  if (status.lastSyncedAt != null) {
+    if (subscriptionLabel.isNotEmpty) {
+      return '$subscriptionLabel · synced ${formatRelative(status.lastSyncedAt!)}';
+    }
+    return 'Synced ${formatRelative(status.lastSyncedAt!)}';
+  }
+  if (subscriptionLabel.isNotEmpty) return subscriptionLabel;
   return 'Ready to sync';
 }
 

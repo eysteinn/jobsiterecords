@@ -16,7 +16,13 @@ export default async function TeamPage() {
 
   try {
     const team = await getTeam(workspace.id);
-    return <TeamPageClient workspaceId={workspace.id} initial={team} />;
+    return (
+      <TeamPageClient
+        workspaceId={workspace.id}
+        initial={team}
+        workspaceWritable={workspace.writable}
+      />
+    );
   } catch {
     return (
       <PageShell title="Team" subtitle="Invite workers to this workspace">

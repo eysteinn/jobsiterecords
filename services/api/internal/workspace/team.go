@@ -11,8 +11,9 @@ import (
 )
 
 var (
-	ErrNotOwner         = errors.New("owner access required")
-	ErrMemberLimit      = errors.New("workspace is at its member limit")
+	ErrNotOwner          = errors.New("owner access required")
+	ErrMemberLimit       = errors.New("workspace is at its member limit")
+	ErrWorkspaceReadOnly = errors.New("workspace is read-only")
 	ErrAlreadyMember    = errors.New("user is already a workspace member")
 	ErrInviteNotFound   = errors.New("invite not found")
 	ErrInvalidInvite    = errors.New("invalid or expired invite")
@@ -164,8 +165,25 @@ func (s *Service) seatUsage(ctx context.Context, workspaceID string) (active int
 	return active, pending, limit, err
 }
 
+func (s *Service) requireWorkspaceWritable(ctx context.Context, workspaceID string) error {
+	if s.billing == nil {
+		return nil
+	}
+	access, err := s.billing.GetWorkspaceAccess(ctx, workspaceID)
+	if err != nil {
+		return err
+	}
+	if !access.Writable {
+		return ErrWorkspaceReadOnly
+	}
+	return nil
+}
+
 func (s *Service) CreateInvite(ctx context.Context, userID, workspaceID, email string) (TeamInvite, string, error) {
 	if err := s.requireOwner(ctx, userID, workspaceID); err != nil {
+		return TeamInvite{}, "", err
+	}
+	if err := s.requireWorkspaceWritable(ctx, workspaceID); err != nil {
 		return TeamInvite{}, "", err
 	}
 

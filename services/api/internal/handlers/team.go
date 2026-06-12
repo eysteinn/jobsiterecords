@@ -171,6 +171,8 @@ func writeTeamError(w http.ResponseWriter, err error) {
 		httpx.Error(w, http.StatusForbidden, "forbidden", "Owner access required", nil)
 	case errors.Is(err, workspace.ErrMemberLimit):
 		httpx.Error(w, http.StatusConflict, "member_limit", "Workspace is at its member limit", nil)
+	case errors.Is(err, workspace.ErrWorkspaceReadOnly):
+		httpx.Error(w, http.StatusForbidden, "read_only", "Workspace is read-only", nil)
 	case errors.Is(err, workspace.ErrAlreadyMember):
 		httpx.Error(w, http.StatusConflict, "already_member", "That person is already a workspace member", nil)
 	case errors.Is(err, workspace.ErrInviteNotFound):

@@ -14,10 +14,12 @@ import (
 )
 
 var (
-	ErrNotOwner              = errors.New("owner required")
-	ErrNoSubscription        = errors.New("no active subscription")
-	ErrTooManyMembers        = errors.New("too many members for plan")
-	ErrBillingNotConfigured  = errors.New("billing not configured")
+	ErrNotOwner             = errors.New("owner required")
+	ErrNoSubscription       = errors.New("no active subscription")
+	ErrTooManyMembers       = errors.New("too many members for plan")
+	ErrBillingNotConfigured = errors.New("billing not configured")
+	ErrTrialJobLimit        = errors.New("trial job limit reached")
+	ErrTrialItemLimit       = errors.New("trial item limit reached")
 )
 
 type WorkspaceBilling struct {
@@ -172,21 +174,93 @@ func (s *Service) CanDowngradeTo(ctx context.Context, workspaceID, targetSKU str
 	return nil
 }
 
-func (s *Service) WorkspaceWritable(ctx context.Context, workspaceID string) (bool, error) {
-	var status string
-	var paddleSubscription *string
+func (s *Service) loadWorkspaceAccessInput(ctx context.Context, workspaceID string) (workspaceAccessInput, error) {
+	var in workspaceAccessInput
 	err := s.pool.QueryRow(ctx, `
-		SELECT subscription_status, paddle_subscription_id
+		SELECT subscription_status, paddle_subscription_id, trial_started_at,
+		       subscription_ended_at, subscription_past_due_at
 		FROM workspaces
 		WHERE id = $1
-	`, workspaceID).Scan(&status, &paddleSubscription)
+	`, workspaceID).Scan(
+		&in.SubscriptionStatus,
+		&in.PaddleSubscriptionID,
+		&in.TrialStartedAt,
+		&in.SubscriptionEndedAt,
+		&in.SubscriptionPastDueAt,
+	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return false, errors.New("workspace not found")
+			return workspaceAccessInput{}, errors.New("workspace not found")
 		}
+		return workspaceAccessInput{}, err
+	}
+	return in, nil
+}
+
+func (s *Service) GetWorkspaceAccess(ctx context.Context, workspaceID string) (WorkspaceAccess, error) {
+	in, err := s.loadWorkspaceAccessInput(ctx, workspaceID)
+	if err != nil {
+		return WorkspaceAccess{}, err
+	}
+	return ComputeWorkspaceAccess(time.Now(), in), nil
+}
+
+func (s *Service) WorkspaceWritable(ctx context.Context, workspaceID string) (bool, error) {
+	access, err := s.GetWorkspaceAccess(ctx, workspaceID)
+	if err != nil {
 		return false, err
 	}
-	return WorkspaceWritable(status, paddleSubscription), nil
+	return access.Writable, nil
+}
+
+func (s *Service) WorkspaceSyncPushAllowed(ctx context.Context, workspaceID string) (bool, error) {
+	access, err := s.GetWorkspaceAccess(ctx, workspaceID)
+	if err != nil {
+		return false, err
+	}
+	return access.SyncPushAllowed, nil
+}
+
+func (s *Service) CheckTrialJobLimit(ctx context.Context, workspaceID string) error {
+	access, err := s.GetWorkspaceAccess(ctx, workspaceID)
+	if err != nil {
+		return err
+	}
+	if access.Mode != AccessTrial {
+		return nil
+	}
+	var count int
+	if err := s.pool.QueryRow(ctx, `
+		SELECT COUNT(*)::int FROM jobs
+		WHERE workspace_id = $1 AND deleted_at IS NULL
+	`, workspaceID).Scan(&count); err != nil {
+		return err
+	}
+	if count >= TrialJobLimit {
+		return ErrTrialJobLimit
+	}
+	return nil
+}
+
+func (s *Service) CheckTrialItemLimit(ctx context.Context, workspaceID, jobID string) error {
+	access, err := s.GetWorkspaceAccess(ctx, workspaceID)
+	if err != nil {
+		return err
+	}
+	if access.Mode != AccessTrial {
+		return nil
+	}
+	var count int
+	if err := s.pool.QueryRow(ctx, `
+		SELECT COUNT(*)::int FROM items
+		WHERE job_id = $1 AND deleted_at IS NULL
+	`, jobID).Scan(&count); err != nil {
+		return err
+	}
+	if count >= TrialItemLimit {
+		return ErrTrialItemLimit
+	}
+	return nil
 }
 
 func (s *Service) requireOwner(ctx context.Context, userID, workspaceID string) error {

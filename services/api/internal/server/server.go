@@ -71,6 +71,7 @@ func New(cfg config.Config, pool *pgxpool.Pool) (*Server, error) {
 	billingSvc := billing.NewService(pool, cfg.PaddleAPIKey, cfg.PaddleWebhookSecret, cfg.PaddleEnv, cfg.PaddlePriceIDs)
 	billingH := handlers.NewBillingHandler(billingSvc)
 	jobsSvc.SetBilling(billingSvc)
+	wsSvc.SetBilling(billingSvc)
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)

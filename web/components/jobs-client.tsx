@@ -32,9 +32,16 @@ type Props = {
   workspaceName: string;
   userEmail: string;
   jobs: Job[];
+  workspaceWritable?: boolean;
 };
 
-export function JobsClient({ workspaceId, workspaceName, userEmail, jobs }: Props) {
+export function JobsClient({
+  workspaceId,
+  workspaceName,
+  userEmail,
+  jobs,
+  workspaceWritable = true,
+}: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -209,9 +216,11 @@ export function JobsClient({ workspaceId, workspaceName, userEmail, jobs }: Prop
           <div className={styles.mobileEmpty}>
             <h2>No jobs yet</h2>
             <p>Create your first job to start organizing photos, notes, and files.</p>
-            <button type="button" className={styles.fab} onClick={() => setOpen(true)}>
-              + New job
-            </button>
+            {workspaceWritable && (
+              <button type="button" className={styles.fab} onClick={() => setOpen(true)}>
+                + New job
+              </button>
+            )}
           </div>
         ) : filteredJobs.length === 0 ? (
           <EmptyState
@@ -221,7 +230,11 @@ export function JobsClient({ workspaceId, workspaceName, userEmail, jobs }: Prop
         ) : (
           <div className={styles.cardList}>
             {filteredJobs.map((job) => (
-              <MobileJobCard key={job.id} job={job} onDelete={() => setJobToDelete(job)} />
+              <MobileJobCard
+                key={job.id}
+                job={job}
+                onDelete={workspaceWritable ? () => setJobToDelete(job) : undefined}
+              />
             ))}
           </div>
         )}
@@ -233,7 +246,7 @@ export function JobsClient({ workspaceId, workspaceName, userEmail, jobs }: Prop
           onRetry={refresh}
         />
 
-        {jobs.length > 0 && (
+        {jobs.length > 0 && workspaceWritable && (
           <button
             type="button"
             className={styles.fabSticky}
@@ -268,9 +281,11 @@ export function JobsClient({ workspaceId, workspaceName, userEmail, jobs }: Prop
               <button type="button" className={styles.secondary} onClick={refresh} disabled={refreshing}>
                 {refreshing ? "Refreshing…" : "Refresh"}
               </button>
-              <button type="button" className={styles.primary} onClick={() => setOpen(true)}>
-                + New job
-              </button>
+              {workspaceWritable && (
+                <button type="button" className={styles.primary} onClick={() => setOpen(true)}>
+                  + New job
+                </button>
+              )}
             </div>
           }
         >

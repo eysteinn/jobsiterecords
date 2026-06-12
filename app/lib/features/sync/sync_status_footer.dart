@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/theme.dart';
 import '../../sync/sync_providers.dart';
 import '../../sync/sync_runner.dart';
+import '../../sync/workspace_access.dart';
 import 'quarantined_sync_sheet.dart';
 
 /// Subtle sync status line shown at the bottom of workspace-aware screens.
@@ -36,8 +37,13 @@ class SyncStatusFooter extends ConsumerWidget {
       );
     }
 
+    final session = ref.watch(authSessionProvider).valueOrNull;
+    final workspace = captureContext.workspaceId != null && session != null
+        ? findWorkspace(session.workspaces, captureContext.workspaceId!)
+        : null;
     final err = syncStatus.error;
-    final label = syncStatusFooterLabel(syncStatus);
+    final label = syncStatusFooterLabel(syncStatus, workspace: workspace);
+    final showPausedBanner = workspaceAccessMode(workspace) == 'read_only';
 
     final content = Row(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -77,13 +83,27 @@ class SyncStatusFooter extends ConsumerWidget {
       top: false,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
-        child: syncStatus.quarantined > 0
-            ? InkWell(
-                onTap: () => showQuarantinedRetrySheet(context, ref),
-                borderRadius: BorderRadius.circular(8),
-                child: content,
-              )
-            : content,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (showPausedBanner)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  subscriptionSyncPausedBanner,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 11, color: AppColors.subtle, height: 1.35),
+                ),
+              ),
+            syncStatus.quarantined > 0
+                ? InkWell(
+                    onTap: () => showQuarantinedRetrySheet(context, ref),
+                    borderRadius: BorderRadius.circular(8),
+                    child: content,
+                  )
+                : content,
+          ],
+        ),
       ),
     );
   }

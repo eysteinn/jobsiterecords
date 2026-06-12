@@ -168,7 +168,8 @@ func (s *Service) applyActiveSubscription(ctx context.Context, data subscription
 		    paddle_customer_id = $4,
 		    paddle_subscription_id = $5,
 		    subscription_status = $6,
-		    subscription_past_due_at = NULL
+		    subscription_past_due_at = NULL,
+		    subscription_ended_at = NULL
 		WHERE id = $1
 	`, workspaceID, plan.SKU, plan.MemberLimit, nullIfEmpty(data.CustomerID), nullIfEmpty(data.ID), status)
 	return workspaceID, err
@@ -194,6 +195,7 @@ func (s *Service) applySubscriptionStatus(ctx context.Context, data subscription
 			UPDATE workspaces
 			SET subscription_status = $2,
 			    subscription_past_due_at = COALESCE(subscription_past_due_at, now()),
+			    subscription_ended_at = COALESCE(subscription_ended_at, now()),
 			    paddle_subscription_id = COALESCE(paddle_subscription_id, $3),
 			    paddle_customer_id = COALESCE(paddle_customer_id, $4)
 			WHERE id = $1
@@ -204,6 +206,7 @@ func (s *Service) applySubscriptionStatus(ctx context.Context, data subscription
 	_, err = s.pool.Exec(ctx, `
 		UPDATE workspaces
 		SET subscription_status = $2,
+		    subscription_ended_at = COALESCE(subscription_ended_at, now()),
 		    paddle_subscription_id = COALESCE(paddle_subscription_id, $3),
 		    paddle_customer_id = COALESCE(paddle_customer_id, $4)
 		WHERE id = $1

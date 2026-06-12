@@ -73,16 +73,3 @@ func DisplayNameForSKU(sku string) string {
 	}
 }
 
-// WorkspaceWritable reports whether mutations are allowed for a workspace.
-// Beta workspaces without a Paddle subscription stay writable.
-func WorkspaceWritable(subscriptionStatus string, paddleSubscriptionID *string) bool {
-	if paddleSubscriptionID == nil || *paddleSubscriptionID == "" {
-		return true
-	}
-	switch subscriptionStatus {
-	case "active", "trialing", "none", "":
-		return true
-	default:
-		return false
-	}
-}

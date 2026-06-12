@@ -9,6 +9,7 @@ import styles from "./team-client.module.css";
 type Props = {
   workspaceId: string;
   initial: TeamSummary;
+  workspaceWritable?: boolean;
 };
 
 function normalizeTeam(data: TeamSummary): TeamSummary {
@@ -44,7 +45,7 @@ type Row =
   | { kind: "member"; member: TeamMember }
   | { kind: "invite"; invite: TeamInvite };
 
-export function TeamPageClient({ workspaceId, initial }: Props) {
+export function TeamPageClient({ workspaceId, initial, workspaceWritable = true }: Props) {
   const [team, setTeam] = useState(() => normalizeTeam(initial));
   const [inviteEmail, setInviteEmail] = useState("");
   const [showInviteRow, setShowInviteRow] = useState(false);
@@ -170,7 +171,7 @@ export function TeamPageClient({ workspaceId, initial }: Props) {
         <button
           type="button"
           className={styles.primary}
-          disabled={atLimit || showInviteRow}
+          disabled={!workspaceWritable || atLimit || showInviteRow}
           onClick={() => setShowInviteRow(true)}
         >
           + Invite worker
@@ -180,6 +181,12 @@ export function TeamPageClient({ workspaceId, initial }: Props) {
       <p className={styles.limitNote}>
         Members: {team.member_count} / {team.member_limit}
         {team.pending_count > 0 ? ` · ${team.pending_count} pending` : ""}
+        {!workspaceWritable && (
+          <>
+            {" "}
+            — Workspace is read-only. <Link href="/settings">Upgrade</Link> to invite team members.
+          </>
+        )}
         {atLimit && (
           <>
             {" "}

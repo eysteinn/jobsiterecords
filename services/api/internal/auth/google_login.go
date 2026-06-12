@@ -97,8 +97,8 @@ func (s *Service) resolveGoogleUser(ctx context.Context, tx pgx.Tx, claims Googl
 	wsName := defaultWorkspaceName(claims.Name, claims.Email)
 	var workspaceID string
 	err = tx.QueryRow(ctx, `
-		INSERT INTO workspaces (name, owner_user_id, plan_sku, member_limit)
-		VALUES ($1, $2, 'crew_5', 5) RETURNING id
+		INSERT INTO workspaces (name, owner_user_id, plan_sku, member_limit, trial_started_at)
+		VALUES ($1, $2, 'solo_1', 1, now()) RETURNING id
 	`, wsName, user.ID).Scan(&workspaceID)
 	if err != nil {
 		return "", User{}, err
@@ -133,8 +133,8 @@ func (s *Service) ensureDefaultWorkspaceTx(ctx context.Context, tx pgx.Tx, userI
 	wsName := defaultWorkspaceName(name, email)
 	var workspaceID string
 	err = tx.QueryRow(ctx, `
-		INSERT INTO workspaces (name, owner_user_id, plan_sku, member_limit)
-		VALUES ($1, $2, 'crew_5', 5) RETURNING id
+		INSERT INTO workspaces (name, owner_user_id, plan_sku, member_limit, trial_started_at)
+		VALUES ($1, $2, 'solo_1', 1, now()) RETURNING id
 	`, wsName, userID).Scan(&workspaceID)
 	if err != nil {
 		return err

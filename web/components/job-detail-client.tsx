@@ -71,6 +71,7 @@ type Props = {
   itemTags?: ItemTag[];
   workspaceId: string;
   readOnly?: boolean;
+  readOnlyReason?: "assignment" | "subscription";
 };
 
 async function fetchWorkspaceTags(workspaceId: string): Promise<Tag[]> {
@@ -96,6 +97,7 @@ export function JobDetailClient({
   itemTags: initialItemTags = [],
   workspaceId,
   readOnly = false,
+  readOnlyReason,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -1304,7 +1306,9 @@ export function JobDetailClient({
       )}
       {readOnly && (
         <p className={styles.readOnlyBanner}>
-          You&apos;re viewing this job. Ask the owner for assignment to edit.
+          {readOnlyReason === "subscription"
+            ? "This workspace is read-only. Upgrade your subscription to edit jobs and add items."
+            : "You're viewing this job. Ask the owner for assignment to edit."}
         </p>
       )}
 
