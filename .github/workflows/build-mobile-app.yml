@@ -1,0 +1,222 @@
+# Manual Flutter mobile app build (Android + iOS).
+#
+# Required GitHub secrets (Settings → Secrets and variables → Actions):
+#   GOOGLE_MAPS              — Maps / Places API key (Android app restriction)
+#   GOOGLE_WEB_CLIENT_ID     — Google OAuth Web client ID (sign-in + sync)
+#   API_BASE_URL             — HTTPS API origin, e.g. https://api.jobsiterecords.com
+#
+# Optional secrets:
+#   GOOGLE_CLIENT_ID         — Fallback OAuth client ID (Web ID must be first if comma-separated)
+#   ANDROID_KEYSTORE_BASE64  — Base64-encoded release keystore (.jks / .keystore)
+#   ANDROID_KEYSTORE_PASSWORD
+#   ANDROID_KEY_ALIAS
+#   ANDROID_KEY_PASSWORD
+#
+name: Build mobile app
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Platform to build
+        required: true
+        type: choice
+        default: android
+        options:
+          - android
+          - ios
+          - both
+      build_type:
+        description: Build type
+        required: true
+        type: choice
+        default: release
+        options:
+          - debug
+          - release
+      android_artifact:
+        description: Android output (ignored for iOS-only runs)
+        required: true
+        type: choice
+        default: apk
+        options:
+          - apk
+          - appbundle
+      run_tests:
+        description: Run flutter test before building
+        required: true
+        type: boolean
+        default: true
+
+concurrency:
+  group: mobile-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    if: ${{ inputs.platform == 'android' || inputs.platform == 'both' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: app
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: "3.41.2"
+          cache: true
+
+      - name: Flutter toolchain
+        run: |
+          flutter --version
+          flutter doctor -v
+          flutter config --no-analytics
+
+      - name: Accept Android licenses
+        run: yes | flutter doctor --android-licenses
+
+      - name: Write app/.env from secrets
+        env:
+          GOOGLE_MAPS: ${{ secrets.GOOGLE_MAPS }}
+          GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+        run: |
+          cat > .env <<EOF
+          GOOGLE_MAPS=${GOOGLE_MAPS}
+          GOOGLE_WEB_CLIENT_ID=${GOOGLE_WEB_CLIENT_ID}
+          GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+          API_BASE_URL=${API_BASE_URL}
+          EOF
+
+      - name: Configure Android release signing
+        if: ${{ inputs.build_type == 'release' }}
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "No ANDROID_KEYSTORE_BASE64 secret — release build uses debug signing."
+            exit 0
+          fi
+          for var in ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [ -z "${!var}" ]; then
+              echo "::error::Set all ANDROID_* signing secrets or omit ANDROID_KEYSTORE_BASE64."
+              exit 1
+            fi
+          done
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/upload-keystore.jks
+          cat > android/key.properties <<EOF
+          storePassword=${ANDROID_KEYSTORE_PASSWORD}
+          keyPassword=${ANDROID_KEY_PASSWORD}
+          keyAlias=${ANDROID_KEY_ALIAS}
+          storeFile=../upload-keystore.jks
+          EOF
+
+      - name: flutter pub get
+        run: flutter pub get
+
+      - name: flutter analyze
+        run: flutter analyze
+
+      - name: flutter test
+        if: ${{ inputs.run_tests }}
+        run: flutter test
+
+      - name: Build Android APK
+        if: ${{ inputs.android_artifact == 'apk' }}
+        run: flutter build apk --${{ inputs.build_type }}
+
+      - name: Build Android App Bundle
+        if: ${{ inputs.android_artifact == 'appbundle' }}
+        run: flutter build appbundle --${{ inputs.build_type }}
+
+      - name: Upload Android artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-${{ inputs.build_type }}-${{ inputs.android_artifact }}
+          path: |
+            app/build/app/outputs/flutter-apk/*.apk
+            app/build/app/outputs/bundle/*/*.aab
+          if-no-files-found: error
+          retention-days: 14
+
+  ios:
+    if: ${{ inputs.platform == 'ios' || inputs.platform == 'both' }}
+    runs-on: macos-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: app
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: "3.41.2"
+          cache: true
+
+      - name: Flutter toolchain
+        run: |
+          flutter --version
+          flutter doctor -v
+          flutter config --no-analytics
+
+      - name: Write app/.env from secrets
+        env:
+          GOOGLE_MAPS: ${{ secrets.GOOGLE_MAPS }}
+          GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+        run: |
+          cat > .env <<EOF
+          GOOGLE_MAPS=${GOOGLE_MAPS}
+          GOOGLE_WEB_CLIENT_ID=${GOOGLE_WEB_CLIENT_ID}
+          GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+          API_BASE_URL=${API_BASE_URL}
+          EOF
+
+      - name: flutter pub get
+        run: flutter pub get
+
+      - name: flutter analyze
+        run: flutter analyze
+
+      - name: flutter test
+        if: ${{ inputs.run_tests }}
+        run: flutter test
+
+      - name: Build iOS (no codesign)
+        run: flutter build ios --${{ inputs.build_type }} --no-codesign
+
+      - name: Package Runner.app
+        run: |
+          cd build/ios/iphoneos
+          zip -r ../../../Runner.app.zip Runner.app
+
+      - name: Upload iOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-${{ inputs.build_type }}-unsigned
+          path: app/Runner.app.zip
+          if-no-files-found: error
+          retention-days: 14

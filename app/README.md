@@ -135,6 +135,36 @@ lib/
 - Minimum OS: Android 8.0 (API 26), iOS 14+
 - Android target SDK: 34
 
+## CI build (GitHub Actions)
+
+Workflow: [`.github/workflows/build-mobile-app.yml`](../.github/workflows/build-mobile-app.yml) — **Actions → Build mobile app → Run workflow**.
+
+| Input | Options |
+| --- | --- |
+| Platform | `android`, `ios`, or `both` |
+| Build type | `debug` or `release` |
+| Android output | `apk` or `appbundle` |
+| Run tests | `flutter test` before build (default on) |
+
+Artifacts are uploaded to the workflow run (APK/AAB or unsigned `Runner.app.zip` for iOS).
+
+### GitHub secrets to configure
+
+| Secret | Required | Purpose |
+| --- | --- | --- |
+| `GOOGLE_MAPS` | Yes | Places autocomplete + Maps SDK (restrict to `com.jobsiterecords.app`) |
+| `GOOGLE_WEB_CLIENT_ID` | Yes | Google Sign-In (`serverClientId`) |
+| `API_BASE_URL` | Yes | Production API, e.g. `https://api.jobsiterecords.com` |
+| `GOOGLE_CLIENT_ID` | No | Fallback if `GOOGLE_WEB_CLIENT_ID` is unset |
+| `ANDROID_KEYSTORE_BASE64` | No | Base64 `.jks` for Play Store–ready release signing |
+| `ANDROID_KEYSTORE_PASSWORD` | With keystore | Keystore password |
+| `ANDROID_KEY_ALIAS` | With keystore | Key alias |
+| `ANDROID_KEY_PASSWORD` | With keystore | Key password |
+
+Without Android signing secrets, **release** builds are signed with the debug keystore (fine for internal testing, not for Play Store). iOS builds are **unsigned** (`--no-codesign`); re-sign locally or extend the workflow for App Store distribution.
+
+Register the release keystore **SHA-1** in Google Cloud (OAuth Android client + Maps key) when you move off debug signing.
+
 ## Testing
 
 ```bash
