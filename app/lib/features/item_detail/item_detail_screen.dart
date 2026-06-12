@@ -76,7 +76,7 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
     final synced = ref.read(captureContextProvider).isWorkspace;
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Delete item?'),
         content: Text(
           synced
@@ -84,9 +84,9 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
               : 'This permanently removes the item from this device.',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
           TextButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text('Delete', style: TextStyle(color: Colors.red)),
           ),
         ],

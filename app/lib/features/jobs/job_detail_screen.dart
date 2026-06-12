@@ -193,7 +193,7 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
     final synced = ref.read(captureContextProvider).isWorkspace;
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: Text('Delete $n item${n == 1 ? '' : 's'}?'),
         content: Text(
           synced
@@ -201,9 +201,9 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
               : 'This permanently removes the selected items from this device. This cannot be undone.',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
           TextButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text('Delete', style: TextStyle(color: Colors.red)),
           ),
         ],
@@ -311,7 +311,12 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
             ),
       body: jobAsync.when(
         data: (job) {
-          if (job == null) return const Center(child: Text('Job not found'));
+          if (job == null) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted && context.canPop()) context.pop();
+            });
+            return const SizedBox.shrink();
+          }
           if (timelineAsync.hasError && items.isEmpty) {
             return Center(child: Text('Error: ${timelineAsync.error}'));
           }
@@ -474,7 +479,7 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
         final synced = ref.read(captureContextProvider).isWorkspace;
         final ok = await showDialog<bool>(
           context: context,
-          builder: (_) => AlertDialog(
+          builder: (dialogContext) => AlertDialog(
             title: const Text('Delete job?'),
             content: Text(
               synced
@@ -482,9 +487,9 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                   : 'This permanently removes the job and all of its items from this device.',
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+              TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
               TextButton(
-                onPressed: () => Navigator.pop(context, true),
+                onPressed: () => Navigator.pop(dialogContext, true),
                 child: const Text('Delete', style: TextStyle(color: Colors.red)),
               ),
             ],
@@ -492,8 +497,9 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
         );
         if (ok == true) {
           await ref.read(jobsRepositoryProvider).delete(jobId);
+          if (!context.mounted) return;
+          context.pop();
           bumpDataRevision(ref);
-          if (context.mounted) context.go('/jobs');
         }
     }
   }

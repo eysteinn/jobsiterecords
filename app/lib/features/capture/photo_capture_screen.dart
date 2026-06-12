@@ -135,16 +135,16 @@ class _PhotoCaptureScreenState extends ConsumerState<PhotoCaptureScreen> {
     if (_batch.isEmpty) return true;
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Discard photos?'),
         content: Text(
           'You have ${_batch.length} unsaved photo${_batch.length == 1 ? '' : 's'}. '
           'Leaving now will discard them.',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Keep')),
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Keep')),
           TextButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text('Discard', style: TextStyle(color: Colors.red)),
           ),
         ],
