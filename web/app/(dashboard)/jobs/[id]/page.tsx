@@ -16,6 +16,14 @@ export default async function JobDetailPage({
 
   try {
     const bundle = await getJob(id);
+    const assignmentReadOnly = bundle.read_only ?? false;
+    const subscriptionReadOnly = !workspace.writable;
+    const readOnly = assignmentReadOnly || subscriptionReadOnly;
+    const readOnlyReason = subscriptionReadOnly
+      ? "subscription"
+      : assignmentReadOnly
+        ? "assignment"
+        : undefined;
     return (
       <Suspense>
         <JobDetailClient
@@ -25,7 +33,8 @@ export default async function JobDetailPage({
           tags={bundle.tags ?? []}
           itemTags={bundle.item_tags ?? []}
           workspaceId={workspace.id}
-          readOnly={bundle.read_only ?? false}
+          readOnly={readOnly}
+          readOnlyReason={readOnlyReason}
         />
       </Suspense>
     );

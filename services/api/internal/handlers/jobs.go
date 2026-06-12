@@ -1,9 +1,11 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 	"time"
 
+	"github.com/eysteinn/jobsiterecords/services/api/internal/billing"
 	"github.com/eysteinn/jobsiterecords/services/api/internal/httpx"
 	"github.com/eysteinn/jobsiterecords/services/api/internal/jobs"
 	"github.com/eysteinn/jobsiterecords/services/api/internal/middleware"
@@ -181,12 +183,16 @@ func (h *JobsHandler) AssignedJobIDs(w http.ResponseWriter, r *http.Request) {
 }
 
 func writeJobsError(w http.ResponseWriter, err error) {
-	switch err.Error() {
-	case "not a workspace member", "no access":
+	switch {
+	case errors.Is(err, billing.ErrTrialJobLimit):
+		httpx.Error(w, http.StatusForbidden, "trial_limit", "Trial allows up to 3 jobs. Upgrade to add more.", nil)
+	case errors.Is(err, billing.ErrTrialItemLimit):
+		httpx.Error(w, http.StatusForbidden, "trial_limit", "Trial allows up to 50 items per job. Upgrade to add more.", nil)
+	case err.Error() == "not a workspace member", err.Error() == "no access":
 		httpx.Error(w, http.StatusForbidden, "forbidden", err.Error(), nil)
-	case "not assigned to job":
+	case err.Error() == "not assigned to job":
 		httpx.Error(w, http.StatusForbidden, "read_only", "Job is read-only", nil)
-	case "read_only", "subscription_lapsed":
+	case err.Error() == "read_only", err.Error() == "subscription_lapsed":
 		httpx.Error(w, http.StatusForbidden, "read_only", "Job is read-only", nil)
 	default:
 		httpx.Error(w, http.StatusBadRequest, "bad_request", err.Error(), nil)

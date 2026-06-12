@@ -19,6 +19,7 @@ export default async function JobsPage() {
         workspaceName={workspace.name}
         userEmail={session.user.email}
         jobs={jobs}
+        workspaceWritable={workspace.writable}
       />
     </Suspense>
   );

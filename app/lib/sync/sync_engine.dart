@@ -62,13 +62,16 @@ class SyncEngine {
     required AuthSession session,
     required String workspaceId,
     bool wifiOnly = false,
+    bool pushAllowed = true,
   }) async {
     var access = session.accessToken;
     var refresh = session.refreshToken;
     try {
       // Push local changes before pull — and never use INSERT OR REPLACE on jobs/items
       // (SQLite ON DELETE CASCADE would wipe unpushed photos and their media rows).
-      final pushed = await _pushPending(access, workspaceId, wifiOnly: wifiOnly);
+      final pushed = pushAllowed
+          ? await _pushPending(access, workspaceId, wifiOnly: wifiOnly)
+          : (0, 0, null, 0);
       final pulled = await _pullRemote(
         accessToken: access,
         refreshToken: refresh,
@@ -93,7 +96,9 @@ class SyncEngine {
           final renewed = await _auth.refreshSession(refresh);
           access = renewed.accessToken;
           refresh = renewed.refreshToken;
-          final pushed = await _pushPending(access, workspaceId, wifiOnly: wifiOnly);
+          final pushed = pushAllowed
+              ? await _pushPending(access, workspaceId, wifiOnly: wifiOnly)
+              : (0, 0, null, 0);
           final pulled = await _pullRemote(
             accessToken: access,
             refreshToken: refresh,

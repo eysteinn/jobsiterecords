@@ -71,6 +71,9 @@ type JobBundle struct {
 
 type workspaceBilling interface {
 	WorkspaceWritable(ctx context.Context, workspaceID string) (bool, error)
+	WorkspaceSyncPushAllowed(ctx context.Context, workspaceID string) (bool, error)
+	CheckTrialJobLimit(ctx context.Context, workspaceID string) error
+	CheckTrialItemLimit(ctx context.Context, workspaceID, jobID string) error
 }
 
 type Service struct {
@@ -142,6 +145,14 @@ func (s *Service) UpsertJob(ctx context.Context, userID string, in Job) (Job, er
 	if isNew {
 		if err := s.requireMember(ctx, userID, in.WorkspaceID); err != nil {
 			return Job{}, err
+		}
+		if err := s.requireWorkspaceWritable(ctx, in.WorkspaceID); err != nil {
+			return Job{}, err
+		}
+		if s.billing != nil {
+			if err := s.billing.CheckTrialJobLimit(ctx, in.WorkspaceID); err != nil {
+				return Job{}, err
+			}
 		}
 	} else if _, err := s.requireJobWrite(ctx, userID, in.ID); err != nil {
 		return Job{}, err
@@ -226,6 +237,9 @@ func (s *Service) UpsertTag(ctx context.Context, userID, workspaceID string, in 
 	if err := s.requireMember(ctx, userID, workspaceID); err != nil {
 		return Tag{}, err
 	}
+	if err := s.requireWorkspaceWritable(ctx, workspaceID); err != nil {
+		return Tag{}, err
+	}
 	if in.ID == "" || in.Name == "" {
 		return Tag{}, errors.New("missing required tag fields")
 	}
@@ -279,6 +293,11 @@ func (s *Service) UpsertItem(ctx context.Context, userID, jobID string, in Item,
 	}
 
 	if isNew {
+		if s.billing != nil {
+			if err := s.billing.CheckTrialItemLimit(ctx, in.WorkspaceID, jobID); err != nil {
+				return Item{}, err
+			}
+		}
 		_, err = s.pool.Exec(ctx, `
 			INSERT INTO items (
 				id, workspace_id, job_id, kind, caption, body, captured_at,
@@ -429,26 +448,6 @@ func (s *Service) requireWorkspaceWritable(ctx context.Context, workspaceID stri
 func (s *Service) workspaceWritable(ctx context.Context, workspaceID string) (bool, error) {
 	if s.billing != nil {
 		return s.billing.WorkspaceWritable(ctx, workspaceID)
-	}
-	var status string
-	var paddleSubscription *string
-	err := s.pool.QueryRow(ctx, `
-		SELECT subscription_status, paddle_subscription_id
-		FROM workspaces WHERE id = $1
-	`, workspaceID).Scan(&status, &paddleSubscription)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return false, errors.New("workspace not found")
-		}
-		return false, err
-	}
-	if paddleSubscription != nil && *paddleSubscription != "" {
-		switch status {
-		case "active", "trialing", "none", "":
-			return true, nil
-		default:
-			return false, nil
-		}
 	}
 	return true, nil
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/eysteinn/jobsiterecords/services/api/internal/billing"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -18,14 +19,31 @@ type Workspace struct {
 	SubscriptionStatus string    `json:"subscription_status"`
 	HasSubscription    bool      `json:"has_subscription"`
 	CreatedAt          time.Time `json:"created_at"`
+	AccessMode         string    `json:"access_mode"`
+	Writable           bool      `json:"writable"`
+	SyncPushAllowed    bool      `json:"sync_push_allowed"`
+	TrialEndsAt        *time.Time `json:"trial_ends_at,omitempty"`
+	GraceEndsAt        *time.Time `json:"grace_ends_at,omitempty"`
+	GraceDaysRemaining int       `json:"grace_days_remaining,omitempty"`
+	TrialJobLimit      int       `json:"trial_job_limit,omitempty"`
+	TrialItemLimit     int       `json:"trial_item_limit,omitempty"`
+}
+
+type accessProvider interface {
+	GetWorkspaceAccess(ctx context.Context, workspaceID string) (billing.WorkspaceAccess, error)
 }
 
 type Service struct {
-	pool *pgxpool.Pool
+	pool    *pgxpool.Pool
+	billing accessProvider
 }
 
 func NewService(pool *pgxpool.Pool) *Service {
 	return &Service{pool: pool}
+}
+
+func (s *Service) SetBilling(b accessProvider) {
+	s.billing = b
 }
 
 func (s *Service) ListForUser(ctx context.Context, userID string) ([]Workspace, error) {
@@ -51,9 +69,32 @@ func (s *Service) ListForUser(ctx context.Context, userID string) ([]Workspace, 
 		); err != nil {
 			return nil, err
 		}
+		s.applyAccess(ctx, &ws)
 		out = append(out, ws)
 	}
 	return out, rows.Err()
+}
+
+func (s *Service) applyAccess(ctx context.Context, ws *Workspace) {
+	if s.billing == nil {
+		ws.AccessMode = string(billing.AccessActive)
+		ws.Writable = true
+		ws.SyncPushAllowed = true
+		return
+	}
+	access, err := s.billing.GetWorkspaceAccess(ctx, ws.ID)
+	if err != nil {
+		ws.AccessMode = string(billing.AccessReadOnly)
+		return
+	}
+	ws.AccessMode = string(access.Mode)
+	ws.Writable = access.Writable
+	ws.SyncPushAllowed = access.SyncPushAllowed
+	ws.TrialEndsAt = access.TrialEndsAt
+	ws.GraceEndsAt = access.GraceEndsAt
+	ws.GraceDaysRemaining = access.GraceDaysRemaining
+	ws.TrialJobLimit = access.TrialJobLimit
+	ws.TrialItemLimit = access.TrialItemLimit
 }
 
 func (s *Service) Leave(ctx context.Context, userID, workspaceID string) error {
