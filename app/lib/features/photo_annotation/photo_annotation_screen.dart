@@ -121,13 +121,13 @@ class _PhotoAnnotationScreenState extends ConsumerState<PhotoAnnotationScreen> {
     }
     final leave = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Discard changes?'),
         content: const Text('Your mark-up has not been saved.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Keep editing')),
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Keep editing')),
           TextButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text('Discard', style: TextStyle(color: Colors.red)),
           ),
         ],
@@ -139,13 +139,13 @@ class _PhotoAnnotationScreenState extends ConsumerState<PhotoAnnotationScreen> {
   Future<void> _confirmClear() async {
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Clear all mark-up?'),
         content: const Text('This removes every stroke from this photo.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
           TextButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text('Clear', style: TextStyle(color: Colors.red)),
           ),
         ],

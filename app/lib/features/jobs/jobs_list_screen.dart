@@ -217,7 +217,7 @@ class _JobsListScreenState extends ConsumerState<JobsListScreen> {
     final synced = ref.read(captureContextProvider).isWorkspace;
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Delete job?'),
         content: Text(
           synced
@@ -225,9 +225,9 @@ class _JobsListScreenState extends ConsumerState<JobsListScreen> {
               : 'This permanently removes "${job.name}" and all of its items from this device.',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
           TextButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text('Delete', style: TextStyle(color: Colors.red)),
           ),
         ],

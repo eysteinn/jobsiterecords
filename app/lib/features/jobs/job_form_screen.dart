@@ -168,12 +168,16 @@ class _JobFormScreenState extends ConsumerState<JobFormScreen> {
                     if (isEdit)
                       OutlinedButton.icon(
                         onPressed: _saving ? null : () async {
+                          final router = GoRouter.of(context);
                           final ok = await _confirmDelete(context);
                           if (ok != true) return;
                           await ref.read(jobsRepositoryProvider).delete(widget.jobId!);
-                          bumpDataRevision(ref);
                           if (!mounted) return;
-                          context.go('/jobs');
+                          router.pop();
+                          if (router.state.uri.path != '/jobs') {
+                            router.pop();
+                          }
+                          bumpDataRevision(ref);
                         },
                         icon: const Icon(Icons.delete_outline, color: Colors.red),
                         label: const Text('Delete Job', style: TextStyle(color: Colors.red)),
@@ -196,13 +200,13 @@ class _JobFormScreenState extends ConsumerState<JobFormScreen> {
 
   Future<bool?> _confirmDelete(BuildContext context) => showDialog<bool>(
         context: context,
-        builder: (_) => AlertDialog(
+        builder: (dialogContext) => AlertDialog(
           title: const Text('Delete job?'),
           content: const Text('This will permanently delete the job and all of its photos, voice notes, and notes from this device.'),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
             TextButton(
-              onPressed: () => Navigator.pop(context, true),
+              onPressed: () => Navigator.pop(dialogContext, true),
               child: const Text('Delete', style: TextStyle(color: Colors.red)),
             ),
           ],
