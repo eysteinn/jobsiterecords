@@ -98,7 +98,7 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  const authed = Boolean(access) && !isAccessTokenExpiredEdge(access);
+  const authed = access != null && !isAccessTokenExpiredEdge(access);
 
   if (!isPublic && !authed) {
     const login = appRedirect("/login");
