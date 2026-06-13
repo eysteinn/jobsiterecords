@@ -1,9 +1,16 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 
 export const ACCESS_COOKIE = "access_token";
 export const REFRESH_COOKIE = "refresh_token";
+/** Set by middleware after a silent refresh so RSC can use the new access token. */
+export const REFRESHED_ACCESS_HEADER = "x-refreshed-access-token";
 
 export async function getAccessToken(): Promise<string | undefined> {
+  const h = await headers();
+  const refreshed = h.get(REFRESHED_ACCESS_HEADER);
+  if (refreshed) {
+    return refreshed;
+  }
   const jar = await cookies();
   return jar.get(ACCESS_COOKIE)?.value;
 }
