@@ -1,0 +1,3 @@
+{
+  "install": "cd web && npm ci && cd ../services/api && go mod download"
+}
