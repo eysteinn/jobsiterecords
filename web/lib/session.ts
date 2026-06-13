@@ -1,11 +1,5 @@
 import { apiBaseUrl, type ApiError, type Session } from "./types";
-import {
-  clearAuthCookies,
-  getAccessToken,
-  getRefreshToken,
-  setAuthCookies,
-} from "./auth-cookies";
-import { cookies } from "next/headers";
+import { getAccessToken, getRefreshToken } from "./auth-cookies";
 
 async function parseJson<T>(res: Response): Promise<T> {
   const data = (await res.json()) as T & ApiError;
@@ -51,19 +45,12 @@ async function tryRefreshSession(): Promise<Session | null> {
   });
 
   if (!res.ok) {
-    const jar = await cookies();
-    for (const c of clearAuthCookies()) {
-      jar.set(c);
-    }
     return null;
   }
 
   const data = await res.json();
-  const jar = await cookies();
-  if (data.access_token && data.refresh_token) {
-    for (const c of setAuthCookies(data.access_token, data.refresh_token)) {
-      jar.set(c);
-    }
+  if (!data.access_token) {
+    return null;
   }
 
   const meRes = await fetch(`${apiBaseUrl()}/api/v1/auth/me`, {

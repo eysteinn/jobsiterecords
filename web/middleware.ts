@@ -1,5 +1,6 @@
-import { clearAuthCookies } from "@/lib/auth-cookies";
+import { clearAuthCookies, REFRESHED_ACCESS_HEADER } from "@/lib/auth-cookies";
 import { appRedirect } from "@/lib/google-oauth";
+import { isAccessTokenExpiredEdge } from "@/lib/jwt";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
@@ -38,7 +39,8 @@ export async function middleware(request: NextRequest) {
   const refresh = request.cookies.get("refresh_token")?.value;
   let response = NextResponse.next();
 
-  if (!access && refresh) {
+  const accessMissingOrExpired = !access || isAccessTokenExpiredEdge(access);
+  if (refresh && accessMissingOrExpired) {
     try {
       const refreshed = await fetch(`${apiBaseUrl()}/api/v1/auth/refresh`, {
         method: "POST",
@@ -50,6 +52,11 @@ export async function middleware(request: NextRequest) {
         const data = await refreshed.json();
         if (data.access_token && data.refresh_token) {
           access = data.access_token;
+          const requestHeaders = new Headers(request.headers);
+          requestHeaders.set(REFRESHED_ACCESS_HEADER, data.access_token);
+          response = NextResponse.next({
+            request: { headers: requestHeaders },
+          });
           response.cookies.set("access_token", data.access_token, {
             httpOnly: true,
             sameSite: "lax",
@@ -64,6 +71,8 @@ export async function middleware(request: NextRequest) {
           });
         }
       } else {
+        access = undefined;
+        response = NextResponse.next();
         for (const c of clearAuthCookies()) {
           response.cookies.set(c.name, c.value, {
             httpOnly: c.httpOnly,
@@ -75,6 +84,8 @@ export async function middleware(request: NextRequest) {
         }
       }
     } catch {
+      access = undefined;
+      response = NextResponse.next();
       for (const c of clearAuthCookies()) {
         response.cookies.set(c.name, c.value, {
           httpOnly: c.httpOnly,
@@ -87,7 +98,7 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  const authed = Boolean(access);
+  const authed = access != null && !isAccessTokenExpiredEdge(access);
 
   if (!isPublic && !authed) {
     const login = appRedirect("/login");
