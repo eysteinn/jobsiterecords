@@ -348,10 +348,10 @@ class SyncEngine {
     var pulledItems = 0;
     var pulledMedia = 0;
 
-    http.Response assignmentsRes;
+    http.Response listRes;
     try {
-      assignmentsRes = await _api.get(
-        '/api/v1/workspaces/$workspaceId/assignments',
+      listRes = await _api.get(
+        '/api/v1/workspaces/$workspaceId/jobs',
         accessToken: access,
       );
     } on ApiException catch (e) {
@@ -359,14 +359,22 @@ class SyncEngine {
       final renewed = await _auth.refreshSession(refreshToken);
       access = renewed.accessToken;
       onTokenRefreshed(access, renewed.refreshToken);
-      assignmentsRes = await _api.get(
-        '/api/v1/workspaces/$workspaceId/assignments',
+      listRes = await _api.get(
+        '/api/v1/workspaces/$workspaceId/jobs',
         accessToken: access,
       );
     }
 
-    final assignments = decodeJsonMap(assignmentsRes);
-    final ids = (assignments['job_ids'] as List? ?? []).cast<String>();
+    final listData = decodeJsonMap(listRes);
+    final entries = (listData['jobs'] as List? ?? []);
+    final readOnlyByJob = <String, bool>{};
+    final ids = <String>[];
+    for (final raw in entries) {
+      final entry = Map<String, dynamic>.from(raw as Map);
+      final jobId = entry['id'] as String;
+      ids.add(jobId);
+      readOnlyByJob[jobId] = entry['read_only'] as bool? ?? false;
+    }
 
     for (final jobId in ids) {
       // Full pull every sync — incremental `since` used wall-clock last_synced_at and
@@ -374,11 +382,12 @@ class SyncEngine {
       final bundleRes = await _api.get('/api/v1/jobs/$jobId', accessToken: access);
       final bundle = decodeJsonMap(bundleRes);
       final jobJson = Map<String, dynamic>.from(bundle['job'] as Map);
+      final readOnly = bundle['read_only'] as bool? ?? readOnlyByJob[jobId] ?? false;
       if (jobJson['deleted_at'] != null) {
         await _deleteLocalJob(jobId);
         continue;
       }
-      if (await _mergeJobFromServer(jobJson)) pulledJobs++;
+      if (await _mergeJobFromServer(jobJson, readOnly: readOnly)) pulledJobs++;
       final items = (bundle['items'] as List? ?? []);
       final serverItemIds = <String>{};
       for (final raw in items) {
@@ -551,21 +560,21 @@ class SyncEngine {
     return payload;
   }
 
-  Future<bool> _mergeJobFromServer(Map<String, dynamic> json) async {
-    final remote = _jobFromApi(json);
+  Future<bool> _mergeJobFromServer(Map<String, dynamic> json, {bool readOnly = false}) async {
+    final remote = _jobFromApi(json).copyWith(readOnly: readOnly);
     final existing = await _db.db.query('jobs', where: 'id = ?', whereArgs: [remote.id], limit: 1);
     if (existing.isEmpty) {
-      await _applyJobFromServer(json, markSynced: true);
+      await _applyJobFromServer(json, markSynced: true, readOnly: readOnly);
       return true;
     }
     final local = Job.fromDb(existing.first);
     if (local.syncState.needsPush && local.updatedAt.isAfter(remote.updatedAt)) {
       return false;
     }
-    if (!remote.updatedAt.isAfter(local.updatedAt)) {
+    if (!remote.updatedAt.isAfter(local.updatedAt) && local.readOnly == readOnly) {
       return false;
     }
-    await _applyJobFromServer(json, markSynced: true);
+    await _applyJobFromServer(json, markSynced: true, readOnly: readOnly);
     return true;
   }
 
@@ -587,8 +596,12 @@ class SyncEngine {
     return true;
   }
 
-  Future<void> _applyJobFromServer(Map<String, dynamic> json, {required bool markSynced}) async {
-    final job = _jobFromApi(json);
+  Future<void> _applyJobFromServer(
+    Map<String, dynamic> json, {
+    required bool markSynced,
+    bool readOnly = false,
+  }) async {
+    final job = _jobFromApi(json).copyWith(readOnly: readOnly);
     final row = job.toDb()
       ..['sync_state'] = markSynced ? SyncState.synced.dbValue : SyncState.pending.dbValue
       ..['last_synced_at'] = DateTime.now().toUtc().toIso8601String();
@@ -800,6 +813,43 @@ class SyncEngine {
         AND m.role IN ('primary_photo', 'annotated_render', 'annotation_overlay', 'voice_note', 'file')
     ''', [workspaceId])) ?? 0;
     return jobs + items + media;
+  }
+
+  /// Copies a local job bundle into a workspace (one-way promotion).
+  Future<Job> promoteLocalJob({
+    required String accessToken,
+    required String workspaceId,
+    required Job job,
+    required List<Item> items,
+  }) async {
+    final itemPayloads = <Map<String, dynamic>>[];
+    for (final item in items) {
+      final tagIds = await _tagIdsForItem(item.id);
+      itemPayloads.add({
+        'id': item.id,
+        'job_id': job.id,
+        'kind': item.kind.dbValue,
+        'caption': item.caption,
+        'body': item.body,
+        'captured_at': item.capturedAt.toUtc().toIso8601String(),
+        'created_at': item.createdAt.toUtc().toIso8601String(),
+        'updated_at': item.updatedAt.toUtc().toIso8601String(),
+        'tag_ids': tagIds,
+      });
+    }
+    final res = await _api.post(
+      '/api/v1/workspaces/$workspaceId/promote-local-job',
+      body: {
+        'job': _jobPayload(job.copyWith(workspaceId: workspaceId)),
+        'items': itemPayloads,
+      },
+      accessToken: accessToken,
+    );
+    final data = decodeJsonMap(res);
+    final jobJson = Map<String, dynamic>.from(data['job'] as Map);
+    await _applyJobFromServer(jobJson, markSynced: true, readOnly: false);
+    final promoted = Job.fromDb((await _db.db.query('jobs', where: 'id = ?', whereArgs: [job.id], limit: 1)).first);
+    return promoted;
   }
 }
 

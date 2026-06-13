@@ -168,7 +168,15 @@ func (s *Service) CanDowngradeTo(ctx context.Context, workspaceID, targetSKU str
 	`, workspaceID).Scan(&memberCount); err != nil {
 		return err
 	}
-	if memberCount > plan.MemberLimit {
+	var pendingCount int
+	if err := s.pool.QueryRow(ctx, `
+		SELECT COUNT(*)::int
+		FROM workspace_invites
+		WHERE workspace_id = $1 AND status = 'pending' AND expires_at > now()
+	`, workspaceID).Scan(&pendingCount); err != nil {
+		return err
+	}
+	if memberCount+pendingCount > plan.MemberLimit {
 		return ErrTooManyMembers
 	}
 	return nil

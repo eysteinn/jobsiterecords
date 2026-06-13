@@ -3,11 +3,13 @@
 import { FormEvent, useMemo, useState } from "react";
 import Link from "next/link";
 import type { TeamInvite, TeamMember, TeamSummary } from "@/lib/api-team";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { PageShell } from "@/components/page-shell";
 import styles from "./team-client.module.css";
 
 type Props = {
   workspaceId: string;
+  workspaceName: string;
   initial: TeamSummary;
   workspaceWritable?: boolean;
 };
@@ -34,6 +36,11 @@ function initials(email: string, name?: string | null): string {
   return local.slice(0, 2).toUpperCase();
 }
 
+function formatStatus(status: string): string {
+  if (!status) return "—";
+  return status.charAt(0).toUpperCase() + status.slice(1);
+}
+
 function formatLastActive(value?: string | null): string {
   if (!value) return "—";
   const date = new Date(value);
@@ -45,7 +52,12 @@ type Row =
   | { kind: "member"; member: TeamMember }
   | { kind: "invite"; invite: TeamInvite };
 
-export function TeamPageClient({ workspaceId, initial, workspaceWritable = true }: Props) {
+export function TeamPageClient({
+  workspaceId,
+  workspaceName,
+  initial,
+  workspaceWritable = true,
+}: Props) {
   const [team, setTeam] = useState(() => normalizeTeam(initial));
   const [inviteEmail, setInviteEmail] = useState("");
   const [showInviteRow, setShowInviteRow] = useState(false);
@@ -53,6 +65,7 @@ export function TeamPageClient({ workspaceId, initial, workspaceWritable = true 
   const [error, setError] = useState<string | null>(null);
   const [devLink, setDevLink] = useState<string | null>(null);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [memberToRemove, setMemberToRemove] = useState<TeamMember | null>(null);
 
   const atLimit = team.member_count + team.pending_count >= team.member_limit;
 
@@ -141,13 +154,12 @@ export function TeamPageClient({ workspaceId, initial, workspaceWritable = true 
     }
   }
 
-  async function removeMember(memberUserId: string, label: string) {
-    if (!confirm(`Remove ${label} from this workspace?`)) return;
+  async function removeMember(member: TeamMember) {
     setBusy(true);
     setError(null);
     setOpenMenu(null);
     try {
-      const res = await fetch(`/api/workspaces/${workspaceId}/members/${memberUserId}`, {
+      const res = await fetch(`/api/workspaces/${workspaceId}/members/${member.user_id}`, {
         method: "DELETE",
       });
       const data = await res.json();
@@ -155,6 +167,7 @@ export function TeamPageClient({ workspaceId, initial, workspaceWritable = true 
         setError(data.message || "Could not remove member");
         return;
       }
+      setMemberToRemove(null);
       await refreshTeam();
     } catch {
       setError("Could not remove member");
@@ -179,7 +192,7 @@ export function TeamPageClient({ workspaceId, initial, workspaceWritable = true 
       }
     >
       <p className={styles.limitNote}>
-        Members: {team.member_count} / {team.member_limit}
+        Seats used: {team.member_count} / {team.member_limit}
         {team.pending_count > 0 ? ` · ${team.pending_count} pending` : ""}
         {!workspaceWritable && (
           <>
@@ -187,10 +200,11 @@ export function TeamPageClient({ workspaceId, initial, workspaceWritable = true 
             — Workspace is read-only. <Link href="/settings">Upgrade</Link> to invite team members.
           </>
         )}
-        {atLimit && (
+        {atLimit && workspaceWritable && (
           <>
             {" "}
-            — At limit. <Link href="/settings">Manage subscription</Link> to add more.
+            — You&apos;ve used all {team.member_limit} seats.{" "}
+            <Link href="/settings">Upgrade</Link> or remove a member/invite.
           </>
         )}
       </p>
@@ -208,6 +222,8 @@ export function TeamPageClient({ workspaceId, initial, workspaceWritable = true 
             <tr>
               <th>Person</th>
               <th>Role</th>
+              <th>Status</th>
+              <th>Assigned jobs</th>
               <th>Last active</th>
               <th aria-label="Actions" />
             </tr>
@@ -215,7 +231,7 @@ export function TeamPageClient({ workspaceId, initial, workspaceWritable = true 
           <tbody>
             {showInviteRow && (
               <tr className={styles.inviteRow}>
-                <td colSpan={4}>
+                <td colSpan={6}>
                   <form className={styles.inviteForm} onSubmit={(e) => void onInvite(e)}>
                     <input
                       type="email"
@@ -247,7 +263,7 @@ export function TeamPageClient({ workspaceId, initial, workspaceWritable = true 
 
             {rows.length === 0 && !showInviteRow && (
               <tr>
-                <td colSpan={4} style={{ color: "var(--muted)", textAlign: "center" }}>
+                <td colSpan={6} style={{ color: "var(--muted)", textAlign: "center" }}>
                   No teammates yet. Invite a worker to get started.
                 </td>
               </tr>
@@ -270,6 +286,7 @@ export function TeamPageClient({ workspaceId, initial, workspaceWritable = true 
                     <td>
                       <span className={`${styles.pill} ${styles.pillPending}`}>Pending</span>
                     </td>
+                    <td>—</td>
                     <td>—</td>
                     <td>
                       <div className={styles.actions}>
@@ -305,6 +322,7 @@ export function TeamPageClient({ workspaceId, initial, workspaceWritable = true 
                       <span className={styles.avatar}>{initials(member.email, member.name)}</span>
                       <div className={styles.personText}>
                         <strong>{label}</strong>
+                        <span>Seat: Occupied</span>
                         {member.name?.trim() ? <span>{member.email}</span> : null}
                       </div>
                     </div>
@@ -316,6 +334,8 @@ export function TeamPageClient({ workspaceId, initial, workspaceWritable = true 
                       {member.role}
                     </span>
                   </td>
+                  <td>{formatStatus(member.status)}</td>
+                  <td>{member.assigned_job_count ?? 0}</td>
                   <td>{formatLastActive(member.last_active_at)}</td>
                   <td>
                     {member.role !== "owner" && (
@@ -334,7 +354,7 @@ export function TeamPageClient({ workspaceId, initial, workspaceWritable = true 
                               type="button"
                               className={styles.danger}
                               disabled={busy}
-                              onClick={() => void removeMember(member.user_id, label)}
+                              onClick={() => setMemberToRemove(member)}
                             >
                               Remove
                             </button>
@@ -349,6 +369,24 @@ export function TeamPageClient({ workspaceId, initial, workspaceWritable = true 
           </tbody>
         </table>
       </div>
+
+      <ConfirmDialog
+        open={memberToRemove != null}
+        title={
+          memberToRemove
+            ? `Remove ${memberToRemove.name?.trim() || memberToRemove.email} from ${workspaceName}?`
+            : "Remove member?"
+        }
+        message={
+          memberToRemove
+            ? "They will lose access to synced workspace jobs and reports. Their existing synced captures will stay in the workspace record. Their local-only jobs on their own device will not be affected."
+            : ""
+        }
+        confirmLabel="Remove member"
+        busy={busy}
+        onConfirm={() => memberToRemove && void removeMember(memberToRemove)}
+        onCancel={() => setMemberToRemove(null)}
+      />
     </PageShell>
   );
 }

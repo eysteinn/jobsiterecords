@@ -59,6 +59,13 @@ export function InviteAcceptClient({ token, signedInEmail }: Props) {
         return;
       }
       setAccepted(true);
+      if (data.workspace?.id) {
+        await fetch("/api/workspace/switch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ workspace_id: data.workspace.id }),
+        });
+      }
       router.refresh();
       setTimeout(() => router.push("/jobs"), 1200);
     } catch {
@@ -110,7 +117,7 @@ export function InviteAcceptClient({ token, signedInEmail }: Props) {
                   Sign in
                 </Link>
                 <p className={styles.footer}>
-                  <Link href={`/login?next=${encodeURIComponent(next)}`}>Create account</Link>
+                  <Link href={`/signup?next=${encodeURIComponent(next)}`}>Create account</Link>
                 </p>
               </>
             )}

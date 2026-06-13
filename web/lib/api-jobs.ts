@@ -17,6 +17,7 @@ export type Job = {
   updated_at: string;
   last_activity_at: string;
   deleted_at?: string | null;
+  read_only?: boolean;
 };
 
 export type MediaFile = {

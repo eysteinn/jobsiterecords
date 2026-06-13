@@ -30,6 +30,8 @@ import { SYNC_POLL } from "@/lib/sync-poll-config";
 import { getPhotoMedia, itemThumbUrl, mediaDownloadUrl } from "@/lib/photo-media";
 import { PhotoAnnotationEditor } from "@/components/photo-annotation/photo-annotation-editor";
 import { PageShell } from "@/components/page-shell";
+import { JobAssignees, JobAssigneeNames } from "@/components/job-assignees";
+import type { TeamMember } from "@/lib/api-team";
 import { TimelineFilteredEmpty } from "@/components/timeline-search-panel";
 import { TimelineTagFilterSheet } from "@/components/timeline-tag-filter-sheet";
 import { BulkTagSheet } from "@/components/bulk-tag-sheet";
@@ -72,6 +74,10 @@ type Props = {
   workspaceId: string;
   readOnly?: boolean;
   readOnlyReason?: "assignment" | "subscription";
+  isOwner?: boolean;
+  assignableMembers?: TeamMember[];
+  initialAssigneeIds?: string[];
+  assignees?: TeamMember[];
 };
 
 async function fetchWorkspaceTags(workspaceId: string): Promise<Tag[]> {
@@ -98,11 +104,16 @@ export function JobDetailClient({
   workspaceId,
   readOnly = false,
   readOnlyReason,
+  isOwner = false,
+  assignableMembers = [],
+  initialAssigneeIds = [],
+  assignees = [],
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const [mobileChromeReady, setMobileChromeReady] = useState(false);
   const [job, setJob] = useState(initialJob);
+  const [assigneeIds, setAssigneeIds] = useState(initialAssigneeIds);
   const isActiveJobRoute = pathname === `/jobs/${job.id}`;
   const [items, setItems] = useState(initialItems ?? []);
   const [mediaFiles, setMediaFiles] = useState(initialMediaFiles ?? []);
@@ -954,6 +965,17 @@ export function JobDetailClient({
           {job.client_name && job.address && (
             <p className={styles.mobileDetailClient}>{job.client_name}</p>
           )}
+          {isOwner ? (
+            <JobAssignees
+              workspaceId={workspaceId}
+              jobId={job.id}
+              members={assignableMembers}
+              assigneeIds={assigneeIds}
+              onAssigneeIdsChange={setAssigneeIds}
+            />
+          ) : (
+            <JobAssigneeNames assignees={assignees} />
+          )}
           <span className={`${styles.mobileDetailStatus} ${styles[`status_${job.status}`]}`}>
             {job.status === "completed" && <span aria-hidden>✓ </span>}
             {job.status === "completed"
@@ -1097,6 +1119,17 @@ export function JobDetailClient({
             <div className={styles.desktopHeaderRow}>
               <div className={styles.desktopHeaderInfo}>
                 <h1 className={styles.desktopJobTitle}>{job.name}</h1>
+                {isOwner ? (
+                  <JobAssignees
+                    workspaceId={workspaceId}
+                    jobId={job.id}
+                    members={assignableMembers}
+                    assigneeIds={assigneeIds}
+                    onAssigneeIdsChange={setAssigneeIds}
+                  />
+                ) : (
+                  <JobAssigneeNames assignees={assignees} />
+                )}
                 {job.address && (
                   <p className={styles.desktopJobAddress}>
                     <LocationIcon />
@@ -1308,7 +1341,7 @@ export function JobDetailClient({
         <p className={styles.readOnlyBanner}>
           {readOnlyReason === "subscription"
             ? "This workspace is read-only. Upgrade your subscription to edit jobs and add items."
-            : "You're viewing this job. Ask the owner for assignment to edit."}
+            : "Ask the owner to assign you before adding records."}
         </p>
       )}
 

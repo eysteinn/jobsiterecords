@@ -86,6 +86,50 @@ class AuthService {
     await _storage.delete(key: _refreshKey);
   }
 
+  Future<AuthSession> refreshMe(String accessToken, String refreshToken) async {
+    return _me(accessToken, refreshToken);
+  }
+
+  Future<Map<String, dynamic>> requestMagicLink(String email) async {
+    final res = await _api.post('/api/v1/auth/magic-link', body: {'email': email});
+    return decodeJsonMap(res);
+  }
+
+  Future<AuthSession> verifyMagicLink(String token) async {
+    final res = await _api.post('/api/v1/auth/magic-link/verify', body: {'token': token});
+    final data = decodeJsonMap(res);
+    return _saveTokens(data);
+  }
+
+  Future<Map<String, dynamic>> previewInvite(String token) async {
+    final res = await _api.get('/api/v1/invites/preview?token=${Uri.encodeQueryComponent(token)}');
+    return decodeJsonMap(res);
+  }
+
+  Future<Map<String, dynamic>> acceptInvite(String accessToken, String token) async {
+    final res = await _api.post(
+      '/api/v1/invites/accept',
+      body: {'token': token},
+      accessToken: accessToken,
+    );
+    return decodeJsonMap(res);
+  }
+
+  Future<void> leaveWorkspace(String accessToken, String workspaceId) async {
+    final res = await _api.post(
+      '/api/v1/workspaces/$workspaceId/leave',
+      accessToken: accessToken,
+    );
+    decodeJsonMap(res);
+  }
+
+  Future<void> deleteAccount(String accessToken) async {
+    final res = await _api.delete('/api/v1/auth/me', accessToken: accessToken);
+    decodeJsonMap(res);
+    await _storage.delete(key: _accessKey);
+    await _storage.delete(key: _refreshKey);
+  }
+
   Future<AuthSession> _saveTokens(Map<String, dynamic> data) async {
     final access = data['access_token'] as String;
     final refresh = data['refresh_token'] as String;

@@ -92,6 +92,18 @@
   color: #111827;
 }
 
+.readOnlyBadge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 0.75rem;
+  font-weight: 600;
+  vertical-align: middle;
+}
+
 .sub {
   color: var(--muted);
   font-size: 0.8125rem;

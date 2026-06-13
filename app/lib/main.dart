@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -33,8 +36,39 @@ Future<void> main() async {
   );
 }
 
-class JobSiteRecordsApp extends StatelessWidget {
+class JobSiteRecordsApp extends StatefulWidget {
   const JobSiteRecordsApp({super.key});
+
+  @override
+  State<JobSiteRecordsApp> createState() => _JobSiteRecordsAppState();
+}
+
+class _JobSiteRecordsAppState extends State<JobSiteRecordsApp> {
+  StreamSubscription<Uri>? _linkSub;
+  final _appLinks = AppLinks();
+
+  @override
+  void initState() {
+    super.initState();
+    _linkSub = _appLinks.uriLinkStream.listen(_handleDeepLink);
+    _appLinks.getInitialLink().then((uri) {
+      if (uri != null) _handleDeepLink(uri);
+    });
+  }
+
+  void _handleDeepLink(Uri uri) {
+    final path = uri.path;
+    final query = uri.query.isNotEmpty ? '?${uri.query}' : '';
+    if (path.startsWith('/invite/accept') || path.startsWith('/auth/verify')) {
+      appRouter.go('$path$query');
+    }
+  }
+
+  @override
+  void dispose() {
+    _linkSub?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {

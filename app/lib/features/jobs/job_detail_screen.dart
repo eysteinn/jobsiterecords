@@ -11,6 +11,7 @@ import '../../app/theme.dart';
 import '../../sync/sync_providers.dart';
 import '../../sync/sync_runner.dart';
 import '../../sync/sync_scheduler.dart';
+import '../../sync/workspace_access.dart';
 import '../../core/format.dart';
 import '../../domain/models/item.dart';
 import '../../domain/models/job.dart';
@@ -243,6 +244,11 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
     });
     final timelineAsync = ref.watch(jobTimelineProvider(timelineKey));
     final storage = ref.watch(mediaStorageProvider);
+    final ctx = ref.watch(captureContextProvider);
+    final session = ref.watch(authSessionProvider).valueOrNull;
+    final workspace = ctx.isWorkspace && ctx.workspaceId != null && session != null
+        ? findWorkspace(session.workspaces, ctx.workspaceId!)
+        : null;
     final tagsInJob = allItemsAsync.maybeWhen(
       data: (items) => {
         for (final t in items) for (final tag in t.tags) tag.id,
@@ -287,23 +293,34 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
               ),
               actions: [
                 PopupMenuButton<String>(
-                  onSelected: (v) => _onMenu(context, ref, v),
+                  onSelected: (v) {
+                    final j = jobAsync.valueOrNull;
+                    if (j != null) _onMenu(context, ref, v, j);
+                  },
                   itemBuilder: (context) {
                     final currentStatus = jobAsync.valueOrNull?.status;
+                    final j = jobAsync.valueOrNull;
+                    final ws = ctx.isWorkspace && ctx.workspaceId != null && session != null
+                        ? findWorkspace(session.workspaces, ctx.workspaceId!)
+                        : null;
+                    final writable = j != null && jobCanWrite(j, ws);
                     return [
-                      const PopupMenuItem(value: 'edit', child: Text('Edit job')),
-                      const PopupMenuItem(value: 'select', child: Text('Select items…')),
+                      if (writable) const PopupMenuItem(value: 'edit', child: Text('Edit job')),
+                      if (writable) const PopupMenuItem(value: 'select', child: Text('Select items…')),
                       const PopupMenuItem(value: 'export', child: Text('Export…')),
-                      const PopupMenuDivider(),
-                      if (currentStatus != JobStatus.completed)
+                      if (j?.workspaceId == null && (session?.workspaces.isNotEmpty ?? false))
+                        const PopupMenuItem(value: 'promote', child: Text('Move to workspace…')),
+                      if (writable) const PopupMenuDivider(),
+                      if (writable && currentStatus != JobStatus.completed)
                         const PopupMenuItem(value: 'status:completed', child: Text('Mark completed')),
-                      if (currentStatus == JobStatus.completed)
+                      if (writable && currentStatus == JobStatus.completed)
                         const PopupMenuItem(value: 'status:in_progress', child: Text('Reopen job')),
-                      const PopupMenuDivider(),
-                      const PopupMenuItem(
-                        value: 'delete',
-                        child: Text('Delete Job', style: TextStyle(color: Colors.red)),
-                      ),
+                      if (writable) const PopupMenuDivider(),
+                      if (writable)
+                        const PopupMenuItem(
+                          value: 'delete',
+                          child: Text('Delete Job', style: TextStyle(color: Colors.red)),
+                        ),
                     ];
                   },
                 ),
@@ -323,8 +340,26 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
           if (timelineLoading) {
             return const Center(child: CircularProgressIndicator());
           }
+          final canWrite = jobCanWrite(job, workspace) &&
+              (ctx.isLocal || (ctx.workspaceId != null && workspace != null));
           return Stack(
             children: [
+              if (!canWrite)
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: Material(
+                    color: const Color(0xFFFFF7ED),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      child: Text(
+                        job.readOnly ? memberReadOnlyBanner : subscriptionSyncPausedBanner,
+                        style: const TextStyle(fontSize: 13, color: AppColors.ink),
+                      ),
+                    ),
+                  ),
+                ),
               _Body(
                 job: job,
                 items: items,
@@ -342,9 +377,9 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                 onSelectKind: _selectKind,
                 onOpenFilterSheet: () => _openFilterSheet(tagsInJob),
                 onClearFilters: _clearFilters,
-                onStatusTap: () => _showStatusSheet(job.status),
+                onStatusTap: canWrite ? () => _showStatusSheet(job.status) : () {},
                 onToggle: _toggleSelected,
-                onLongPress: (id) => _enterSelection(initialItemId: id),
+                onLongPress: canWrite ? (id) => _enterSelection(initialItemId: id) : (_) {},
                 onRefresh: () async {
                   final ctx = ref.read(captureContextProvider);
                   if (ctx.isWorkspace) {
@@ -355,8 +390,9 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                   ref.invalidate(jobTimelineProvider((jobId: jobId, query: _query)));
                   ref.invalidate(jobSummariesProvider);
                 },
+                topInset: !canWrite ? 56 : 0,
               ),
-              if (!_selecting && items.isNotEmpty)
+              if (!_selecting && items.isNotEmpty && canWrite)
                 StickyActionFab(
                   label: 'Add to job',
                   onPressed: () => _addItemSheet(context),
@@ -458,7 +494,7 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
     );
   }
 
-  Future<void> _onMenu(BuildContext context, WidgetRef ref, String v) async {
+  Future<void> _onMenu(BuildContext context, WidgetRef ref, String v, Job job) async {
     switch (v) {
       case 'edit':
         context.pushNamed('job-edit', pathParameters: {'id': jobId});
@@ -466,6 +502,8 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
         _enterSelection();
       case 'export':
         context.pushNamed('job-export', pathParameters: {'id': jobId});
+      case 'promote':
+        await _promoteToWorkspace(context, ref, job);
       case final v when v.startsWith('status:'):
         final nextStatus = JobStatus.fromDb(v.substring('status:'.length));
         final repo = ref.read(jobsRepositoryProvider);
@@ -503,6 +541,79 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
         }
     }
   }
+
+  Future<void> _promoteToWorkspace(BuildContext context, WidgetRef ref, Job job) async {
+    final session = ref.read(authSessionProvider).valueOrNull;
+    if (session == null || session.workspaces.isEmpty) return;
+    final workspaces = session.workspaces;
+    String? targetId;
+    String? targetName;
+    if (workspaces.length == 1) {
+      targetId = workspaces.first['id'] as String;
+      targetName = workspaces.first['name'] as String? ?? 'Workspace';
+    } else {
+      targetId = await showModalBottomSheet<String>(
+        context: context,
+        showDragHandle: true,
+        builder: (_) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const ListTile(title: Text('Move to workspace')),
+              for (final ws in workspaces)
+                ListTile(
+                  title: Text(ws['name']?.toString() ?? 'Workspace'),
+                  onTap: () => Navigator.pop(context, ws['id'] as String),
+                ),
+            ],
+          ),
+        ),
+      );
+      if (targetId == null) return;
+      final ws = workspaces.firstWhere((w) => w['id'] == targetId);
+      targetName = ws['name'] as String? ?? 'Workspace';
+    }
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Move to workspace?'),
+        content: Text(
+          'This copies "${job.name}" into $targetName. Your local copy stays on this device. '
+          'This is one-way — you cannot move it back to local-only.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Move')),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) return;
+    final items = await ref.read(itemsRepositoryProvider).forJob(jobId);
+    final itemModels = items.map((t) => t.item).where((i) => !i.isDeleted).toList();
+    try {
+      await ref.read(syncEngineProvider).promoteLocalJob(
+            accessToken: session.accessToken,
+            workspaceId: targetId,
+            job: job,
+            items: itemModels,
+          );
+      await ref.read(captureContextProvider.notifier).selectWorkspace(id: targetId, name: targetName);
+      final status = await runManualSync(ref);
+      bumpDataRevision(ref);
+      if (context.mounted) {
+        showSyncSnackBar(context, status);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Moved to $targetName')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not move: $e')),
+        );
+      }
+    }
+  }
 }
 
 class _Body extends StatelessWidget {
@@ -527,6 +638,7 @@ class _Body extends StatelessWidget {
     required this.onToggle,
     required this.onLongPress,
     required this.onRefresh,
+    this.topInset = 0,
   });
   final Job job;
   final List<TimelineItem> items;
@@ -548,6 +660,7 @@ class _Body extends StatelessWidget {
   final void Function(String itemId) onToggle;
   final void Function(String itemId) onLongPress;
   final Future<void> Function() onRefresh;
+  final double topInset;
 
   @override
   Widget build(BuildContext context) {
@@ -562,7 +675,7 @@ class _Body extends StatelessWidget {
     return RefreshIndicator(
       onRefresh: onRefresh,
       child: ListView(
-      padding: EdgeInsets.fromLTRB(16, 8, 16, bottomPad),
+      padding: EdgeInsets.fromLTRB(16, 8 + topInset, 16, bottomPad),
       physics: const AlwaysScrollableScrollPhysics(),
       children: [
         _Header(job: job, onStatusTap: onStatusTap),

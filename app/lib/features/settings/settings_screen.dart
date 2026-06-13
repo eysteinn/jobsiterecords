@@ -128,6 +128,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       await ref.read(captureContextProvider.notifier).selectLocal();
                     },
                   ),
+                  if (ctx.isWorkspace && ctx.workspaceId != null)
+                    ListTile(
+                      leading: const Icon(Icons.exit_to_app),
+                      title: const Text('Leave workspace'),
+                      subtitle: Text('Leave ${ctx.workspaceName} on this device.'),
+                      onTap: () => _confirmLeaveWorkspace(context, ref, ctx.workspaceId!, ctx.workspaceName),
+                    ),
+                  ListTile(
+                    leading: const Icon(Icons.person_remove_outlined, color: Colors.red),
+                    title: const Text('Delete account', style: TextStyle(color: Colors.red)),
+                    subtitle: const Text('Permanently deletes your account. Workspace records you captured stay with each company.'),
+                    onTap: () => _confirmDeleteAccount(context, ref),
+                  ),
                 ],
               );
             },
@@ -178,6 +191,86 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _confirmLeaveWorkspace(
+    BuildContext context,
+    WidgetRef ref,
+    String workspaceId,
+    String workspaceName,
+  ) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Leave workspace?'),
+        content: Text(
+          'You will lose access to $workspaceName on this device. '
+          'Your local jobs are not affected.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Leave', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await ref.read(authSessionProvider.notifier).leaveWorkspace(workspaceId);
+      await ref.read(jobsRepositoryProvider).purgeWorkspaceJobs(workspaceId);
+      await ref.read(captureContextProvider.notifier).selectLocal();
+      bumpDataRevision(ref);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Left $workspaceName')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not leave: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _confirmDeleteAccount(BuildContext context, WidgetRef ref) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete account?'),
+        content: const Text(
+          'This permanently deletes your account and signs you out everywhere. '
+          'Records you captured in workspaces stay with those companies. This cannot be undone.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Delete account', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await ref.read(authSessionProvider.notifier).deleteAccount();
+      await ref.read(captureContextProvider.notifier).selectLocal();
+      bumpDataRevision(ref);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Account deleted.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not delete account: $e')),
+        );
+      }
+    }
   }
 
   Future<void> _confirmClearAll() async {

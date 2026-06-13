@@ -6,7 +6,7 @@ import 'package:sqflite/sqflite.dart';
 
 import '../../core/ids.dart';
 
-const _dbVersion = 6;
+const _dbVersion = 7;
 
 class AppDatabase {
   AppDatabase._(this.db);
@@ -59,6 +59,9 @@ class AppDatabase {
           await d.execute('ALTER TABLE jobs ADD COLUMN deleted_at TEXT');
           await d.execute('ALTER TABLE items ADD COLUMN deleted_at TEXT');
         }
+        if (oldVersion < 7) {
+          await d.execute('ALTER TABLE jobs ADD COLUMN read_only INTEGER NOT NULL DEFAULT 0');
+        }
       },
     );
     return AppDatabase._(db);
@@ -86,6 +89,7 @@ Future<void> _createSchema(Database d) async {
       sync_attempts INTEGER NOT NULL DEFAULT 0,
       last_sync_error TEXT,
       deleted_at    TEXT,
+      read_only     INTEGER NOT NULL DEFAULT 0,
       created_at    TEXT NOT NULL,
       updated_at    TEXT NOT NULL
     )

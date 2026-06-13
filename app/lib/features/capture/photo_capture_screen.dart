@@ -12,8 +12,10 @@ import '../../app/theme.dart';
 import '../../core/clock.dart';
 import '../../data/repositories/items_repository.dart';
 import '../../domain/models/photo_annotation.dart';
+import '../../sync/sync_providers.dart';
 import '../photo_annotation/photo_annotation_screen.dart';
 import 'widgets/tag_chips.dart';
+import 'widgets/workspace_context_banner.dart';
 
 class _BatchPhoto {
   _BatchPhoto({
@@ -296,7 +298,17 @@ class _PhotoCaptureScreenState extends ConsumerState<PhotoCaptureScreen> {
         appBar: AppBar(
           backgroundColor: Colors.black,
           foregroundColor: Colors.white,
-          title: Text(_batch.isEmpty ? 'Capture' : '${_batch.length} photo${_batch.length == 1 ? '' : 's'}'),
+          title: Consumer(
+            builder: (context, ref, _) {
+              final ctx = ref.watch(captureContextProvider);
+              final suffix = ctx.isWorkspace ? ' · ${ctx.workspaceName}' : '';
+              return Text(
+                (_batch.isEmpty ? 'Capture' : '${_batch.length} photo${_batch.length == 1 ? '' : 's'}') + suffix,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              );
+            },
+          ),
           leading: IconButton(
             icon: const Icon(Icons.close),
             onPressed: _onBack,
@@ -312,7 +324,11 @@ class _PhotoCaptureScreenState extends ConsumerState<PhotoCaptureScreen> {
             ),
           ],
         ),
-        body: FutureBuilder<void>(
+        body: Column(
+          children: [
+            const WorkspaceContextBanner(),
+            Expanded(
+              child: FutureBuilder<void>(
           future: _initFuture,
           builder: (context, snap) {
             if (snap.connectionState != ConnectionState.done || _controller == null) {
@@ -402,6 +418,9 @@ class _PhotoCaptureScreenState extends ConsumerState<PhotoCaptureScreen> {
               ],
             );
           },
+        ),
+            ),
+          ],
         ),
       ),
     );

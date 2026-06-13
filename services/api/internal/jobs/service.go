@@ -89,7 +89,12 @@ func (s *Service) SetBilling(b workspaceBilling) {
 	s.billing = b
 }
 
-func (s *Service) ListWorkspaceJobs(ctx context.Context, userID, workspaceID string) ([]Job, error) {
+type JobListEntry struct {
+	Job
+	ReadOnly bool `json:"read_only,omitempty"`
+}
+
+func (s *Service) ListWorkspaceJobs(ctx context.Context, userID, workspaceID string) ([]JobListEntry, error) {
 	if err := s.requireMember(ctx, userID, workspaceID); err != nil {
 		return nil, err
 	}
@@ -103,7 +108,30 @@ func (s *Service) ListWorkspaceJobs(ctx context.Context, userID, workspaceID str
 		return nil, err
 	}
 	defer rows.Close()
-	return scanJobs(rows)
+	jobs, err := scanJobs(rows)
+	if err != nil {
+		return nil, err
+	}
+	role, err := s.memberRole(ctx, userID, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	if role == "owner" {
+		out := make([]JobListEntry, len(jobs))
+		for i, j := range jobs {
+			out[i] = JobListEntry{Job: j, ReadOnly: false}
+		}
+		return out, nil
+	}
+	assigned, err := s.assignedJobIDSet(ctx, userID, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]JobListEntry, len(jobs))
+	for i, j := range jobs {
+		out[i] = JobListEntry{Job: j, ReadOnly: !assigned[j.ID]}
+	}
+	return out, nil
 }
 
 func (s *Service) GetJobBundle(ctx context.Context, userID, jobID string, since *time.Time) (JobBundle, error) {
@@ -202,6 +230,7 @@ func (s *Service) UpsertJob(ctx context.Context, userID string, in Job) (Job, er
 		}
 	}
 
+	s.touchMemberActivity(ctx, userID, in.WorkspaceID)
 	return s.fetchJob(ctx, in.ID)
 }
 
@@ -261,7 +290,11 @@ func (s *Service) UpsertTag(ctx context.Context, userID, workspaceID string, in 
 		FROM tags
 		WHERE id = $1 AND workspace_id = $2 AND deleted_at IS NULL
 	`, in.ID, workspaceID).Scan(&out.ID, &out.WorkspaceID, &out.Name)
-	return out, err
+	if err != nil {
+		return Tag{}, err
+	}
+	s.touchMemberActivity(ctx, userID, workspaceID)
+	return out, nil
 }
 
 func (s *Service) UpsertItem(ctx context.Context, userID, jobID string, in Item, tagIDs *[]string) (Item, error) {
@@ -324,6 +357,7 @@ func (s *Service) UpsertItem(ctx context.Context, userID, jobID string, in Item,
 	if err := s.bumpJobActivity(ctx, jobID, resolved); err != nil {
 		return Item{}, err
 	}
+	s.touchMemberActivity(ctx, userID, in.WorkspaceID)
 	return s.fetchItem(ctx, in.ID)
 }
 
@@ -356,6 +390,14 @@ func (s *Service) bumpJobActivity(ctx context.Context, jobID string, at time.Tim
 		UPDATE jobs SET last_activity_at = $2 WHERE id = $1
 	`, jobID, at)
 	return err
+}
+
+func (s *Service) touchMemberActivity(ctx context.Context, userID, workspaceID string) {
+	_, _ = s.pool.Exec(ctx, `
+		UPDATE workspace_memberships
+		SET last_active_at = now()
+		WHERE workspace_id = $1 AND user_id = $2 AND status = 'active'
+	`, workspaceID, userID)
 }
 
 func (s *Service) GetJobCursor(ctx context.Context, userID, jobID string) (time.Time, error) {
@@ -440,6 +482,20 @@ func (s *Service) requireWorkspaceWritable(ctx context.Context, workspaceID stri
 		return err
 	}
 	if !writable {
+		return errors.New("subscription_lapsed")
+	}
+	return s.requireWorkspaceSyncPush(ctx, workspaceID)
+}
+
+func (s *Service) requireWorkspaceSyncPush(ctx context.Context, workspaceID string) error {
+	if s.billing == nil {
+		return nil
+	}
+	allowed, err := s.billing.WorkspaceSyncPushAllowed(ctx, workspaceID)
+	if err != nil {
+		return err
+	}
+	if !allowed {
 		return errors.New("subscription_lapsed")
 	}
 	return nil

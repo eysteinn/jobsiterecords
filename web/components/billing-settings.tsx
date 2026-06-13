@@ -75,6 +75,45 @@ export function BillingSettings({ workspaceId, ownerEmail, initial = null }: Pro
     return data;
   }
 
+  async function onPlanChange(plan: WorkspaceBilling["plans"][number]) {
+    if (!billing) return;
+    const plans = billing.plans ?? [];
+    if (!plan.price_id) {
+      setError("This plan is not configured yet.");
+      return;
+    }
+
+    const currentLimit =
+      plans.find((entry) => entry.sku === billing.plan_sku)?.member_limit ?? billing.member_limit;
+    const isDowngrade = plan.member_limit < currentLimit;
+    const seatsUsed = billing.member_count + billing.pending_invite_count;
+
+    if (isDowngrade && seatsUsed > plan.member_limit) {
+      const removeCount = seatsUsed - plan.member_limit;
+      const noun = removeCount === 1 ? "member/invite" : "members/invites";
+      setError(`Remove ${removeCount} ${noun} before downgrading`);
+      setMessage(null);
+      return;
+    }
+
+    if (billing.has_subscription && isDowngrade) {
+      setBusy(true);
+      setError(null);
+      setMessage(null);
+      try {
+        const url = await openBillingPortal(workspaceId, plan.sku);
+        window.location.href = url;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not open billing portal");
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
+    await onUpgrade(plan.price_id);
+  }
+
   async function onUpgrade(priceId: string) {
     if (!priceId) {
       setError("This plan is not configured yet.");
@@ -143,7 +182,7 @@ export function BillingSettings({ workspaceId, ownerEmail, initial = null }: Pro
           </dd>
         </div>
         <div>
-          <dt>Seats</dt>
+          <dt>Seats used</dt>
           <dd>
             {billing.member_count} / {billing.member_limit}
             {billing.pending_invite_count > 0 ? ` (${billing.pending_invite_count} pending)` : ""}
@@ -181,7 +220,7 @@ export function BillingSettings({ workspaceId, ownerEmail, initial = null }: Pro
                   type="button"
                   className={styles.primaryButton}
                   disabled={busy || !plan.price_id}
-                  onClick={() => onUpgrade(plan.price_id)}
+                  onClick={() => void onPlanChange(plan)}
                 >
                   {billing.has_subscription ? "Change plan" : "Subscribe"}
                 </button>

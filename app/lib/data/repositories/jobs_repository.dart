@@ -112,6 +112,18 @@ class JobsRepository {
     await _hardDeleteJob(jobId);
   }
 
+  Future<void> purgeWorkspaceJobs(String workspaceId) async {
+    final rows = await _db.db.query(
+      'jobs',
+      columns: ['id'],
+      where: 'workspace_id = ?',
+      whereArgs: [workspaceId],
+    );
+    for (final row in rows) {
+      await _hardDeleteJob(row['id']! as String);
+    }
+  }
+
   Future<void> _hardDeleteJob(String id) async {
     await _db.db.transaction((txn) async {
       await txn.delete('jobs', where: 'id = ?', whereArgs: [id]);

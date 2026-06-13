@@ -236,6 +236,7 @@ func (s *Service) CompleteMediaUpload(ctx context.Context, userID, mediaID strin
 		UPDATE jobs SET last_activity_at = $2 WHERE id = $1
 	`, item.JobID, now)
 
+	s.touchMemberActivity(ctx, userID, item.WorkspaceID)
 	return s.fetchMediaFile(ctx, mediaID)
 }
 
