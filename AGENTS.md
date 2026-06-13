@@ -109,3 +109,15 @@ Use these for detail; keep `docs/high-level-design.md` as the overview that ties
 | [`docs/job-timeline-photo-grid-plan.md`](docs/job-timeline-photo-grid-plan.md) | Timeline photo grid layout |
 
 When a specialized plan doc and `high-level-design.md` disagree after your change, update both so they stay consistent, with the high-level doc reflecting the current truth at a glance.
+
+## Cursor Cloud specific instructions
+
+These are durable, non-obvious notes for running the Phase 2 stack (web + API) in the Cursor Cloud VM. Standard commands live in the per-surface READMEs and `docker-compose.yml`; this section only captures gotchas.
+
+- **Start the Docker daemon first.** The VM has no init system, so `dockerd` does not auto-start. Before `docker compose up`, launch it (e.g. `sudo dockerd > /tmp/dockerd.log 2>&1 &`) and wait until `sudo docker info` succeeds. Docker is configured with the `fuse-overlayfs` storage driver and `containerd-snapshotter` disabled (required for this kernel) — leave `/etc/docker/daemon.json` as-is.
+- **First-boot migration race.** Both `api` and `worker` run DB migrations on startup. On a fresh Postgres volume the `worker` can crash with `migration 001_m1_auth.sql: ... duplicate key value violates unique constraint "pg_extension_name_index"` because it races the `api` on `CREATE EXTENSION`. It is harmless: re-run `docker compose up -d worker` once and it skips already-applied migrations.
+- **Don't build `web/` on the host while the compose `web` container runs.** That service bind-mounts `./web` and runs `npm run dev` as root, writing `.next` (root-owned). A concurrent host `npm run build`/`npm run dev` collides on `.next` (e.g. `ENOENT ... _ssgManifest.js`) and leaves root-owned files. For a clean host build: `docker compose stop web`, `sudo rm -rf web/.next`, then `npm run build`, then `docker compose up -d web`.
+- **Native Go tooling needs 1.25.** System `go` is 1.22 but the module requires 1.25. Go 1.25 is installed at `/usr/local/go-1.25/bin` and prepended to `PATH` via `~/.bashrc`, so `go test ./...` / `go vet ./...` work from `services/api/`. (The Docker build uses `golang:1.25-alpine`, so the stack itself doesn't need host Go.)
+- **`web` lint is not wired up.** `npm run lint` (web) launches an interactive `next lint` ESLint-setup prompt because no ESLint config is committed; it can't run non-interactively. Use `npm run build` (type-checks) for verification instead.
+- **External integrations are optional.** Google OAuth/Places, Paddle billing, and SMTP read keys from a repo-root `.env`; without them compose uses defaults and only those specific sub-flows are disabled. Email magic-links/reset links are logged by the API when `DEV_LOG_EMAIL_LINKS=true` (the compose default).
+- **Flutter app / landing site are not set up here.** Flutter (`app/`) needs an Android emulator/device and the PHP `landing/` site needs a PHP runtime — neither is installed in this VM. Set them up on demand if a task targets those surfaces.
