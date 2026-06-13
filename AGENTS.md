@@ -109,3 +109,44 @@ Use these for detail; keep `docs/high-level-design.md` as the overview that ties
 | [`docs/job-timeline-photo-grid-plan.md`](docs/job-timeline-photo-grid-plan.md) | Timeline photo grid layout |
 
 When a specialized plan doc and `high-level-design.md` disagree after your change, update both so they stay consistent, with the high-level doc reflecting the current truth at a glance.
+
+## Cursor Cloud specific instructions
+
+### Phase 2 stack (primary dev path)
+
+The web dashboard + Go API + Postgres + MinIO run via Docker Compose from the repo root:
+
+```bash
+cp .env.example .env   # first time only
+docker compose up --build
+```
+
+- Web: http://localhost:3000
+- API health: http://localhost:8080/health
+- MinIO: http://localhost:9000 (console: http://localhost:9001)
+
+On Cloud Agent VMs, Docker may need `sudo service docker start` before the first `docker compose` run. If you see permission errors, use `sudo docker compose …` or ensure the `ubuntu` user is in the `docker` group (requires a new shell after `usermod`).
+
+Run long-lived `docker compose up` in a **tmux** session so it survives backgrounding.
+
+### Lint / typecheck / tests
+
+| Surface | Command | Notes |
+| --- | --- | --- |
+| Web (Next.js) | `cd web && npx tsc --noEmit` | Typecheck without Docker |
+| Web lint | `cd web && npm run lint` | **Interactive** on first run (Next.js 15 prompts for ESLint setup); prefer `tsc` in automation |
+| API (Go) | Built inside the `api` Docker image | No `*_test.go` files in repo yet |
+| Flutter app | `cd app && flutter test` | Flutter SDK is **not** pre-installed on Cloud VMs; install separately for mobile work |
+
+### Hello-world verification
+
+1. `curl http://localhost:8080/health` → `{"status":"ok"}`
+2. Sign up via API: `POST /api/v1/auth/signup` with `email`, `password`, optional `name`
+3. Open http://localhost:3000/login and sign in → lands on `/jobs` with workspace shell
+
+Magic-link and password-reset emails are logged to the **API container stdout** when `DEV_LOG_EMAIL_LINKS=true` (default in `docker-compose.yml`).
+
+### Not on the default Cloud VM
+
+- **Flutter mobile app** — see [`app/README.md`](app/README.md); needs Flutter 3.41+, Android/iOS toolchain
+- **Landing site (PHP)** — `php -S 127.0.0.1:8080 -t landing` conflicts with API port 8080 unless you change one
