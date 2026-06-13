@@ -1012,6 +1012,7 @@ Users who never create a workspace and never sign in **never pay** and **do not 
 - **Roles** — **Owner** and **Member** only in MVP. Owner manages billing, team, and workspace settings; member captures and edits on **assigned** jobs (decision D2 in the dashboard spec). Admin / Viewer / Client roles are explicitly out of MVP scope.
 - **Invites** — owner invites by email; invitee installs the free app (or uses web), signs in (Google, Apple, email + password, or magic link), and joins the workspace. Invite emails may include a magic link for one-tap accept. Mobile sync for members is **per-assignment**; owners sync everything in the workspace.
 - **Personal vs. workspace jobs** — resolved: the phone always has a **Local** context (unsynced, on-device only) plus any team workspaces the user belongs to. **Move local job to workspace** is a one-way promotion endpoint ([`web-dashboard-design.md` §15.6](web-dashboard-design.md#15-sync-api--protocol)). Cross-workspace moves are post-MVP.
+- **Seat & membership lifecycle** — full narrative (local → invited → active member → removed, seat counting, pending-invite reservation, local↔workspace privacy boundary, multi-workspace membership): [`seats-and-membership-lifecycle.md`](seats-and-membership-lifecycle.md).
 
 ### 17.4 Technical sketch (high level)
 
