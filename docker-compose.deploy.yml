@@ -10,7 +10,7 @@
 #   - DNS for APP_HOST, API_HOST, MEDIA_HOST pointing at the server
 #   - Traefik entrypoint + cert resolver names must match your Traefik static config
 
-name: sitelog
+name: jobsiterecords
 
 networks:
   traefik:
@@ -53,12 +53,12 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=${TRAEFIK_NETWORK}
-      - traefik.http.routers.sitelog-minio.rule=Host(`${MEDIA_HOST}`)
-      - traefik.http.routers.sitelog-minio.entrypoints=${TRAEFIK_ENTRYPOINT}
-      - traefik.http.routers.sitelog-minio.tls=true
-      - traefik.http.routers.sitelog-minio.tls.certresolver=${TRAEFIK_CERT_RESOLVER}
-      - traefik.http.routers.sitelog-minio.service=sitelog-minio
-      - traefik.http.services.sitelog-minio.loadbalancer.server.port=9000
+      - traefik.http.routers.jobsiterecords-minio.rule=Host(`${MEDIA_HOST}`)
+      - traefik.http.routers.jobsiterecords-minio.entrypoints=${TRAEFIK_ENTRYPOINT}
+      - traefik.http.routers.jobsiterecords-minio.tls=true
+      - traefik.http.routers.jobsiterecords-minio.tls.certresolver=${TRAEFIK_CERT_RESOLVER}
+      - traefik.http.routers.jobsiterecords-minio.service=jobsiterecords-minio
+      - traefik.http.services.jobsiterecords-minio.loadbalancer.server.port=9000
 
   api:
     build:
@@ -97,12 +97,12 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=${TRAEFIK_NETWORK}
-      - traefik.http.routers.sitelog-api.rule=Host(`${API_HOST}`)
-      - traefik.http.routers.sitelog-api.entrypoints=${TRAEFIK_ENTRYPOINT}
-      - traefik.http.routers.sitelog-api.tls=true
-      - traefik.http.routers.sitelog-api.tls.certresolver=${TRAEFIK_CERT_RESOLVER}
-      - traefik.http.routers.sitelog-api.service=sitelog-api
-      - traefik.http.services.sitelog-api.loadbalancer.server.port=8080
+      - traefik.http.routers.jobsiterecords-api.rule=Host(`${API_HOST}`)
+      - traefik.http.routers.jobsiterecords-api.entrypoints=${TRAEFIK_ENTRYPOINT}
+      - traefik.http.routers.jobsiterecords-api.tls=true
+      - traefik.http.routers.jobsiterecords-api.tls.certresolver=${TRAEFIK_CERT_RESOLVER}
+      - traefik.http.routers.jobsiterecords-api.service=jobsiterecords-api
+      - traefik.http.services.jobsiterecords-api.loadbalancer.server.port=8080
     healthcheck:
       test: ["CMD-SHELL", "nc -z 127.0.0.1 8080 || exit 1"]
       interval: 15s
@@ -185,12 +185,12 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=${TRAEFIK_NETWORK}
-      - traefik.http.routers.sitelog-web.rule=Host(`${APP_HOST}`)
-      - traefik.http.routers.sitelog-web.entrypoints=${TRAEFIK_ENTRYPOINT}
-      - traefik.http.routers.sitelog-web.tls=true
-      - traefik.http.routers.sitelog-web.tls.certresolver=${TRAEFIK_CERT_RESOLVER}
-      - traefik.http.routers.sitelog-web.service=sitelog-web
-      - traefik.http.services.sitelog-web.loadbalancer.server.port=3000
+      - traefik.http.routers.jobsiterecords-web.rule=Host(`${APP_HOST}`)
+      - traefik.http.routers.jobsiterecords-web.entrypoints=${TRAEFIK_ENTRYPOINT}
+      - traefik.http.routers.jobsiterecords-web.tls=true
+      - traefik.http.routers.jobsiterecords-web.tls.certresolver=${TRAEFIK_CERT_RESOLVER}
+      - traefik.http.routers.jobsiterecords-web.service=jobsiterecords-web
+      - traefik.http.services.jobsiterecords-web.loadbalancer.server.port=3000
 
 volumes:
   postgres_data:

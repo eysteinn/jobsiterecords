@@ -2,15 +2,15 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: sitelog
-      POSTGRES_PASSWORD: sitelog
-      POSTGRES_DB: sitelog
+      POSTGRES_USER: jobsiterecords
+      POSTGRES_PASSWORD: jobsiterecords
+      POSTGRES_DB: jobsiterecords
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U sitelog -d sitelog"]
+      test: ["CMD-SHELL", "pg_isready -U jobsiterecords -d jobsiterecords"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -21,7 +21,7 @@ services:
     ports:
       - "8080:8080"
     environment:
-      DATABASE_URL: postgres://sitelog:sitelog@postgres:5432/sitelog?sslmode=disable
+      DATABASE_URL: postgres://jobsiterecords:jobsiterecords@postgres:5432/jobsiterecords?sslmode=disable
       JWT_SECRET: dev-jwt-secret-change-me-in-production
       APP_URL: http://localhost:3000
       CORS_ORIGINS: http://localhost:3000
@@ -31,7 +31,7 @@ services:
       S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-localhost:9000}
       S3_ACCESS_KEY: minioadmin
       S3_SECRET_KEY: minioadmin
-      S3_BUCKET: sitelog
+      S3_BUCKET: jobsiterecords
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       PADDLE_API_KEY: ${PADDLE_API_KEY:-}
       PADDLE_WEBHOOK_SECRET: ${PADDLE_WEBHOOK_SECRET:-}
@@ -66,12 +66,12 @@ services:
       context: ./services/api
     command: ["/app/worker"]
     environment:
-      DATABASE_URL: postgres://sitelog:sitelog@postgres:5432/sitelog?sslmode=disable
+      DATABASE_URL: postgres://jobsiterecords:jobsiterecords@postgres:5432/jobsiterecords?sslmode=disable
       S3_ENDPOINT: minio:9000
       S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-localhost:9000}
       S3_ACCESS_KEY: minioadmin
       S3_SECRET_KEY: minioadmin
-      S3_BUCKET: sitelog
+      S3_BUCKET: jobsiterecords
       GOTENBERG_URL: http://gotenberg:3000
       WORKER_ROLE: all
       WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-5}

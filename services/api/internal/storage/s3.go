@@ -31,7 +31,7 @@ type Config struct {
 
 func New(ctx context.Context, cfg Config) (*Client, error) {
 	if cfg.Bucket == "" {
-		cfg.Bucket = "sitelog"
+		cfg.Bucket = "jobsiterecords"
 	}
 	if cfg.Region == "" {
 		cfg.Region = "us-east-1"

@@ -70,7 +70,7 @@ Migrations run automatically on API startup. To apply them without starting the 
 ./scripts/migrate.sh
 
 # Or directly:
-DATABASE_URL=postgres://sitelog:sitelog@localhost:5432/sitelog?sslmode=disable go run ./cmd/migrate
+DATABASE_URL=postgres://jobsiterecords:jobsiterecords@localhost:5432/jobsiterecords?sslmode=disable go run ./cmd/migrate
 ```
 
 Uses the same `schema_migrations` tracking as the API — already-applied files are skipped.
