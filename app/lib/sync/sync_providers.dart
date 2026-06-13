@@ -49,6 +49,41 @@ class AuthSessionController extends StateNotifier<AsyncValue<AuthSession?>> {
     }
     state = const AsyncValue.data(null);
   }
+
+  Future<void> refreshMe() async {
+    final current = state.valueOrNull;
+    if (current == null) return;
+    try {
+      state = AsyncValue.data(await _auth.refreshMe(current.accessToken, current.refreshToken));
+    } catch (_) {}
+  }
+
+  Future<void> verifyMagicLink(String token) async {
+    state = const AsyncValue.loading();
+    state = AsyncValue.data(await _auth.verifyMagicLink(token));
+  }
+
+  Future<Map<String, dynamic>> acceptInvite(String token) async {
+    final current = state.valueOrNull;
+    if (current == null) {
+      throw StateError('Sign in required');
+    }
+    return _auth.acceptInvite(current.accessToken, token);
+  }
+
+  Future<void> leaveWorkspace(String workspaceId) async {
+    final current = state.valueOrNull;
+    if (current == null) return;
+    await _auth.leaveWorkspace(current.accessToken, workspaceId);
+    await refreshMe();
+  }
+
+  Future<void> deleteAccount() async {
+    final current = state.valueOrNull;
+    if (current == null) return;
+    await _auth.deleteAccount(current.accessToken);
+    state = const AsyncValue.data(null);
+  }
 }
 
 enum CaptureContextType { local, workspace }
@@ -136,6 +171,9 @@ final syncEngineProvider = Provider<SyncEngine>((ref) {
 });
 
 final syncStatusProvider = StateProvider<SyncStatus>((_) => const SyncStatus.never());
+
+/// Set when the active workspace is no longer in the session (member removed).
+final workspaceRemovalMessageProvider = StateProvider<String?>((_) => null);
 
 class SyncStatus {
   const SyncStatus({

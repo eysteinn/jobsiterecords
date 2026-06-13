@@ -19,6 +19,8 @@ import { MobileJobCard } from "@/components/mobile-job-card";
 import { MobileStatusFilters } from "@/components/mobile-status-filters";
 import { MobileSyncStatus } from "@/components/mobile-sync-status";
 import { MobileFilterSheet } from "@/components/mobile-filter-sheet";
+import { WorkspaceSwitcher } from "@/components/workspace-switcher";
+import type { Workspace } from "@/lib/types";
 import styles from "./jobs-client.module.css";
 
 const STATUS_CHIPS: { id: JobStatus; label: string }[] = [
@@ -30,6 +32,8 @@ const STATUS_CHIPS: { id: JobStatus; label: string }[] = [
 type Props = {
   workspaceId: string;
   workspaceName: string;
+  workspaces: Workspace[];
+  activeWorkspace: Workspace;
   userEmail: string;
   jobs: Job[];
   workspaceWritable?: boolean;
@@ -38,6 +42,8 @@ type Props = {
 export function JobsClient({
   workspaceId,
   workspaceName,
+  workspaces,
+  activeWorkspace,
   userEmail,
   jobs,
   workspaceWritable = true,
@@ -178,10 +184,11 @@ export function JobsClient({
               </div>
             </div>
           </div>
-          <button type="button" className={styles.workspaceBtn} aria-label={`Workspace: ${workspaceName}`}>
-            <span className={styles.workspaceName}>{workspaceName}</span>
-            <span aria-hidden>▾</span>
-          </button>
+          <WorkspaceSwitcher
+            workspaces={workspaces}
+            activeWorkspace={activeWorkspace}
+            variant="jobs"
+          />
         </header>
 
         {jobs.length > 0 && (
@@ -344,6 +351,9 @@ export function JobsClient({
                           }}
                         >
                           <span className={styles.jobName}>{job.name}</span>
+                          {job.read_only && (
+                            <span className={styles.readOnlyBadge}>Read-only</span>
+                          )}
                           {job.address && <div className={styles.sub}>{job.address}</div>}
                         </td>
                         <td

@@ -75,6 +75,28 @@ func (s *Service) ListForUser(ctx context.Context, userID string) ([]Workspace, 
 	return out, rows.Err()
 }
 
+func (s *Service) GetForUser(ctx context.Context, userID, workspaceID string) (Workspace, error) {
+	var ws Workspace
+	err := s.pool.QueryRow(ctx, `
+		SELECT w.id, w.name, m.role, w.plan_sku, w.member_limit, w.subscription_status,
+		       (w.paddle_subscription_id IS NOT NULL), w.created_at
+		FROM workspace_memberships m
+		JOIN workspaces w ON w.id = m.workspace_id
+		WHERE m.user_id = $1 AND m.workspace_id = $2 AND m.status = 'active'
+	`, userID, workspaceID).Scan(
+		&ws.ID, &ws.Name, &ws.Role, &ws.PlanSKU, &ws.MemberLimit,
+		&ws.SubscriptionStatus, &ws.HasSubscription, &ws.CreatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Workspace{}, errors.New("not a workspace member")
+		}
+		return Workspace{}, err
+	}
+	s.applyAccess(ctx, &ws)
+	return ws, nil
+}
+
 func (s *Service) applyAccess(ctx context.Context, ws *Workspace) {
 	if s.billing == nil {
 		ws.AccessMode = string(billing.AccessActive)
@@ -111,6 +133,18 @@ func (s *Service) Leave(ctx context.Context, userID, workspaceID string) error {
 	}
 	if role == "owner" {
 		return errors.New("owner must transfer ownership or delete workspace before leaving")
+	}
+	_, err = s.pool.Exec(ctx, `
+		UPDATE job_assignments ja
+		SET revoked_at = now()
+		FROM jobs j
+		WHERE ja.job_id = j.id
+		  AND j.workspace_id = $1
+		  AND ja.user_id = $2
+		  AND ja.revoked_at IS NULL
+	`, workspaceID, userID)
+	if err != nil {
+		return err
 	}
 	_, err = s.pool.Exec(ctx, `
 		UPDATE workspace_memberships

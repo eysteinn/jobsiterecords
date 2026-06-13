@@ -92,6 +92,21 @@ func (s *Service) Create(ctx context.Context, riverClient *river.Client[pgx.Tx],
 	if jobWorkspace != in.WorkspaceID {
 		return Report{}, errors.New("job not in workspace")
 	}
+	if role == "member" {
+		var assigned bool
+		err = s.pool.QueryRow(ctx, `
+			SELECT EXISTS(
+				SELECT 1 FROM job_assignments
+				WHERE job_id = $1 AND user_id = $2 AND revoked_at IS NULL
+			)
+		`, in.JobID, in.CreatedByUserID).Scan(&assigned)
+		if err != nil {
+			return Report{}, err
+		}
+		if !assigned {
+			return Report{}, errors.New("not assigned to job")
+		}
+	}
 
 	id := uuid.New().String()
 

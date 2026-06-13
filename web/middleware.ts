@@ -10,7 +10,10 @@ const publicPaths = [
   "/forgot-password",
   "/reset-password",
   "/auth/verify",
+  "/invite/accept",
 ];
+
+const authBypassRedirectPaths = ["/auth/verify", "/invite/accept"];
 
 function apiBaseUrl() {
   return (
@@ -102,11 +105,18 @@ export async function middleware(request: NextRequest) {
 
   if (!isPublic && !authed) {
     const login = appRedirect("/login");
-    login.searchParams.set("next", pathname);
+    const next = `${pathname}${request.nextUrl.search}`;
+    login.searchParams.set("next", next);
     return NextResponse.redirect(login);
   }
 
-  if (isPublic && authed && pathname !== "/auth/verify") {
+  if (
+    isPublic &&
+    authed &&
+    !authBypassRedirectPaths.some(
+      (p) => pathname === p || pathname.startsWith(`${p}/`),
+    )
+  ) {
     return NextResponse.redirect(appRedirect("/jobs"));
   }
 

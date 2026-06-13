@@ -2,7 +2,7 @@
 
 > How a worker goes from free local-only use, to invited, to active workspace member, to removed — and what happens to seats, data, and privacy at every step. This is the canonical narrative for the **seat / membership** model.
 
-**Status:** Design (narrative spec) **+ implementation milestones** ([§24](#24-implementation-milestones)). Backing primitives partial in `services/api/` (workspaces, invites, seat reservation, assignment reads, `read_only`, `leave`); assign/unassign API, promotion, removal purge, and most team/seat UX not yet built.
+**Status:** Design (narrative spec) **+ implementation milestones** ([§24](#24-implementation-milestones)). SM1–SM9 largely implemented across API, web, and mobile; remaining gaps: Apple Sign In, iOS universal links, explicit cancel-wrong-upload UX (SM6 task 5), owner workspace transfer/delete APIs.
 **Created:** 2026-06-13
 **Scope:** Billing/seat model, team membership, invite flow, local↔workspace boundary, multi-workspace membership.
 **Related docs:** [`high-level-design.md`](high-level-design.md) §billing & §auth, [`web-dashboard-design.md`](web-dashboard-design.md) §10 (billing / SKUs) & team admin, [`sync-strategy-plan.md`](sync-strategy-plan.md) (workspace isolation & sync).
@@ -660,17 +660,19 @@ The plumbing is far more complete than the UX. A quick read of the current state
 
 ### SM1 — Seat math & invite→accept loop, airtight
 
+**Status:** **Implemented** (API + web).
+
 **Goal:** Every seat count shown anywhere is correct, and an invited worker can always complete sign-in → accept → become a member, including when signed out or without an account. Closes the integrity gaps in §3–§7, §12.
 
 | # | Surface | Task | Status |
 | --- | --- | --- | --- |
-| 1 | API | Keep `active + pending ≤ limit` on **create**; also re-validate on **accept** and treat expired pending invites as freed. Add explicit `expired` transition (cron or lazy on read). | [partial] |
-| 2 | API | Apply `requireWorkspaceWritable` to **resend** and **revoke** invites (today only create checks it). | [partial] |
-| 3 | API | Add `assigned_job_count` + `status` to the `GET /workspaces/{id}/team` member rows; update `last_active_at` on real activity, not just leave/remove. | [add] |
-| 4 | Web | Fix `middleware.ts` so `/invite/accept` is a public path **and preserves the `token` query param** through `?next=`. | [add] |
-| 5 | Web | Point the invite-accept "Create account" link at `/signup?next=…` (currently `/login`). | [partial] |
-| 6 | Web | Rename team/billing seat copy to **"Seats used: X / Y"** and add the spec "You've used all N seats — upgrade or remove a member/invite" message at the limit. | [partial] |
-| 7 | Web | Render member **status** and **assigned-jobs count** in the team list (data added in task 3). | [add] |
+| 1 | API | Keep `active + pending ≤ limit` on **create**; also re-validate on **accept** and treat expired pending invites as freed. Add explicit `expired` transition (cron or lazy on read). | [have] |
+| 2 | API | Apply `requireWorkspaceWritable` to **resend** and **revoke** invites (today only create checks it). | [have] |
+| 3 | API | Add `assigned_job_count` + `status` to the `GET /workspaces/{id}/team` member rows; update `last_active_at` on real activity, not just leave/remove. | [have] |
+| 4 | Web | Fix `middleware.ts` so `/invite/accept` is a public path **and preserves the `token` query param** through `?next=`. | [have] |
+| 5 | Web | Point the invite-accept "Create account" link at `/signup?next=…` (currently `/login`). | [have] |
+| 6 | Web | Rename team/billing seat copy to **"Seats used: X / Y"** and add the spec "You've used all N seats — upgrade or remove a member/invite" message at the limit. | [have] |
+| 7 | Web | Render member **status** and **assigned-jobs count** in the team list (data added in task 3). | [have] |
 
 **Acceptance:** Owner invites → `Seats used: 2/5`; cancelling frees the seat; a signed-out invitee clicking the email link lands on the join page, can create an account, and ends up a member without losing the token.
 
@@ -678,14 +680,16 @@ The plumbing is far more complete than the UX. A quick read of the current state
 
 ### SM2 — Web workspace context switcher (multi-workspace parity)
 
+**Status:** **Implemented** (web).
+
 **Goal:** The web dashboard stops hard-coding `workspaces[0]` and gains the same context model the app already has, so a worker in two companies (§23) can use the dashboard. Closes §23.2 for web.
 
 | # | Surface | Task | Status |
 | --- | --- | --- | --- |
-| 1 | Web | Replace the header switcher **stub** in `dashboard-shell.tsx` with a real dropdown listing all `session.workspaces`. | [partial] |
-| 2 | Web | Persist the active workspace (cookie/URL param) and thread it through jobs/team/settings/reports instead of `workspaces[0]`. | [add] |
-| 3 | Web | Mobile-web: make the `jobs-client` workspace control open the same switcher. | [partial] |
-| 4 | API | (Optional) `GET /workspaces/{id}` single-workspace fetch to back deep links into a non-default workspace. | [add] |
+| 1 | Web | Replace the header switcher **stub** in `dashboard-shell.tsx` with a real dropdown listing all `session.workspaces`. | [have] |
+| 2 | Web | Persist the active workspace (cookie/URL param) and thread it through jobs/team/settings/reports instead of `workspaces[0]`. | [have] |
+| 3 | Web | Mobile-web: make the `jobs-client` workspace control open the same switcher. | [have] |
+| 4 | API | (Optional) `GET /workspaces/{id}` single-workspace fetch to back deep links into a non-default workspace. | [have] |
 
 **Acceptance:** An owner/member of two workspaces can switch between them on desktop and mobile web; each surface shows only that workspace's jobs/team/billing; refresh and back-button preserve the selection.
 
@@ -693,15 +697,15 @@ The plumbing is far more complete than the UX. A quick read of the current state
 
 ### SM3 — Job assignment system (API + owner UI)
 
-**Goal:** Owners can actually assign/unassign members to jobs — the missing backbone for the entire Member experience (§7, §8). This is the single biggest gap.
+**Status:** **Implemented**.
 
 | # | Surface | Task | Status |
 | --- | --- | --- | --- |
-| 1 | API | `POST /workspaces/{id}/jobs/{jobId}/assignments` and `DELETE …/{userId}` (sets/clears `revoked_at`). Owner-only; validates target is an active member. | [add] |
-| 2 | API | Owner-facing assignment read model: `GET /workspaces/{id}/assignments` should return the **full matrix** (job ↔ member) for owners, not just the caller's view. | [partial] |
-| 3 | Web | Assignment UI on **job detail** (member multi-select) and/or a per-member "Assign jobs" panel, with optimistic update + toast (matches dashboard UX bar). | [add] |
-| 4 | Web | Surface assignees on the job list / detail header. | [add] |
-| 5 | API | Make reports respect assignment if required (today any member can report on any workspace job). | [partial] |
+| 1 | API | `POST /workspaces/{id}/jobs/{jobId}/assignments` and `DELETE …/{userId}` (sets/clears `revoked_at`). Owner-only; validates target is an active member. | [have] |
+| 2 | API | Owner-facing assignment read model: `GET /workspaces/{id}/assignments` should return the **full matrix** (job ↔ member) for owners, not just the caller's view. | [have] |
+| 3 | Web | Assignment UI on **job detail** (member multi-select) and/or a per-member "Assign jobs" panel, with optimistic update + toast (matches dashboard UX bar). | [have] |
+| 4 | Web | Surface assignees on the job list / detail header. | [have] |
+| 5 | API | Make reports respect assignment if required (today any member can report on any workspace job). | [have] |
 
 **Acceptance:** Owner opens a job, assigns Ari; Ari's `GET /assignments` now includes it; owner sees Ari listed as assignee. Unassigning writes `revoked_at` and Ari loses write access on next sync.
 
@@ -709,16 +713,16 @@ The plumbing is far more complete than the UX. A quick read of the current state
 
 ### SM4 — Member read-only experience (assigned vs unassigned), both clients
 
-**Goal:** Members clearly see "Assigned to me" vs read-only "Other workspace jobs", and the UI blocks writes **before** the server 403. Closes §9 end-to-end.
+**Status:** **Implemented** (API + web + mobile).
 
 | # | Surface | Task | Status |
 | --- | --- | --- | --- |
-| 1 | API | Decide member job visibility: either (a) keep assigned-only pull, or (b) return unassigned workspace jobs with `read_only: true`. Spec §9 wants **read-only visibility** of other jobs — implement (b) behind the existing access flags. | [partial] |
-| 2 | Mobile | Add `readOnly` to the `Job` model; honor `bundle.read_only` on merge. | [add] |
-| 3 | Mobile | Split the job list into **Assigned to me** and **Other workspace jobs — Read-only** sections. | [add] |
-| 4 | Mobile | Use the already-present `workspaceWritable()` helper to gate the job-detail FAB, capture, edit, delete, and tagging; show the "Ask the owner to assign you before adding records" copy. | [add] |
-| 5 | Web | Add a read-only badge on the **jobs list** (today enforcement only appears after opening a job). | [partial] |
-| 6 | Web | Align banner copy with the spec ("Ask the owner to assign you before adding records"). | [partial] |
+| 1 | API | Return unassigned workspace jobs with `read_only: true` on list and bundle. | [have] |
+| 2 | Mobile | Add `readOnly` to the `Job` model; honor `bundle.read_only` on merge. | [have] |
+| 3 | Mobile | Split the job list into **Assigned to me** and **Other workspace jobs — Read-only** sections. | [have] |
+| 4 | Mobile | Gate job-detail FAB, capture, edit, delete, and tagging; show spec copy. | [have] |
+| 5 | Web | Add a read-only badge on the **jobs list**. | [have] |
+| 6 | Web | Align banner copy with the spec. | [have] |
 
 **Acceptance:** A member sees their two assigned jobs as editable and the rest read-only on both app and web; tapping "add" on a read-only job is blocked client-side, and the server still returns 403 as defense-in-depth.
 
@@ -726,15 +730,15 @@ The plumbing is far more complete than the UX. A quick read of the current state
 
 ### SM5 — Mobile invite acceptance & join flow
 
-**Goal:** A worker can accept an invite from the phone — the §4–§7 flow that is entirely missing on mobile.
+**Status:** **Implemented** (mobile; Apple Sign In / iOS Google deferred).
 
 | # | Surface | Task | Status |
 | --- | --- | --- | --- |
-| 1 | Mobile | Add deep-link / universal-link handling (`app_links`) + Android intent filters + iOS associated domains for `…/invite/accept?token=`. | [add] |
-| 2 | Mobile | "You've been invited to {workspace}" screen → sign in (or create account) → `POST /invites/accept`. | [add] |
-| 3 | Mobile | Add **magic-link** sign-in (API supports it; app doesn't) so email invites work one-tap. | [add] |
-| 4 | Mobile | After accept, auto-select the new workspace context and kick off a sync. | [partial] |
-| 5 | Mobile | Enable **Google on iOS** and add **Sign in with Apple** (also web). | [add] |
+| 1 | Mobile | Deep-link handling (`app_links`) + Android intent filters. | [have] |
+| 2 | Mobile | Invite accept screen → sign in → `POST /invites/accept`. | [have] |
+| 3 | Mobile | Magic-link sign-in. | [have] |
+| 4 | Mobile | After accept, auto-select workspace and sync. | [have] |
+| 5 | Mobile | Google on iOS + Sign in with Apple. | [partial] |
 
 **Acceptance:** Ari taps the invite email on his phone, the app opens to the join screen, he signs in with a magic link, becomes a member, and lands in the Jón Plumbing context with assigned jobs syncing — his local jobs untouched.
 
@@ -742,15 +746,15 @@ The plumbing is far more complete than the UX. A quick read of the current state
 
 ### SM6 — Local↔workspace boundary & one-way promotion
 
-**Goal:** Protect the trust model: local data never auto-uploads, promotion is explicit and one-way, and capture can't go to the wrong company. Closes §6, §11, §23.4–§23.6.
+**Status:** **Implemented** (API + mobile; cancel-wrong-upload UX partial).
 
 | # | Surface | Task | Status |
 | --- | --- | --- | --- |
-| 1 | API | Promotion endpoint that copies a local job's payload into a workspace (job + items + media), idempotent, owner/member-writable. **Copy-then-mark-linked after sync succeeds** (Option A wording in §20). | [add] |
-| 2 | Mobile | "Move to workspace" action with the §11 warning copy; promote only after a successful sync; keep the local original per Option A. | [add] |
-| 3 | Mobile | Show the **active workspace name** on capture hub, each capture screen, and the save/batch-review screen (the §23.4 anti-leak requirement). | [add] |
-| 4 | Mobile | Route guards on `/jobs/:id` + `/jobs/:id/capture/*` so a job from another context can't be opened/captured into by direct navigation. | [add] |
-| 5 | Mobile | "Cancel upload / delete item" affordance for not-yet-synced items captured in the wrong context. | [add] |
+| 1 | API | Promotion endpoint `POST /workspaces/{id}/promote-local-job`. | [have] |
+| 2 | Mobile | "Move to workspace" action with warning copy. | [have] |
+| 3 | Mobile | Active workspace name on capture screens. | [have] |
+| 4 | Mobile | Route guards on job/capture routes. | [have] |
+| 5 | Mobile | Cancel upload / delete for wrong-context queued items. | [partial] |
 
 **Acceptance:** Joining a workspace shows two contexts and uploads nothing automatically; "Move to workspace" copies a chosen local job after explicit confirmation; the workspace name is always visible while capturing; cross-workspace job moves are not offered.
 
@@ -758,17 +762,17 @@ The plumbing is far more complete than the UX. A quick read of the current state
 
 ### SM7 — Member removal & access revocation
 
-**Goal:** Removing a member frees the seat, revokes access everywhere, keeps workspace data, and never touches the worker's local jobs. Closes §16–§20, §23.8.
+**Status:** **Implemented**.
 
 | # | Surface | Task | Status |
 | --- | --- | --- | --- |
-| 1 | API | On remove/leave, **revoke that user's `job_assignments`** (`revoked_at`) and keep their captured records attributed (don't reassign/delete). | [partial] |
-| 2 | API | Provide a cheap **membership/access signal** the clients can poll (e.g. include membership status in `/me` and the workspace cursor) so removal is detected server-side, not just in UI. | [add] |
-| 3 | Mobile | Periodic `/me` refresh while the app is open; detect a removed workspace. | [add] |
-| 4 | Mobile | On removal: mark workspace **"access check required"**, **block new writes**, then **purge/lock cached workspace data** (wire up the existing-but-unused `purgeAfterSync`); reset `captureContext` off the removed workspace. | [add] |
-| 5 | Mobile | Post-removal messaging: "You no longer have access to {workspace}… Your local jobs are still available." | [add] |
-| 6 | Web | Richer member detail (status, assigned-jobs count, **Seat: Occupied**, last active in this workspace) and the §16 removal confirmation copy. | [partial] |
-| 7 | Web/API | After removal show `Seats used: 1/5` and optionally a "Former member" attribution rather than rewriting history. | [partial] |
+| 1 | API | On remove/leave, revoke `job_assignments`. | [have] |
+| 2 | API | Membership signal via `/me` workspace list (removed workspaces omitted). | [have] |
+| 3 | Mobile | Periodic `/me` refresh; detect removed workspace. | [have] |
+| 4 | Mobile | Purge cached workspace data; reset context off removed workspace. | [have] |
+| 5 | Mobile | Post-removal messaging. | [have] |
+| 6 | Web | Richer member detail + §16 removal confirmation copy. | [have] |
+| 7 | Web/API | Seat counts update after removal. | [have] |
 
 **Acceptance:** Owner removes Ari → seat frees immediately, Ari's synced captures stay in the workspace (attributed), Ari's app drops the workspace context and purges its cache on next refresh, and Ari's local jobs are untouched.
 
@@ -776,15 +780,15 @@ The plumbing is far more complete than the UX. A quick read of the current state
 
 ### SM8 — Billing & seat lifecycle completeness
 
-**Goal:** Plan ↔ seat changes are safe and legible end-to-end. Closes §12, §21.
+**Status:** **Implemented**.
 
 | # | Surface | Task | Status |
 | --- | --- | --- | --- |
-| 1 | API | Enforce `CanDowngradeTo` on the **webhook** `subscription.updated`, not just the portal preflight, so Paddle downgrades can't push a workspace over its seat limit. | [partial] |
-| 2 | Web | Downgrade guard UI: "Remove N members/invites before downgrading"; wire the existing `target_plan_sku` portal path. | [partial] |
-| 3 | Web | "All seats used" upgrade prompt at the invite limit (links to plan change). | [partial] |
-| 4 | API | Enforce `sync_push_allowed` on mutation handlers (currently computed/returned but only `writable` is checked). | [partial] |
-| 5 | Web/API | Confirm a freed seat (after removal) immediately reflects in billing + team counts. | [partial] |
+| 1 | API | Enforce `CanDowngradeTo` on Paddle webhook `subscription.updated`. | [have] |
+| 2 | Web | Downgrade guard UI + `target_plan_sku` portal path. | [have] |
+| 3 | Web | "All seats used" upgrade prompt at invite limit. | [have] |
+| 4 | API | Enforce `sync_push_allowed` on mutation handlers. | [have] |
+| 5 | Web/API | Freed seats reflect in billing + team counts. | [have] |
 
 **Acceptance:** Owner with 4 members can't downgrade `crew_5 → solo_1` until they remove members; the UI explains why; removing a member frees a seat that's reflected on the billing screen.
 
@@ -792,13 +796,13 @@ The plumbing is far more complete than the UX. A quick read of the current state
 
 ### SM9 — Account deletion (separate, careful flow)
 
-**Goal:** Deleting a *user account* is distinct from being removed from a company. Closes §23.9.
+**Status:** **Implemented** (owner transfer/delete workspace still blocked with error message).
 
 | # | Surface | Task | Status |
 | --- | --- | --- | --- |
-| 1 | API | `DELETE /auth/me`: revoke sessions, end active memberships, **keep workspace-owned records**, anonymize or preserve attribution per policy. | [add] |
-| 2 | API | Owner can't orphan a workspace: require **transfer ownership** or **delete workspace** before owner-account deletion. | [add] |
-| 3 | Web/Mobile | Account-deletion entry point with explicit, irreversible-action confirmation; "Leave workspace" action surfaced in account settings (web + mobile). | [add] |
+| 1 | API | `DELETE /auth/me`: revoke sessions, end memberships, preserve workspace records. | [have] |
+| 2 | API | Owner can't orphan workspace without transfer/delete. | [have] |
+| 3 | Web/Mobile | Account deletion + Leave workspace in settings. | [have] |
 
 **Acceptance:** A worker can delete their account; company records they captured remain in each workspace; an owner is forced to transfer or delete the workspace first.
 

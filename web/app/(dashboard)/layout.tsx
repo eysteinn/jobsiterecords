@@ -1,4 +1,5 @@
 import { DashboardShell } from "@/components/dashboard-shell";
+import { getActiveWorkspaceFromCookies } from "@/lib/active-workspace";
 import { requireSession } from "@/lib/server-session";
 
 export default async function DashboardLayout({
@@ -7,5 +8,10 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const session = await requireSession();
-  return <DashboardShell session={session}>{children}</DashboardShell>;
+  const activeWorkspace = await getActiveWorkspaceFromCookies(session);
+  return (
+    <DashboardShell session={session} activeWorkspace={activeWorkspace}>
+      {children}
+    </DashboardShell>
+  );
 }

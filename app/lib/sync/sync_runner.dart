@@ -65,7 +65,8 @@ class SyncExecutor {
       final engine = _ref.read(syncEngineProvider);
       final wifiOnly = _ref.read(syncWifiOnlyProvider);
       final workspace = findWorkspace(session.workspaces, ctx.workspaceId!);
-      final pushAllowed = workspaceSyncPushAllowed(workspace);
+      final pushAllowed = workspaceSyncPushAllowed(workspace) &&
+          workspaceInSession(session.workspaces, ctx.workspaceId!);
       final result = await engine.sync(
         session: session,
         workspaceId: ctx.workspaceId!,

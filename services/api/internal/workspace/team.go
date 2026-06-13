@@ -25,13 +25,14 @@ var (
 const inviteDays = 7
 
 type TeamMember struct {
-	UserID       string     `json:"user_id"`
-	Email        string     `json:"email"`
-	Name         *string    `json:"name,omitempty"`
-	Role         string     `json:"role"`
-	Status       string     `json:"status"`
-	LastActiveAt *time.Time `json:"last_active_at,omitempty"`
-	JoinedAt     time.Time  `json:"joined_at"`
+	UserID            string     `json:"user_id"`
+	Email             string     `json:"email"`
+	Name              *string    `json:"name,omitempty"`
+	Role              string     `json:"role"`
+	Status            string     `json:"status"`
+	AssignedJobCount  int        `json:"assigned_job_count"`
+	LastActiveAt      *time.Time `json:"last_active_at,omitempty"`
+	JoinedAt          time.Time  `json:"joined_at"`
 }
 
 type TeamInvite struct {
@@ -81,6 +82,9 @@ func (s *Service) GetTeam(ctx context.Context, userID, workspaceID string) (Team
 	if err := s.requireOwner(ctx, userID, workspaceID); err != nil {
 		return TeamSummary{}, err
 	}
+	if err := s.expirePendingInvites(ctx, workspaceID); err != nil {
+		return TeamSummary{}, err
+	}
 
 	var memberLimit int
 	err := s.pool.QueryRow(ctx, `SELECT member_limit FROM workspaces WHERE id = $1`, workspaceID).Scan(&memberLimit)
@@ -89,9 +93,17 @@ func (s *Service) GetTeam(ctx context.Context, userID, workspaceID string) (Team
 	}
 
 	memberRows, err := s.pool.Query(ctx, `
-		SELECT u.id, u.email, u.name, m.role, m.status, m.last_active_at, m.created_at
+		SELECT u.id, u.email, u.name, m.role, m.status, m.last_active_at, m.created_at,
+		       COALESCE(ac.cnt, 0)
 		FROM workspace_memberships m
 		JOIN users u ON u.id = m.user_id
+		LEFT JOIN (
+			SELECT ja.user_id, COUNT(*)::int AS cnt
+			FROM job_assignments ja
+			JOIN jobs j ON j.id = ja.job_id
+			WHERE j.workspace_id = $1 AND j.deleted_at IS NULL AND ja.revoked_at IS NULL
+			GROUP BY ja.user_id
+		) ac ON ac.user_id = m.user_id
 		WHERE m.workspace_id = $1 AND m.status = 'active'
 		ORDER BY
 			CASE WHEN m.role = 'owner' THEN 0 ELSE 1 END,
@@ -105,7 +117,10 @@ func (s *Service) GetTeam(ctx context.Context, userID, workspaceID string) (Team
 	members := make([]TeamMember, 0)
 	for memberRows.Next() {
 		var m TeamMember
-		if err := memberRows.Scan(&m.UserID, &m.Email, &m.Name, &m.Role, &m.Status, &m.LastActiveAt, &m.JoinedAt); err != nil {
+		if err := memberRows.Scan(
+			&m.UserID, &m.Email, &m.Name, &m.Role, &m.Status, &m.LastActiveAt, &m.JoinedAt,
+			&m.AssignedJobCount,
+		); err != nil {
 			return TeamSummary{}, err
 		}
 		members = append(members, m)
@@ -147,6 +162,9 @@ func (s *Service) GetTeam(ctx context.Context, userID, workspaceID string) (Team
 }
 
 func (s *Service) seatUsage(ctx context.Context, workspaceID string) (active int, pending int, limit int, err error) {
+	if err := s.expirePendingInvites(ctx, workspaceID); err != nil {
+		return 0, 0, 0, err
+	}
 	err = s.pool.QueryRow(ctx, `SELECT member_limit FROM workspaces WHERE id = $1`, workspaceID).Scan(&limit)
 	if err != nil {
 		return 0, 0, 0, err
@@ -163,6 +181,25 @@ func (s *Service) seatUsage(ctx context.Context, workspaceID string) (active int
 		WHERE workspace_id = $1 AND status = 'pending' AND expires_at > now()
 	`, workspaceID).Scan(&pending)
 	return active, pending, limit, err
+}
+
+// expirePendingInvites marks overdue pending invites as expired so they stop reserving seats.
+func (s *Service) expirePendingInvites(ctx context.Context, workspaceID string) error {
+	_, err := s.pool.Exec(ctx, `
+		UPDATE workspace_invites
+		SET status = 'expired'
+		WHERE workspace_id = $1 AND status = 'pending' AND expires_at <= now()
+	`, workspaceID)
+	return err
+}
+
+// TouchMemberActivity updates last_active_at for an active workspace member (best-effort).
+func (s *Service) TouchMemberActivity(ctx context.Context, userID, workspaceID string) {
+	_, _ = s.pool.Exec(ctx, `
+		UPDATE workspace_memberships
+		SET last_active_at = now()
+		WHERE workspace_id = $1 AND user_id = $2 AND status = 'active'
+	`, workspaceID, userID)
 }
 
 func (s *Service) requireWorkspaceWritable(ctx context.Context, workspaceID string) error {
@@ -242,6 +279,33 @@ func (s *Service) ResendInvite(ctx context.Context, userID, workspaceID, inviteI
 	if err := s.requireOwner(ctx, userID, workspaceID); err != nil {
 		return TeamInvite{}, "", err
 	}
+	if err := s.requireWorkspaceWritable(ctx, workspaceID); err != nil {
+		return TeamInvite{}, "", err
+	}
+	if err := s.expirePendingInvites(ctx, workspaceID); err != nil {
+		return TeamInvite{}, "", err
+	}
+
+	var priorStatus string
+	err := s.pool.QueryRow(ctx, `
+		SELECT status FROM workspace_invites
+		WHERE id = $1 AND workspace_id = $2
+	`, inviteID, workspaceID).Scan(&priorStatus)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return TeamInvite{}, "", ErrInviteNotFound
+		}
+		return TeamInvite{}, "", err
+	}
+	if priorStatus == "expired" {
+		active, pending, limit, err := s.seatUsage(ctx, workspaceID)
+		if err != nil {
+			return TeamInvite{}, "", err
+		}
+		if active+pending >= limit {
+			return TeamInvite{}, "", ErrMemberLimit
+		}
+	}
 
 	plain, hash, err := auth.NewOpaqueToken()
 	if err != nil {
@@ -269,6 +333,9 @@ func (s *Service) ResendInvite(ctx context.Context, userID, workspaceID, inviteI
 
 func (s *Service) RevokeInvite(ctx context.Context, userID, workspaceID, inviteID string) error {
 	if err := s.requireOwner(ctx, userID, workspaceID); err != nil {
+		return err
+	}
+	if err := s.requireWorkspaceWritable(ctx, workspaceID); err != nil {
 		return err
 	}
 	tag, err := s.pool.Exec(ctx, `
@@ -309,6 +376,19 @@ func (s *Service) RemoveMember(ctx context.Context, userID, workspaceID, memberU
 	}
 
 	_, err = s.pool.Exec(ctx, `
+		UPDATE job_assignments ja
+		SET revoked_at = now()
+		FROM jobs j
+		WHERE ja.job_id = j.id
+		  AND j.workspace_id = $1
+		  AND ja.user_id = $2
+		  AND ja.revoked_at IS NULL
+	`, workspaceID, memberUserID)
+	if err != nil {
+		return err
+	}
+
+	_, err = s.pool.Exec(ctx, `
 		UPDATE workspace_memberships
 		SET status = 'removed', last_active_at = now()
 		WHERE workspace_id = $1 AND user_id = $2
@@ -341,6 +421,12 @@ func (s *Service) PreviewInvite(ctx context.Context, plain string) (InvitePrevie
 		return InvitePreview{}, err
 	}
 	if status != "pending" || time.Now().After(expiresAt) {
+		if status == "pending" && time.Now().After(expiresAt) {
+			_, _ = s.pool.Exec(ctx, `
+				UPDATE workspace_invites SET status = 'expired'
+				WHERE token_hash = $1
+			`, hash)
+		}
 		return InvitePreview{}, ErrInvalidInvite
 	}
 	return preview, nil
@@ -370,7 +456,21 @@ func (s *Service) AcceptInvite(ctx context.Context, userID, plain string) (Works
 		return Workspace{}, err
 	}
 	if status != "pending" || time.Now().After(expiresAt) {
+		if status == "pending" && time.Now().After(expiresAt) {
+			_, _ = tx.Exec(ctx, `
+				UPDATE workspace_invites SET status = 'expired' WHERE id = $1
+			`, inviteID)
+		}
 		return Workspace{}, ErrInvalidInvite
+	}
+
+	_, err = tx.Exec(ctx, `
+		UPDATE workspace_invites
+		SET status = 'expired'
+		WHERE workspace_id = $1 AND status = 'pending' AND expires_at <= now() AND id <> $2
+	`, workspaceID, inviteID)
+	if err != nil {
+		return Workspace{}, err
 	}
 
 	var userEmail string

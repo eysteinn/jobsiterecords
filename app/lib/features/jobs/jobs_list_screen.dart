@@ -11,6 +11,7 @@ import '../../domain/models/job.dart';
 import '../../domain/models/timeline_item.dart';
 import '../../sync/sync_providers.dart';
 import '../../sync/sync_runner.dart';
+import '../../sync/workspace_access.dart';
 import '../sync/sync_status_footer.dart';
 import '../sync/workspace_switcher.dart';
 import 'widgets/job_status_pill.dart';
@@ -64,6 +65,11 @@ class _JobsListScreenState extends ConsumerState<JobsListScreen> {
     final storage = ref.watch(mediaStorageProvider);
     final ctx = ref.watch(captureContextProvider);
     final syncStatus = ref.watch(syncStatusProvider);
+    final session = ref.watch(authSessionProvider).valueOrNull;
+    final workspace = ctx.isWorkspace && ctx.workspaceId != null && session != null
+        ? findWorkspace(session.workspaces, ctx.workspaceId!)
+        : null;
+    final memberList = ctx.isWorkspace && !workspaceIsOwner(workspace);
 
     if (ctx.workspaceId != _lastWorkspaceId) {
       _lastWorkspaceId = ctx.workspaceId;
@@ -121,6 +127,50 @@ class _JobsListScreenState extends ConsumerState<JobsListScreen> {
                     final filtered = _filterJobs(jobs);
                     if (filtered.isEmpty) return _EmptyState(query: _query, hasStatusFilter: _statusFilter != null);
                     final summaries = summariesAsync.valueOrNull ?? const {};
+                    if (memberList) {
+                      final assigned = filtered.where((j) => !j.readOnly).toList();
+                      final readOnlyJobs = filtered.where((j) => j.readOnly).toList();
+                      return RefreshIndicator(
+                        onRefresh: _refresh,
+                        child: ListView(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 140),
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: [
+                            if (assigned.isNotEmpty) ...[
+                              const _SectionTitle('Assigned to me'),
+                              for (final j in assigned) ...[
+                                _JobCard(
+                                  job: j,
+                                  summary: summaries[j.id],
+                                  coverPath: summaries[j.id]?.coverPhotoRelativePath == null
+                                      ? null
+                                      : storage.absolutePath(summaries[j.id]!.coverPhotoRelativePath!),
+                                  onTap: () => context.pushNamed('job-detail', pathParameters: {'id': j.id}),
+                                  onDelete: jobCanWrite(j, workspace) ? () => _confirmDeleteJob(context, ref, j) : null,
+                                ),
+                                const SizedBox(height: 10),
+                              ],
+                            ],
+                            if (readOnlyJobs.isNotEmpty) ...[
+                              const SizedBox(height: 8),
+                              const _SectionTitle('Other workspace jobs — Read-only'),
+                              for (final j in readOnlyJobs) ...[
+                                _JobCard(
+                                  job: j,
+                                  summary: summaries[j.id],
+                                  coverPath: summaries[j.id]?.coverPhotoRelativePath == null
+                                      ? null
+                                      : storage.absolutePath(summaries[j.id]!.coverPhotoRelativePath!),
+                                  onTap: () => context.pushNamed('job-detail', pathParameters: {'id': j.id}),
+                                  readOnly: true,
+                                ),
+                                const SizedBox(height: 10),
+                              ],
+                            ],
+                          ],
+                        ),
+                      );
+                    }
                     return RefreshIndicator(
                       onRefresh: _refresh,
                       child: ListView.separated(
@@ -138,7 +188,9 @@ class _JobsListScreenState extends ConsumerState<JobsListScreen> {
                                 ? null
                                 : storage.absolutePath(s!.coverPhotoRelativePath!),
                             onTap: () => context.pushNamed('job-detail', pathParameters: {'id': j.id}),
-                            onDelete: () => _confirmDeleteJob(context, ref, j),
+                            onDelete: (ctx.isWorkspace && !jobCanWrite(j, workspace))
+                                ? null
+                                : () => _confirmDeleteJob(context, ref, j),
                           );
                         },
                       ),
@@ -151,10 +203,11 @@ class _JobsListScreenState extends ConsumerState<JobsListScreen> {
               SyncStatusFooter(captureContext: ctx, syncStatus: syncStatus),
             ],
           ),
-          StickyActionFab(
-            label: 'New job',
-            onPressed: () => context.pushNamed('job-new'),
-          ),
+          if (!ctx.isWorkspace || workspaceWritable(workspace))
+            StickyActionFab(
+              label: 'New job',
+              onPressed: () => context.pushNamed('job-new'),
+            ),
         ],
       ),
     );
@@ -287,20 +340,38 @@ class _JobsHeader extends StatelessWidget {
   }
 }
 
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle(this.label);
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8, top: 4),
+      child: Text(
+        label,
+        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: AppColors.subtle),
+      ),
+    );
+  }
+}
+
 class _JobCard extends StatelessWidget {
   const _JobCard({
     required this.job,
     required this.summary,
     required this.coverPath,
     required this.onTap,
-    required this.onDelete,
+    this.onDelete,
+    this.readOnly = false,
   });
 
   final Job job;
   final JobSummary? summary;
   final String? coverPath;
   final VoidCallback onTap;
-  final VoidCallback onDelete;
+  final VoidCallback? onDelete;
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -354,6 +425,11 @@ class _JobCard extends StatelessWidget {
                           ),
                         ),
                         JobStatusPill(status: job.status, compact: true),
+                        if (readOnly)
+                          const Padding(
+                            padding: EdgeInsets.only(left: 6),
+                            child: Icon(Icons.lock_outline, size: 16, color: AppColors.subtle),
+                          ),
                       ],
                     ),
                     if ((subtitle ?? '').isNotEmpty)
@@ -376,18 +452,19 @@ class _JobCard extends StatelessWidget {
                   ],
                 ),
               ),
-              PopupMenuButton<String>(
-                icon: const Icon(Icons.more_vert, color: AppColors.subtle, size: 20),
-                onSelected: (v) {
-                  if (v == 'delete') onDelete();
-                },
-                itemBuilder: (_) => [
-                  const PopupMenuItem(
-                    value: 'delete',
-                    child: Text('Delete', style: TextStyle(color: Colors.red)),
-                  ),
-                ],
-              ),
+              if (onDelete != null)
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert, color: AppColors.subtle, size: 20),
+                  onSelected: (v) {
+                    if (v == 'delete') onDelete!();
+                  },
+                  itemBuilder: (_) => [
+                    const PopupMenuItem(
+                      value: 'delete',
+                      child: Text('Delete', style: TextStyle(color: Colors.red)),
+                    ),
+                  ],
+                ),
             ],
           ),
         ),

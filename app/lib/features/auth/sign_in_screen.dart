@@ -8,7 +8,9 @@ import '../../sync/sync_providers.dart';
 import 'google_sign_in_button.dart';
 
 class SignInScreen extends ConsumerStatefulWidget {
-  const SignInScreen({super.key});
+  const SignInScreen({super.key, this.inviteToken});
+
+  final String? inviteToken;
 
   @override
   ConsumerState<SignInScreen> createState() => _SignInScreenState();
@@ -21,6 +23,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   final _name = TextEditingController();
   bool _signup = false;
   bool _busy = false;
+  bool _magicLinkSent = false;
   String? _error;
 
   @override
@@ -44,12 +47,36 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       } else {
         await auth.login(_email.text.trim(), _password.text);
       }
-      if (mounted) context.pop();
+      if (mounted) {
+        final invite = widget.inviteToken;
+        if (invite != null && invite.isNotEmpty) {
+          context.go('/invite/accept?token=${Uri.encodeQueryComponent(invite)}');
+        } else {
+          context.pop();
+        }
+      }
     } catch (e) {
       final msg = e.toString();
       setState(() => _error = msg.contains('TimeoutException')
           ? 'Could not reach the server at ${dotenv.env['API_BASE_URL'] ?? '10.0.2.2:8080'}. Check API_BASE_URL in .env and that Docker is running.'
           : msg);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _sendMagicLink() async {
+    if (!_form.currentState!.validate()) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+      _magicLinkSent = false;
+    });
+    try {
+      await ref.read(authServiceProvider).requestMagicLink(_email.text.trim());
+      if (mounted) setState(() => _magicLinkSent = true);
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString());
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -96,6 +123,13 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                   const SizedBox(height: 12),
                   Text(_error!, style: const TextStyle(color: Colors.red)),
                 ],
+                if (_magicLinkSent) ...[
+                  const SizedBox(height: 12),
+                  const Text(
+                    'If that email is registered, a sign-in link is on its way. Open it on this device.',
+                    style: TextStyle(color: AppColors.subtle),
+                  ),
+                ],
                 const SizedBox(height: 20),
                 SizedBox(
                   width: double.infinity,
@@ -110,6 +144,16 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                         : Text(_signup ? 'Sign up' : 'Sign in'),
                   ),
                 ),
+                if (!_signup) ...[
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: _busy ? null : _sendMagicLink,
+                      child: const Text('Email me a sign-in link'),
+                    ),
+                  ),
+                ],
                 TextButton(
                   onPressed: _busy
                       ? null

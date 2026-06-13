@@ -1,12 +1,13 @@
 import { EmptyState, PageShell } from "@/components/page-shell";
 import { TeamPageClient } from "@/components/team-page-client";
 import { getTeam } from "@/lib/api-team";
+import { getActiveWorkspaceFromCookies } from "@/lib/active-workspace";
 import { requireSession } from "@/lib/server-session";
 import { redirect } from "next/navigation";
 
 export default async function TeamPage() {
   const session = await requireSession();
-  const workspace = session.workspaces[0];
+  const workspace = await getActiveWorkspaceFromCookies(session);
   if (!workspace) {
     redirect("/jobs");
   }
@@ -19,6 +20,7 @@ export default async function TeamPage() {
     return (
       <TeamPageClient
         workspaceId={workspace.id}
+        workspaceName={workspace.name}
         initial={team}
         workspaceWritable={workspace.writable}
       />

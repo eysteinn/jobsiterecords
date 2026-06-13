@@ -63,9 +63,12 @@ export function MobileJobCard({ job, onDelete }: Props) {
       <div className={styles.body}>
         <div className={styles.topRow}>
           <h2 className={styles.title}>{job.name}</h2>
-          <span className={`${styles.pill} ${styles[`status_${job.status}`]}`}>
-            {statusLabel(job.status)}
-          </span>
+          <div className={styles.badges}>
+            {job.read_only && <span className={styles.readOnlyBadge}>Read-only</span>}
+            <span className={`${styles.pill} ${styles[`status_${job.status}`]}`}>
+              {statusLabel(job.status)}
+            </span>
+          </div>
         </div>
         {subtitle && <p className={styles.subtitle}>{subtitle}</p>}
         <p className={styles.meta}>

@@ -144,6 +144,16 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (h *AuthHandler) DeleteMe(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.UserID(r.Context())
+	if err := h.auth.DeleteAccount(r.Context(), userID); err != nil {
+		httpx.Error(w, http.StatusBadRequest, "delete_failed", err.Error(), nil)
+		return
+	}
+	clearSessionCookies(w, h.cfg)
+	httpx.JSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+}
+
 func (h *AuthHandler) MagicLink(w http.ResponseWriter, r *http.Request) {
 	var req emailRequest
 	if err := httpx.DecodeJSON(r, &req); err != nil {
@@ -402,6 +412,21 @@ func (h *WorkspaceHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.JSON(w, http.StatusOK, map[string]any{"workspaces": items})
+}
+
+func (h *WorkspaceHandler) Get(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.UserID(r.Context())
+	workspaceID := r.PathValue("workspaceID")
+	ws, err := h.workspaces.GetForUser(r.Context(), userID, workspaceID)
+	if err != nil {
+		if err.Error() == "not a workspace member" {
+			httpx.Error(w, http.StatusForbidden, "forbidden", err.Error(), nil)
+			return
+		}
+		httpx.Error(w, http.StatusInternalServerError, "internal", "Could not load workspace", nil)
+		return
+	}
+	httpx.JSON(w, http.StatusOK, ws)
 }
 
 func (h *WorkspaceHandler) Leave(w http.ResponseWriter, r *http.Request) {

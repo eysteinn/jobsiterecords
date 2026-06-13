@@ -7,6 +7,7 @@ export type TeamMember = {
   name?: string | null;
   role: "owner" | "member";
   status: string;
+  assigned_job_count?: number;
   last_active_at?: string | null;
   joined_at: string;
 };

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../app/providers.dart';
 import '../../app/theme.dart';
 import '../../domain/models/job.dart';
+import 'widgets/workspace_context_banner.dart';
 
 class CaptureHubScreen extends ConsumerWidget {
   const CaptureHubScreen({super.key});
@@ -15,7 +16,11 @@ class CaptureHubScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Capture')),
-      body: jobsAsync.when(
+      body: Column(
+        children: [
+          const WorkspaceContextBanner(),
+          Expanded(
+            child: jobsAsync.when(
         data: (jobs) {
           if (jobs.isEmpty) {
             return Center(
@@ -66,6 +71,9 @@ class CaptureHubScreen extends ConsumerWidget {
         },
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Error: $e')),
+            ),
+          ),
+        ],
       ),
     );
   }

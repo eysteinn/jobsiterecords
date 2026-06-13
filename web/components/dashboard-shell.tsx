@@ -4,9 +4,11 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { Session } from "@/lib/types";
+import type { Workspace } from "@/lib/types";
 import { CommandPalette } from "./command-palette";
 import { SubscriptionBanner } from "./subscription-banner";
 import { MobileBottomNav } from "./mobile-bottom-nav";
+import { WorkspaceSwitcher } from "./workspace-switcher";
 import {
   ChevronLeftIcon,
   JobsNavIcon,
@@ -26,6 +28,7 @@ const baseNav = [
 
 type Props = {
   session: Session;
+  activeWorkspace?: Workspace;
   children: React.ReactNode;
 };
 
@@ -38,13 +41,13 @@ function initialsFromEmail(email: string): string {
   return local.slice(0, 2).toUpperCase();
 }
 
-export function DashboardShell({ session, children }: Props) {
+export function DashboardShell({ session, activeWorkspace, children }: Props) {
   const pathname = usePathname();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const workspace = session.workspaces[0];
+  const workspace = activeWorkspace;
   const nav = baseNav.filter((item) => !item.ownerOnly || workspace?.role === "owner");
   const isJobsList = pathname === "/jobs";
   const isJobDetail = /^\/jobs\/[^/]+$/.test(pathname);
@@ -108,19 +111,10 @@ export function DashboardShell({ session, children }: Props) {
       <div className={styles.main}>
         <header className={`${styles.header} desktopOnly`}>
           <div className={styles.headerLeft}>
-            {workspace ? (
-              <div className={styles.workspaceSwitcher}>
-                <span className={styles.workspaceLabel}>Workspace</span>
-                <button type="button" className={styles.workspaceName}>
-                  <strong>{workspace.name}</strong>
-                  <span className={styles.workspaceCaret} aria-hidden>
-                    ▾
-                  </span>
-                </button>
-              </div>
-            ) : (
-              <span className={styles.muted}>No workspace</span>
-            )}
+            <WorkspaceSwitcher
+              workspaces={session.workspaces}
+              activeWorkspace={workspace}
+            />
           </div>
           <div className={styles.headerRight}>
             <button
@@ -195,7 +189,7 @@ export function DashboardShell({ session, children }: Props) {
         </main>
       </div>
 
-      <MobileBottomNav session={session} />
+      <MobileBottomNav session={session} activeWorkspace={workspace} />
 
       <CommandPalette
         open={paletteOpen}

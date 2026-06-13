@@ -404,6 +404,52 @@ func (s *Service) userHasActiveWorkspace(ctx context.Context, tx pgx.Tx, userID 
 	return exists, err
 }
 
+func (s *Service) DeleteAccount(ctx context.Context, userID string) error {
+	var owned int
+	if err := s.pool.QueryRow(ctx, `
+		SELECT COUNT(*)::int FROM workspaces WHERE owner_user_id = $1
+	`, userID).Scan(&owned); err != nil {
+		return err
+	}
+	if owned > 0 {
+		return errors.New("transfer ownership or delete owned workspaces before deleting account")
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	_, err = tx.Exec(ctx, `
+		UPDATE workspace_memberships
+		SET status = 'left', last_active_at = now()
+		WHERE user_id = $1 AND status = 'active'
+	`, userID)
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.Exec(ctx, `
+		UPDATE auth_refresh_tokens SET revoked_at = now()
+		WHERE user_id = $1 AND revoked_at IS NULL
+	`, userID)
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.Exec(ctx, `
+		UPDATE users
+		SET password_hash = NULL, email = 'deleted+' || id::text || '@deleted.local'
+		WHERE id = $1
+	`, userID)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
+}
+
 func defaultWorkspaceName(name *string, email string) string {
 	if name != nil && *name != "" {
 		return *name + "'s Workspace"

@@ -111,6 +111,7 @@ func New(cfg config.Config, pool *pgxpool.Pool) (*Server, error) {
 			auth.Group(func(protected chi.Router) {
 				protected.Use(authmw.RequireAuth(cfg.JWTSecret))
 				protected.Get("/me", authH.Me)
+				protected.Delete("/me", authH.DeleteMe)
 				protected.Post("/logout", authH.Logout)
 			})
 		})
@@ -118,6 +119,7 @@ func New(cfg config.Config, pool *pgxpool.Pool) (*Server, error) {
 		api.Group(func(protected chi.Router) {
 			protected.Use(authmw.RequireAuth(cfg.JWTSecret))
 			protected.Get("/workspaces", wsH.List)
+			protected.Get("/workspaces/{workspaceID}", wsH.Get)
 			protected.Get("/workspaces/{workspaceID}/billing", billingH.GetWorkspaceBilling)
 			protected.Post("/workspaces/{workspaceID}/billing/portal", billingH.OpenPortal)
 			protected.Post("/workspaces/{workspaceID}/leave", wsH.Leave)
@@ -131,7 +133,10 @@ func New(cfg config.Config, pool *pgxpool.Pool) (*Server, error) {
 			protected.Get("/workspaces/{workspaceID}/tags", jobsH.ListWorkspaceTags)
 			protected.Put("/workspaces/{workspaceID}/tags/{tagID}", jobsH.UpsertTag)
 			protected.Get("/workspaces/{workspaceID}/cursor", jobsH.GetWorkspaceCursor)
-			protected.Get("/workspaces/{workspaceID}/assignments", jobsH.AssignedJobIDs)
+			protected.Get("/workspaces/{workspaceID}/assignments", jobsH.GetAssignments)
+			protected.Post("/workspaces/{workspaceID}/jobs/{jobID}/assignments", jobsH.AssignMember)
+			protected.Delete("/workspaces/{workspaceID}/jobs/{jobID}/assignments/{userID}", jobsH.UnassignMember)
+			protected.Post("/workspaces/{workspaceID}/promote-local-job", jobsH.PromoteLocalJob)
 			protected.Post("/workspaces/{workspaceID}/reports", reportsH.Create)
 			protected.Get("/workspaces/{workspaceID}/reports", reportsH.List)
 			protected.Get("/jobs/{jobID}/cursor", jobsH.GetJobCursor)

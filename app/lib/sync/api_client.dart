@@ -66,6 +66,19 @@ class ApiClient {
         .timeout(_timeout);
   }
 
+  Future<http.Response> delete(
+    String path, {
+    Map<String, String>? headers,
+    String? accessToken,
+  }) {
+    return _client
+        .delete(
+          Uri.parse('$baseUrl$path'),
+          headers: _headers(headers, accessToken),
+        )
+        .timeout(_timeout);
+  }
+
   Future<http.Response> putBytes(
     Uri url, {
     required List<int> body,

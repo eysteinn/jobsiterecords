@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../features/auth/invite_accept_screen.dart';
+import '../features/auth/magic_link_verify_screen.dart';
 import '../features/auth/sign_in_screen.dart';
 import '../features/capture/capture_hub_screen.dart';
 import '../features/capture/file_capture_screen.dart';
@@ -14,6 +16,7 @@ import '../features/jobs/job_form_screen.dart';
 import '../features/jobs/jobs_list_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/photo_annotation/photo_annotation_screen.dart';
+import 'job_context_guard.dart';
 import 'shell.dart';
 
 final appRouter = GoRouter(
@@ -55,7 +58,23 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/sign-in',
       name: 'sign-in',
-      builder: (_, __) => const SignInScreen(),
+      builder: (_, state) => SignInScreen(
+        inviteToken: state.uri.queryParameters['invite_token'],
+      ),
+    ),
+    GoRoute(
+      path: '/invite/accept',
+      name: 'invite-accept',
+      builder: (_, state) => InviteAcceptScreen(
+        token: state.uri.queryParameters['token'] ?? '',
+      ),
+    ),
+    GoRoute(
+      path: '/auth/verify',
+      name: 'auth-verify',
+      builder: (_, state) => MagicLinkVerifyScreen(
+        token: state.uri.queryParameters['token'] ?? '',
+      ),
     ),
     GoRoute(
       path: '/jobs/new',
@@ -65,32 +84,50 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/jobs/:id',
       name: 'job-detail',
-      builder: (_, state) => JobDetailScreen(jobId: state.pathParameters['id']!),
+      builder: (_, state) => JobContextGuard(
+        jobId: state.pathParameters['id']!,
+        child: JobDetailScreen(jobId: state.pathParameters['id']!),
+      ),
     ),
     GoRoute(
       path: '/jobs/:id/edit',
       name: 'job-edit',
-      builder: (_, state) => JobFormScreen(jobId: state.pathParameters['id']),
+      builder: (_, state) => JobContextGuard(
+        jobId: state.pathParameters['id']!,
+        child: JobFormScreen(jobId: state.pathParameters['id']),
+      ),
     ),
     GoRoute(
       path: '/jobs/:id/capture/photo',
       name: 'capture-photo',
-      builder: (_, state) => PhotoCaptureScreen(jobId: state.pathParameters['id']!),
+      builder: (_, state) => JobContextGuard(
+        jobId: state.pathParameters['id']!,
+        child: PhotoCaptureScreen(jobId: state.pathParameters['id']!),
+      ),
     ),
     GoRoute(
       path: '/jobs/:id/capture/voice',
       name: 'capture-voice',
-      builder: (_, state) => VoiceCaptureScreen(jobId: state.pathParameters['id']!),
+      builder: (_, state) => JobContextGuard(
+        jobId: state.pathParameters['id']!,
+        child: VoiceCaptureScreen(jobId: state.pathParameters['id']!),
+      ),
     ),
     GoRoute(
       path: '/jobs/:id/capture/note',
       name: 'capture-note',
-      builder: (_, state) => NoteCaptureScreen(jobId: state.pathParameters['id']!),
+      builder: (_, state) => JobContextGuard(
+        jobId: state.pathParameters['id']!,
+        child: NoteCaptureScreen(jobId: state.pathParameters['id']!),
+      ),
     ),
     GoRoute(
       path: '/jobs/:id/capture/file',
       name: 'capture-file',
-      builder: (_, state) => FileCaptureScreen(jobId: state.pathParameters['id']!),
+      builder: (_, state) => JobContextGuard(
+        jobId: state.pathParameters['id']!,
+        child: FileCaptureScreen(jobId: state.pathParameters['id']!),
+      ),
     ),
     GoRoute(
       path: '/jobs/:id/export',

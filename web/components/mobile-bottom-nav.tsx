@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { Session } from "@/lib/types";
+import type { Session, Workspace } from "@/lib/types";
 import styles from "./mobile-bottom-nav.module.css";
 
 const baseNav = [
@@ -14,11 +14,12 @@ const baseNav = [
 
 type Props = {
   session: Session;
+  activeWorkspace?: Workspace;
 };
 
-export function MobileBottomNav({ session }: Props) {
+export function MobileBottomNav({ session, activeWorkspace }: Props) {
   const pathname = usePathname();
-  const workspace = session.workspaces[0];
+  const workspace = activeWorkspace;
   const nav = baseNav.filter((item) => !item.ownerOnly || workspace?.role === "owner");
 
   return (

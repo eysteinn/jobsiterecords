@@ -44,6 +44,7 @@ class Job {
   final DateTime createdAt;
   final DateTime updatedAt;
   final DateTime? deletedAt;
+  final bool readOnly;
 
   const Job({
     required this.id,
@@ -62,6 +63,7 @@ class Job {
     required this.createdAt,
     required this.updatedAt,
     this.deletedAt,
+    this.readOnly = false,
   });
 
   bool get isDeleted => deletedAt != null;
@@ -81,6 +83,7 @@ class Job {
     DateTime? lastSyncedAt,
     DateTime? updatedAt,
     DateTime? deletedAt,
+    bool? readOnly,
   }) {
     return Job(
       id: id,
@@ -99,6 +102,7 @@ class Job {
       createdAt: createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       deletedAt: deletedAt ?? this.deletedAt,
+      readOnly: readOnly ?? this.readOnly,
     );
   }
 
@@ -119,6 +123,7 @@ class Job {
         'created_at': createdAt.toIso8601String(),
         'updated_at': updatedAt.toIso8601String(),
         'deleted_at': deletedAt?.toIso8601String(),
+        'read_only': readOnly ? 1 : 0,
       };
 
   factory Job.fromDb(Map<String, Object?> r) => Job(
@@ -138,6 +143,7 @@ class Job {
         createdAt: DateTime.parse(r['created_at']! as String),
         updatedAt: DateTime.parse(r['updated_at']! as String),
         deletedAt: r['deleted_at'] == null ? null : DateTime.tryParse(r['deleted_at']! as String),
+        readOnly: (r['read_only'] as int?) == 1,
       );
 }
 

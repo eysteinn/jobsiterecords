@@ -156,6 +156,10 @@ func (s *Service) applyActiveSubscription(ctx context.Context, data subscription
 		return "", fmt.Errorf("unknown paddle price id %q", priceID)
 	}
 
+	if err := s.CanDowngradeTo(ctx, workspaceID, plan.SKU); err != nil {
+		return workspaceID, fmt.Errorf("downgrade blocked: %w", err)
+	}
+
 	status := strings.TrimSpace(data.Status)
 	if status == "" {
 		status = "active"

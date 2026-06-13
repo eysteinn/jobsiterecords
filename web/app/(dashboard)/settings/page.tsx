@@ -1,15 +1,17 @@
+import { AccountSettingsActions } from "@/components/account-settings-actions";
 import { BillingSettings } from "@/components/billing-settings";
 import { DashboardSyncSettings } from "@/components/dashboard-sync-settings";
 import { PageShell } from "@/components/page-shell";
 import { getWorkspaceBillingServer } from "@/lib/api-billing-server";
 import { getTeam } from "@/lib/api-team";
+import { getActiveWorkspaceFromCookies } from "@/lib/active-workspace";
 import { planDisplayName } from "@/lib/paddle-config";
 import { requireSession } from "@/lib/server-session";
 import styles from "./settings.module.css";
 
 export default async function SettingsPage() {
   const session = await requireSession();
-  const workspace = session.workspaces[0];
+  const workspace = await getActiveWorkspaceFromCookies(session);
   const team =
     workspace?.role === "owner" ? await getTeam(workspace.id).catch(() => null) : null;
   const billing =
@@ -49,7 +51,7 @@ export default async function SettingsPage() {
               </div>
               {workspace.role === "owner" && team && (
                 <div>
-                  <dt>Members</dt>
+                  <dt>Seats used</dt>
                   <dd>
                     {team.member_count} / {team.member_limit}
                     {team.pending_count > 0 ? ` (${team.pending_count} pending)` : ""}
@@ -71,6 +73,11 @@ export default async function SettingsPage() {
           />
         )}
         <DashboardSyncSettings />
+        <AccountSettingsActions
+          workspaceId={workspace?.id}
+          workspaceName={workspace?.name}
+          isOwner={workspace?.role === "owner"}
+        />
       </div>
     </PageShell>
   );

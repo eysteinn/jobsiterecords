@@ -28,7 +28,7 @@ func (h *JobsHandler) ListWorkspaceJobs(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if items == nil {
-		items = []jobs.Job{}
+		items = []jobs.JobListEntry{}
 	}
 	httpx.JSON(w, http.StatusOK, map[string]any{"jobs": items})
 }
@@ -168,22 +168,82 @@ func writeCursorResponse(w http.ResponseWriter, r *http.Request, cursor time.Tim
 	httpx.JSON(w, http.StatusOK, map[string]string{"cursor": tag})
 }
 
-func (h *JobsHandler) AssignedJobIDs(w http.ResponseWriter, r *http.Request) {
+func (h *JobsHandler) GetAssignments(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.UserID(r.Context())
 	workspaceID := r.PathValue("workspaceID")
-	ids, err := h.jobs.ListAssignedJobIDs(r.Context(), userID, workspaceID)
+	resp, err := h.jobs.GetAssignments(r.Context(), userID, workspaceID)
 	if err != nil {
 		writeJobsError(w, err)
 		return
 	}
-	if ids == nil {
-		ids = []string{}
+	out := map[string]any{}
+	if len(resp.Assignments) > 0 {
+		out["assignments"] = resp.Assignments
 	}
-	httpx.JSON(w, http.StatusOK, map[string]any{"job_ids": ids})
+	if resp.AssignedJobIDs != nil {
+		if len(resp.AssignedJobIDs) == 0 {
+			resp.AssignedJobIDs = []string{}
+		}
+		out["assigned_job_ids"] = resp.AssignedJobIDs
+		out["job_ids"] = resp.AssignedJobIDs
+	}
+	httpx.JSON(w, http.StatusOK, out)
+}
+
+func (h *JobsHandler) AssignMember(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.UserID(r.Context())
+	workspaceID := r.PathValue("workspaceID")
+	jobID := r.PathValue("jobID")
+	var body struct {
+		UserID string `json:"user_id"`
+	}
+	if err := httpx.DecodeJSON(r, &body); err != nil || body.UserID == "" {
+		httpx.Error(w, http.StatusBadRequest, "invalid_request", "user_id required", nil)
+		return
+	}
+	if err := h.jobs.AssignMember(r.Context(), userID, workspaceID, jobID, body.UserID); err != nil {
+		writeJobsError(w, err)
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]string{"status": "assigned"})
+}
+
+func (h *JobsHandler) UnassignMember(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.UserID(r.Context())
+	workspaceID := r.PathValue("workspaceID")
+	jobID := r.PathValue("jobID")
+	memberUserID := r.PathValue("userID")
+	if err := h.jobs.UnassignMember(r.Context(), userID, workspaceID, jobID, memberUserID); err != nil {
+		writeJobsError(w, err)
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]string{"status": "unassigned"})
+}
+
+func (h *JobsHandler) PromoteLocalJob(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.UserID(r.Context())
+	workspaceID := r.PathValue("workspaceID")
+	var in jobs.PromoteLocalJobInput
+	if err := httpx.DecodeJSON(r, &in); err != nil {
+		httpx.Error(w, http.StatusBadRequest, "invalid_request", "Invalid JSON body", nil)
+		return
+	}
+	out, err := h.jobs.PromoteLocalJob(r.Context(), userID, workspaceID, in)
+	if err != nil {
+		writeJobsError(w, err)
+		return
+	}
+	httpx.JSON(w, http.StatusCreated, map[string]any{"job": out})
+}
+
+func (h *JobsHandler) AssignedJobIDs(w http.ResponseWriter, r *http.Request) {
+	h.GetAssignments(w, r)
 }
 
 func writeJobsError(w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, jobs.ErrNotOwner):
+		httpx.Error(w, http.StatusForbidden, "forbidden", "Owner access required", nil)
 	case errors.Is(err, billing.ErrTrialJobLimit):
 		httpx.Error(w, http.StatusForbidden, "trial_limit", "Trial allows up to 3 jobs. Upgrade to add more.", nil)
 	case errors.Is(err, billing.ErrTrialItemLimit):
