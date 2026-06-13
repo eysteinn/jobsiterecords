@@ -2,7 +2,7 @@
 
 > How a worker goes from free local-only use, to invited, to active workspace member, to removed — and what happens to seats, data, and privacy at every step. This is the canonical narrative for the **seat / membership** model.
 
-**Status:** Design (narrative spec) **+ implementation milestones** ([§24](#24-implementation-milestones)). SM1–SM9 largely implemented across API, web, and mobile; remaining gaps: Apple Sign In, iOS universal links, explicit cancel-wrong-upload UX (SM6 task 5), owner workspace transfer/delete APIs.
+**Status:** Design (narrative spec) **+ implementation milestones** ([§24](#24-implementation-milestones)). SM1–SM9 largely implemented across API, web, and mobile; remaining gaps: Apple Sign In, iOS universal links, owner workspace transfer/delete APIs.
 **Created:** 2026-06-13
 **Scope:** Billing/seat model, team membership, invite flow, local↔workspace boundary, multi-workspace membership.
 **Related docs:** [`high-level-design.md`](high-level-design.md) §billing & §auth, [`web-dashboard-design.md`](web-dashboard-design.md) §10 (billing / SKUs) & team admin, [`sync-strategy-plan.md`](sync-strategy-plan.md) (workspace isolation & sync).
@@ -582,9 +582,11 @@ Cross-company movement creates ownership, privacy, and permission problems.
 
 ### 23.6 If Ari captures something under the wrong workspace
 
-- **Not synced yet:** allow Ari to discard it locally before sync.
-  > This item is queued for upload to Jón Plumbing.
-  > [Cancel upload] [Delete item]
+Prevention is the primary mitigation: the **active workspace is visible on capture** (§23.4), and **route guards** stop opening or capturing into a job from another context (SM6).
+
+If a mistake still happens:
+
+- **Not synced yet:** Ari **deletes the items from that job** using normal delete — that removes local rows and nothing is uploaded. No separate “cancel upload” flow; unsynced pending rows are already discardable this way.
 - **Already synced:** do **not** allow moving it to the other company. He can delete it only if his permissions allow; otherwise the owner handles it. Once content enters a workspace it belongs to that workspace's record system, and moving it elsewhere could leak data.
 
 ### 23.7 What each owner sees
@@ -746,7 +748,7 @@ The plumbing is far more complete than the UX. A quick read of the current state
 
 ### SM6 — Local↔workspace boundary & one-way promotion
 
-**Status:** **Implemented** (API + mobile; cancel-wrong-upload UX partial).
+**Status:** **Implemented** (API + mobile).
 
 | # | Surface | Task | Status |
 | --- | --- | --- | --- |
@@ -754,9 +756,8 @@ The plumbing is far more complete than the UX. A quick read of the current state
 | 2 | Mobile | "Move to workspace" action with warning copy. | [have] |
 | 3 | Mobile | Active workspace name on capture screens. | [have] |
 | 4 | Mobile | Route guards on job/capture routes. | [have] |
-| 5 | Mobile | Cancel upload / delete for wrong-context queued items. | [partial] |
 
-**Acceptance:** Joining a workspace shows two contexts and uploads nothing automatically; "Move to workspace" copies a chosen local job after explicit confirmation; the workspace name is always visible while capturing; cross-workspace job moves are not offered.
+**Acceptance:** Joining a workspace shows two contexts and uploads nothing automatically; "Move to workspace" copies a chosen local job after explicit confirmation; the workspace name is always visible while capturing; cross-workspace job moves are not offered. Wrong-workspace mistakes before sync are handled by normal item delete, not a dedicated cancel-upload UI.
 
 ---
 
